@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwGridSummaryMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwGridSummary" id="JwGridSummaryResult">
+        <id property="summaryId" column="summary_id"/>
+        <result property="city" column="city"/>
+        <result property="indicatorCode" column="indicator_code"/>
+        <result property="actualWeight" column="actual_weight"/>
+        <result property="maxRaw" column="max_raw"/>
+        <result property="minRaw" column="min_raw"/>
+        <result property="maxNorm" column="max_norm"/>
+        <result property="minNorm" column="min_norm"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectJwGridSummaryVo">
+        SELECT summary_id, city, indicator_code,
+               actual_weight, max_raw, min_raw, max_norm, min_norm, create_time
+        FROM jw_grid_summary
+    </sql>
+
+    <select id="selectJwGridSummaryList" parameterType="com.ruoyi.jwmap.domain.JwGridSummary" resultMap="JwGridSummaryResult">
+        <include refid="selectJwGridSummaryVo"/>
+        <where>
+            <if test="city != null and city != ''">AND city = #{city}</if>
+            <if test="indicatorCode != null and indicatorCode != ''">AND indicator_code = #{indicatorCode}</if>
+        </where>
+        ORDER BY indicator_code
+    </select>
+
+    <select id="selectJwGridSummaryById" parameterType="Long" resultMap="JwGridSummaryResult">
+        <include refid="selectJwGridSummaryVo"/>
+        WHERE summary_id = #{summaryId}
+    </select>
+
+    <select id="selectByCity" parameterType="String" resultMap="JwGridSummaryResult">
+        <include refid="selectJwGridSummaryVo"/>
+        WHERE city = #{city}
+        ORDER BY indicator_code
+    </select>
+
+    <insert id="insertJwGridSummary" parameterType="com.ruoyi.jwmap.domain.JwGridSummary" useGeneratedKeys="true" keyProperty="summaryId">
+        INSERT INTO jw_grid_summary (
+            city, indicator_code, actual_weight,
+            max_raw, min_raw, max_norm, min_norm, create_time
+        ) VALUES (
+            #{city}, #{indicatorCode}, #{actualWeight},
+            #{maxRaw}, #{minRaw}, #{maxNorm}, #{minNorm}, sysdate()
+        )
+    </insert>
+
+    <insert id="insertGridSummary" parameterType="com.ruoyi.jwmap.domain.JwGridSummary" useGeneratedKeys="true" keyProperty="summaryId">
+        INSERT INTO jw_grid_summary (
+            city, indicator_code, actual_weight,
+            max_raw, min_raw, max_norm, min_norm, create_time
+        ) VALUES (
+            #{city}, #{indicatorCode}, #{actualWeight},
+            #{maxRaw}, #{minRaw}, #{maxNorm}, #{minNorm}, sysdate()
+        )
+    </insert>
+
+    <update id="updateJwGridSummary" parameterType="com.ruoyi.jwmap.domain.JwGridSummary">
+        UPDATE jw_grid_summary
+        <set>
+            <if test="city != null">city = #{city},</if>
+            <if test="indicatorCode != null">indicator_code = #{indicatorCode},</if>
+            <if test="actualWeight != null">actual_weight = #{actualWeight},</if>
+            <if test="maxRaw != null">max_raw = #{maxRaw},</if>
+            <if test="minRaw != null">min_raw = #{minRaw},</if>
+            <if test="maxNorm != null">max_norm = #{maxNorm},</if>
+            <if test="minNorm != null">min_norm = #{minNorm},</if>
+        </set>
+        WHERE summary_id = #{summaryId}
+    </update>
+
+    <update id="updateGridSummary" parameterType="com.ruoyi.jwmap.domain.JwGridSummary">
+        UPDATE jw_grid_summary
+        <set>
+            <if test="city != null">city = #{city},</if>
+            <if test="indicatorCode != null">indicator_code = #{indicatorCode},</if>
+            <if test="actualWeight != null">actual_weight = #{actualWeight},</if>
+            <if test="maxRaw != null">max_raw = #{maxRaw},</if>
+            <if test="minRaw != null">min_raw = #{minRaw},</if>
+            <if test="maxNorm != null">max_norm = #{maxNorm},</if>
+            <if test="minNorm != null">min_norm = #{minNorm},</if>
+        </set>
+        WHERE summary_id = #{summaryId}
+    </update>
+
+    <delete id="deleteJwGridSummaryById" parameterType="Long">
+        DELETE FROM jw_grid_summary WHERE summary_id = #{summaryId}
+    </delete>
+
+    <delete id="deleteJwGridSummaryByIds" parameterType="Long">
+        DELETE FROM jw_grid_summary WHERE summary_id IN
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteByCity" parameterType="String">
+        DELETE FROM jw_grid_summary WHERE city = #{city}
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_grid_summary (
+            city, indicator_code, actual_weight,
+            max_raw, min_raw, max_norm, min_norm, create_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.city}, #{item.indicatorCode}, #{item.actualWeight},
+             #{item.maxRaw}, #{item.minRaw}, #{item.maxNorm}, #{item.minNorm}, sysdate())
+        </foreach>
+    </insert>
+
+    <insert id="upsertJwGridSummary" parameterType="com.ruoyi.jwmap.domain.JwGridSummary">
+        INSERT INTO jw_grid_summary (
+            city, indicator_code, actual_weight,
+            max_raw, min_raw, max_norm, min_norm, create_time
+        ) VALUES (
+            #{city}, #{indicatorCode}, #{actualWeight},
+            #{maxRaw}, #{minRaw}, #{maxNorm}, #{minNorm}, sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            actual_weight = VALUES(actual_weight),
+            max_raw = VALUES(max_raw),
+            min_raw = VALUES(min_raw),
+            max_norm = VALUES(max_norm),
+            min_norm = VALUES(min_norm)
+    </insert>
+
+</mapper>

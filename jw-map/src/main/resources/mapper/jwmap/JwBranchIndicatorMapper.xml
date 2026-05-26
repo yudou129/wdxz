@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwBranchIndicatorMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwBranchIndicator" id="JwBranchIndicatorResult">
+        <id property="indicatorId" column="indicator_id"/>
+        <result property="branchId" column="branch_id"/>
+        <result property="dataYear" column="data_year"/>
+        <result property="sheetType" column="sheet_type"/>
+        <result property="indicatorCode" column="indicator_code"/>
+        <result property="indicatorValue" column="indicator_value"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectJwBranchIndicatorVo">
+        SELECT indicator_id, branch_id, data_year, sheet_type, indicator_code, indicator_value, create_time
+        FROM jw_branch_indicator
+    </sql>
+
+    <select id="selectJwBranchIndicatorList" parameterType="com.ruoyi.jwmap.domain.JwBranchIndicator" resultMap="JwBranchIndicatorResult">
+        <include refid="selectJwBranchIndicatorVo"/>
+        <where>
+            <if test="branchId != null">AND branch_id = #{branchId}</if>
+            <if test="dataYear != null">AND data_year = #{dataYear}</if>
+            <if test="sheetType != null and sheetType != ''">AND sheet_type = #{sheetType}</if>
+            <if test="indicatorCode != null and indicatorCode != ''">AND indicator_code = #{indicatorCode}</if>
+        </where>
+        ORDER BY indicator_id
+    </select>
+
+    <select id="selectJwBranchIndicatorById" parameterType="Long" resultMap="JwBranchIndicatorResult">
+        <include refid="selectJwBranchIndicatorVo"/>
+        WHERE indicator_id = #{indicatorId}
+    </select>
+
+    <select id="selectByBranchAndYear" resultMap="JwBranchIndicatorResult">
+        <include refid="selectJwBranchIndicatorVo"/>
+        WHERE branch_id = #{branchId} AND data_year = #{dataYear}
+        <if test="sheetType != null and sheetType != ''">
+            AND sheet_type = #{sheetType}
+        </if>
+        ORDER BY indicator_code
+    </select>
+
+    <select id="selectByBranchYearSheetAndIndicator" resultMap="JwBranchIndicatorResult">
+        <include refid="selectJwBranchIndicatorVo"/>
+        WHERE branch_id = #{branchId} AND data_year = #{dataYear}
+          AND sheet_type = #{sheetType} AND indicator_code = #{indicatorCode}
+    </select>
+
+    <select id="selectByCityAndYear" resultMap="JwBranchIndicatorResult">
+        SELECT i.indicator_id, i.branch_id, i.data_year, i.sheet_type, i.indicator_code, i.indicator_value, i.create_time
+        FROM jw_branch_indicator i
+        JOIN jw_branch_info b ON i.branch_id = b.branch_id
+        WHERE b.city = #{city} AND i.data_year = #{dataYear}
+        <if test="sheetType != null and sheetType != ''">
+            AND i.sheet_type = #{sheetType}
+        </if>
+        ORDER BY i.branch_id, i.indicator_code
+    </select>
+
+    <select id="selectByCityAndSheetType" resultMap="JwBranchIndicatorResult">
+        SELECT i.indicator_id, i.branch_id, i.data_year, i.sheet_type, i.indicator_code, i.indicator_value, i.create_time
+        FROM jw_branch_indicator i
+        JOIN jw_branch_info b ON i.branch_id = b.branch_id
+        WHERE b.city = #{city}
+        <if test="sheetType != null and sheetType != ''">
+            AND i.sheet_type = #{sheetType}
+        </if>
+        ORDER BY i.branch_id, i.data_year, i.indicator_code
+    </select>
+
+    <select id="selectByCityYearAndSheetType" resultMap="JwBranchIndicatorResult">
+        SELECT i.indicator_id, i.branch_id, i.data_year, i.sheet_type, i.indicator_code, i.indicator_value, i.create_time
+        FROM jw_branch_indicator i
+        JOIN jw_branch_info b ON i.branch_id = b.branch_id
+        WHERE b.city = #{city} AND i.data_year = #{dataYear}
+          AND i.sheet_type = #{sheetType}
+        ORDER BY i.branch_id, i.indicator_code
+    </select>
+
+    <insert id="insertJwBranchIndicator" parameterType="com.ruoyi.jwmap.domain.JwBranchIndicator" useGeneratedKeys="true" keyProperty="indicatorId">
+        INSERT INTO jw_branch_indicator (
+            branch_id, data_year, sheet_type, indicator_code, indicator_value, create_time
+        ) VALUES (
+            #{branchId}, #{dataYear}, #{sheetType}, #{indicatorCode}, #{indicatorValue}, sysdate()
+        )
+    </insert>
+
+    <update id="updateJwBranchIndicator" parameterType="com.ruoyi.jwmap.domain.JwBranchIndicator">
+        UPDATE jw_branch_indicator
+        <set>
+            <if test="branchId != null">branch_id = #{branchId},</if>
+            <if test="dataYear != null">data_year = #{dataYear},</if>
+            <if test="sheetType != null">sheet_type = #{sheetType},</if>
+            <if test="indicatorCode != null">indicator_code = #{indicatorCode},</if>
+            <if test="indicatorValue != null">indicator_value = #{indicatorValue},</if>
+        </set>
+        WHERE indicator_id = #{indicatorId}
+    </update>
+
+    <delete id="deleteJwBranchIndicatorById" parameterType="Long">
+        DELETE FROM jw_branch_indicator WHERE indicator_id = #{indicatorId}
+    </delete>
+
+    <delete id="deleteJwBranchIndicatorByIds" parameterType="Long">
+        DELETE FROM jw_branch_indicator WHERE indicator_id IN
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteByBranchAndYear">
+        DELETE FROM jw_branch_indicator
+        WHERE branch_id = #{branchId} AND data_year = #{dataYear}
+        <if test="sheetType != null and sheetType != ''">
+            AND sheet_type = #{sheetType}
+        </if>
+    </delete>
+
+    <delete id="deleteByBranchAndSheetType">
+        DELETE FROM jw_branch_indicator
+        WHERE branch_id = #{branchId}
+        <if test="sheetType != null and sheetType != ''">
+            AND sheet_type = #{sheetType}
+        </if>
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_branch_indicator (
+            branch_id, data_year, sheet_type, indicator_code, indicator_value, create_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.branchId}, #{item.dataYear}, #{item.sheetType}, #{item.indicatorCode}, #{item.indicatorValue}, sysdate())
+        </foreach>
+    </insert>
+
+    <insert id="upsertJwBranchIndicator" parameterType="com.ruoyi.jwmap.domain.JwBranchIndicator">
+        INSERT INTO jw_branch_indicator (
+            branch_id, data_year, sheet_type, indicator_code, indicator_value, create_time
+        ) VALUES (
+            #{branchId}, #{dataYear}, #{sheetType}, #{indicatorCode}, #{indicatorValue}, sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            indicator_value = VALUES(indicator_value)
+    </insert>
+
+    <insert id="upsertBranchIndicator" parameterType="com.ruoyi.jwmap.domain.JwBranchIndicator">
+        INSERT INTO jw_branch_indicator (
+            branch_id, data_year, sheet_type, indicator_code, indicator_value, create_time
+        ) VALUES (
+            #{branchId}, #{dataYear}, #{sheetType}, #{indicatorCode}, #{indicatorValue}, sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            indicator_value = VALUES(indicator_value)
+    </insert>
+
+</mapper>

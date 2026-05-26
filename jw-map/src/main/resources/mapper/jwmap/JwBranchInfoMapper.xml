@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwBranchInfoMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwBranchInfo" id="JwBranchInfoResult">
+        <id property="branchId" column="branch_id"/>
+        <result property="primaryBranch" column="primary_branch"/>
+        <result property="secondaryBranch" column="secondary_branch"/>
+        <result property="branchCode" column="branch_code"/>
+        <result property="city" column="city"/>
+        <result property="gridCode" column="grid_code"/>
+        <result property="districtName" column="district_name"/>
+        <result property="street" column="street"/>
+        <result property="address" column="address"/>
+        <result property="longitude" column="longitude"/>
+        <result property="latitude" column="latitude"/>
+        <result property="totalStaff" column="total_staff"/>
+        <result property="personalManager" column="personal_manager"/>
+        <result property="corporateManager" column="corporate_manager"/>
+        <result property="counterStaff" column="counter_staff"/>
+        <result property="lobbyStaff" column="lobby_staff"/>
+        <result property="branchManager" column="branch_manager"/>
+        <result property="managerTenure" column="manager_tenure"/>
+        <result property="managerResume" column="manager_resume"/>
+        <result property="managerHistory" column="manager_history"/>
+        <result property="totalArea" column="total_area"/>
+        <result property="otherFloorArea" column="other_floor_area"/>
+        <result property="cashCounter" column="cash_counter"/>
+        <result property="nonCashCounter" column="non_cash_counter"/>
+        <result property="managerSeat" column="manager_seat"/>
+        <result property="propertyRight" column="property_right"/>
+        <result property="leaseExpire" column="lease_expire"/>
+        <result property="lastRenovation" column="last_renovation"/>
+        <result property="branchType" column="branch_type"/>
+        <result property="relocation" column="relocation"/>
+        <result property="dataSource" column="data_source"/>
+        <result property="delFlag" column="del_flag"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="selectJwBranchInfoVo">
+        SELECT branch_id, primary_branch, secondary_branch, branch_code, city, grid_code,
+               district_name, street, address, longitude, latitude,
+               total_staff, personal_manager, corporate_manager, counter_staff, lobby_staff,
+               branch_manager, manager_tenure, manager_resume, manager_history,
+               total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
+               property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
+               del_flag, create_by, create_time, update_by, update_time, remark
+        FROM jw_branch_info
+    </sql>
+
+    <select id="selectJwBranchInfoList" parameterType="com.ruoyi.jwmap.domain.JwBranchInfo" resultMap="JwBranchInfoResult">
+        <include refid="selectJwBranchInfoVo"/>
+        <where>
+            <if test="branchCode != null and branchCode != ''">
+                AND branch_code LIKE CONCAT('%', #{branchCode}, '%')
+            </if>
+            <if test="primaryBranch != null and primaryBranch != ''">
+                AND primary_branch = #{primaryBranch}
+            </if>
+            <if test="secondaryBranch != null and secondaryBranch != ''">
+                AND secondary_branch = #{secondaryBranch}
+            </if>
+            <if test="gridCode != null and gridCode != ''">
+                AND grid_code = #{gridCode}
+            </if>
+            <if test="city != null and city != ''">
+                AND city = #{city}
+            </if>
+            <if test="branchType != null and branchType != ''">
+                AND branch_type = #{branchType}
+            </if>
+            <if test="dataSource != null and dataSource != ''">
+                AND data_source = #{dataSource}
+            </if>
+            <if test="delFlag != null and delFlag != ''">
+                AND del_flag = #{delFlag}
+            </if>
+        </where>
+        ORDER BY branch_id
+    </select>
+
+    <select id="selectJwBranchInfoById" parameterType="Long" resultMap="JwBranchInfoResult">
+        <include refid="selectJwBranchInfoVo"/>
+        WHERE branch_id = #{branchId}
+    </select>
+
+    <select id="selectByBranchCode" parameterType="String" resultMap="JwBranchInfoResult">
+        <include refid="selectJwBranchInfoVo"/>
+        WHERE branch_code = #{branchCode}
+    </select>
+
+    <select id="selectByCity" parameterType="String" resultMap="JwBranchInfoResult">
+        <include refid="selectJwBranchInfoVo"/>
+        WHERE city = #{city} AND (del_flag IS NULL OR del_flag = '0')
+        ORDER BY branch_id
+    </select>
+
+    <insert id="insertJwBranchInfo" parameterType="com.ruoyi.jwmap.domain.JwBranchInfo" useGeneratedKeys="true" keyProperty="branchId">
+        INSERT INTO jw_branch_info (
+            primary_branch, secondary_branch, branch_code, city, grid_code,
+            district_name, street, address, longitude, latitude,
+            total_staff, personal_manager, corporate_manager, counter_staff, lobby_staff,
+            branch_manager, manager_tenure, manager_resume, manager_history,
+            total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
+            property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
+            del_flag, create_by, create_time, update_time
+        ) VALUES (
+            #{primaryBranch}, #{secondaryBranch}, #{branchCode}, #{city}, #{gridCode},
+            #{districtName}, #{street}, #{address}, #{longitude}, #{latitude},
+            #{totalStaff}, #{personalManager}, #{corporateManager}, #{counterStaff}, #{lobbyStaff},
+            #{branchManager}, #{managerTenure}, #{managerResume}, #{managerHistory},
+            #{totalArea}, #{otherFloorArea}, #{cashCounter}, #{nonCashCounter}, #{managerSeat},
+            #{propertyRight}, #{leaseExpire}, #{lastRenovation}, #{branchType}, #{relocation}, #{dataSource},
+            #{delFlag}, #{createBy}, sysdate(), sysdate()
+        )
+    </insert>
+
+    <insert id="insertBranchInfo" parameterType="com.ruoyi.jwmap.domain.JwBranchInfo" useGeneratedKeys="true" keyProperty="branchId">
+        INSERT INTO jw_branch_info (
+            primary_branch, secondary_branch, branch_code, city, grid_code,
+            district_name, street, address, longitude, latitude,
+            total_staff, personal_manager, corporate_manager, counter_staff, lobby_staff,
+            branch_manager, manager_tenure, manager_resume, manager_history,
+            total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
+            property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
+            del_flag, create_by, create_time, update_time
+        ) VALUES (
+            #{primaryBranch}, #{secondaryBranch}, #{branchCode}, #{city}, #{gridCode},
+            #{districtName}, #{street}, #{address}, #{longitude}, #{latitude},
+            #{totalStaff}, #{personalManager}, #{corporateManager}, #{counterStaff}, #{lobbyStaff},
+            #{branchManager}, #{managerTenure}, #{managerResume}, #{managerHistory},
+            #{totalArea}, #{otherFloorArea}, #{cashCounter}, #{nonCashCounter}, #{managerSeat},
+            #{propertyRight}, #{leaseExpire}, #{lastRenovation}, #{branchType}, #{relocation}, #{dataSource},
+            #{delFlag}, #{createBy}, sysdate(), sysdate()
+        )
+    </insert>
+
+    <update id="updateJwBranchInfo" parameterType="com.ruoyi.jwmap.domain.JwBranchInfo">
+        UPDATE jw_branch_info
+        <set>
+            <if test="primaryBranch != null">primary_branch = #{primaryBranch},</if>
+            <if test="secondaryBranch != null">secondary_branch = #{secondaryBranch},</if>
+            <if test="branchCode != null">branch_code = #{branchCode},</if>
+            <if test="city != null and city != ''">city = #{city},</if>
+            <if test="gridCode != null">grid_code = #{gridCode},</if>
+            <if test="districtName != null">district_name = #{districtName},</if>
+            <if test="street != null">street = #{street},</if>
+            <if test="address != null">address = #{address},</if>
+            <if test="longitude != null">longitude = #{longitude},</if>
+            <if test="latitude != null">latitude = #{latitude},</if>
+            <if test="totalStaff != null">total_staff = #{totalStaff},</if>
+            <if test="personalManager != null">personal_manager = #{personalManager},</if>
+            <if test="corporateManager != null">corporate_manager = #{corporateManager},</if>
+            <if test="counterStaff != null">counter_staff = #{counterStaff},</if>
+            <if test="lobbyStaff != null">lobby_staff = #{lobbyStaff},</if>
+            <if test="branchManager != null">branch_manager = #{branchManager},</if>
+            <if test="managerTenure != null">manager_tenure = #{managerTenure},</if>
+            <if test="managerResume != null">manager_resume = #{managerResume},</if>
+            <if test="managerHistory != null">manager_history = #{managerHistory},</if>
+            <if test="totalArea != null">total_area = #{totalArea},</if>
+            <if test="otherFloorArea != null">other_floor_area = #{otherFloorArea},</if>
+            <if test="cashCounter != null">cash_counter = #{cashCounter},</if>
+            <if test="nonCashCounter != null">non_cash_counter = #{nonCashCounter},</if>
+            <if test="managerSeat != null">manager_seat = #{managerSeat},</if>
+            <if test="propertyRight != null">property_right = #{propertyRight},</if>
+            <if test="leaseExpire != null">lease_expire = #{leaseExpire},</if>
+            <if test="lastRenovation != null">last_renovation = #{lastRenovation},</if>
+            <if test="branchType != null">branch_type = #{branchType},</if>
+            <if test="relocation != null">relocation = #{relocation},</if>
+            <if test="dataSource != null">data_source = #{dataSource},</if>
+            <if test="delFlag != null">del_flag = #{delFlag},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            update_time = sysdate()
+        </set>
+        WHERE branch_id = #{branchId}
+    </update>
+
+    <update id="updateBranchInfo" parameterType="com.ruoyi.jwmap.domain.JwBranchInfo">
+        UPDATE jw_branch_info
+        <set>
+            <if test="primaryBranch != null">primary_branch = #{primaryBranch},</if>
+            <if test="secondaryBranch != null">secondary_branch = #{secondaryBranch},</if>
+            <if test="branchCode != null">branch_code = #{branchCode},</if>
+            <if test="city != null and city != ''">city = #{city},</if>
+            <if test="gridCode != null">grid_code = #{gridCode},</if>
+            <if test="districtName != null">district_name = #{districtName},</if>
+            <if test="street != null">street = #{street},</if>
+            <if test="address != null">address = #{address},</if>
+            <if test="longitude != null">longitude = #{longitude},</if>
+            <if test="latitude != null">latitude = #{latitude},</if>
+            <if test="totalStaff != null">total_staff = #{totalStaff},</if>
+            <if test="personalManager != null">personal_manager = #{personalManager},</if>
+            <if test="corporateManager != null">corporate_manager = #{corporateManager},</if>
+            <if test="counterStaff != null">counter_staff = #{counterStaff},</if>
+            <if test="lobbyStaff != null">lobby_staff = #{lobbyStaff},</if>
+            <if test="branchManager != null">branch_manager = #{branchManager},</if>
+            <if test="managerTenure != null">manager_tenure = #{managerTenure},</if>
+            <if test="managerResume != null">manager_resume = #{managerResume},</if>
+            <if test="managerHistory != null">manager_history = #{managerHistory},</if>
+            <if test="totalArea != null">total_area = #{totalArea},</if>
+            <if test="otherFloorArea != null">other_floor_area = #{otherFloorArea},</if>
+            <if test="cashCounter != null">cash_counter = #{cashCounter},</if>
+            <if test="nonCashCounter != null">non_cash_counter = #{nonCashCounter},</if>
+            <if test="managerSeat != null">manager_seat = #{managerSeat},</if>
+            <if test="propertyRight != null">property_right = #{propertyRight},</if>
+            <if test="leaseExpire != null">lease_expire = #{leaseExpire},</if>
+            <if test="lastRenovation != null">last_renovation = #{lastRenovation},</if>
+            <if test="branchType != null">branch_type = #{branchType},</if>
+            <if test="relocation != null">relocation = #{relocation},</if>
+            <if test="dataSource != null">data_source = #{dataSource},</if>
+            <if test="delFlag != null">del_flag = #{delFlag},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            update_time = sysdate()
+        </set>
+        WHERE branch_id = #{branchId}
+    </update>
+
+    <update id="updateGridCode">
+        UPDATE jw_branch_info
+        SET grid_code = #{gridCode}, update_time = sysdate()
+        WHERE branch_id = #{branchId}
+    </update>
+
+    <delete id="deleteJwBranchInfoById" parameterType="Long">
+        DELETE FROM jw_branch_info WHERE branch_id = #{branchId}
+    </delete>
+
+    <delete id="deleteJwBranchInfoByIds" parameterType="Long">
+        DELETE FROM jw_branch_info WHERE branch_id IN
+        <foreach item="branchId" collection="array" open="(" separator="," close=")">
+            #{branchId}
+        </foreach>
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_branch_info (
+            primary_branch, secondary_branch, branch_code, city, grid_code,
+            district_name, street, address, longitude, latitude,
+            total_staff, personal_manager, corporate_manager, counter_staff, lobby_staff,
+            branch_manager, manager_tenure, manager_resume, manager_history,
+            total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
+            property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
+            del_flag, create_time, update_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.primaryBranch}, #{item.secondaryBranch}, #{item.branchCode}, #{item.city}, #{item.gridCode},
+             #{item.districtName}, #{item.street}, #{item.address}, #{item.longitude}, #{item.latitude},
+             #{item.totalStaff}, #{item.personalManager}, #{item.corporateManager}, #{item.counterStaff}, #{item.lobbyStaff},
+             #{item.branchManager}, #{item.managerTenure}, #{item.managerResume}, #{item.managerHistory},
+             #{item.totalArea}, #{item.otherFloorArea}, #{item.cashCounter}, #{item.nonCashCounter}, #{item.managerSeat},
+             #{item.propertyRight}, #{item.leaseExpire}, #{item.lastRenovation}, #{item.branchType}, #{item.relocation}, #{item.dataSource},
+             #{item.delFlag}, sysdate(), sysdate())
+        </foreach>
+    </insert>
+
+    <insert id="upsertJwBranchInfo" parameterType="com.ruoyi.jwmap.domain.JwBranchInfo">
+        INSERT INTO jw_branch_info (
+            primary_branch, secondary_branch, branch_code, city, grid_code,
+            district_name, street, address, longitude, latitude,
+            total_staff, personal_manager, corporate_manager, counter_staff, lobby_staff,
+            branch_manager, manager_tenure, manager_resume, manager_history,
+            total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
+            property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
+            del_flag, create_by, create_time, update_time
+        ) VALUES (
+            #{primaryBranch}, #{secondaryBranch}, #{branchCode}, #{city}, #{gridCode},
+            #{districtName}, #{street}, #{address}, #{longitude}, #{latitude},
+            #{totalStaff}, #{personalManager}, #{corporateManager}, #{counterStaff}, #{lobbyStaff},
+            #{branchManager}, #{managerTenure}, #{managerResume}, #{managerHistory},
+            #{totalArea}, #{otherFloorArea}, #{cashCounter}, #{nonCashCounter}, #{managerSeat},
+            #{propertyRight}, #{leaseExpire}, #{lastRenovation}, #{branchType}, #{relocation}, #{dataSource},
+            #{delFlag}, #{createBy}, sysdate(), sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            primary_branch = VALUES(primary_branch),
+            secondary_branch = VALUES(secondary_branch),
+            city = VALUES(city),
+            grid_code = VALUES(grid_code),
+            district_name = VALUES(district_name),
+            street = VALUES(street),
+            address = VALUES(address),
+            longitude = VALUES(longitude),
+            latitude = VALUES(latitude),
+            total_staff = VALUES(total_staff),
+            personal_manager = VALUES(personal_manager),
+            corporate_manager = VALUES(corporate_manager),
+            counter_staff = VALUES(counter_staff),
+            lobby_staff = VALUES(lobby_staff),
+            branch_manager = VALUES(branch_manager),
+            manager_tenure = VALUES(manager_tenure),
+            manager_resume = VALUES(manager_resume),
+            manager_history = VALUES(manager_history),
+            total_area = VALUES(total_area),
+            other_floor_area = VALUES(other_floor_area),
+            cash_counter = VALUES(cash_counter),
+            non_cash_counter = VALUES(non_cash_counter),
+            manager_seat = VALUES(manager_seat),
+            property_right = VALUES(property_right),
+            lease_expire = VALUES(lease_expire),
+            last_renovation = VALUES(last_renovation),
+            branch_type = VALUES(branch_type),
+            relocation = VALUES(relocation),
+            data_source = VALUES(data_source),
+            update_time = sysdate()
+    </insert>
+
+</mapper>

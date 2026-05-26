@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwGridMetaMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwGridMeta" id="JwGridMetaResult">
+        <id property="gridCode" column="grid_code"/>
+        <result property="longitude" column="longitude"/>
+        <result property="latitude" column="latitude"/>
+        <result property="westLongitude" column="west_longitude"/>
+        <result property="eastLongitude" column="east_longitude"/>
+        <result property="northLatitude" column="north_latitude"/>
+        <result property="southLatitude" column="south_latitude"/>
+        <result property="province" column="province"/>
+        <result property="city" column="city"/>
+        <result property="district" column="district"/>
+        <result property="poiCount" column="poi_count"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="selectJwGridMetaVo">
+        SELECT grid_code, longitude, latitude,
+               west_longitude, east_longitude, north_latitude, south_latitude,
+               province, city, district, poi_count,
+               create_by, create_time, update_by, update_time, remark
+        FROM jw_grid_meta
+    </sql>
+
+    <select id="selectJwGridMetaList" parameterType="com.ruoyi.jwmap.domain.JwGridMeta" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        <where>
+            <if test="gridCode != null and gridCode != ''">AND grid_code LIKE CONCAT('%', #{gridCode}, '%')</if>
+            <if test="city != null and city != ''">AND city = #{city}</if>
+            <if test="province != null and province != ''">AND province = #{province}</if>
+            <if test="district != null and district != ''">AND district = #{district}</if>
+        </where>
+        ORDER BY grid_code
+    </select>
+
+    <select id="selectJwGridMetaById" parameterType="String" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        WHERE grid_code = #{gridCode}
+    </select>
+
+    <select id="selectByGridCode" parameterType="String" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        WHERE grid_code = #{gridCode}
+    </select>
+
+    <select id="selectByCity" parameterType="String" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        WHERE city = #{city}
+        ORDER BY grid_code
+    </select>
+
+    <select id="selectDistinctCities" resultType="String">
+        SELECT DISTINCT city FROM jw_grid_meta ORDER BY city
+    </select>
+
+    <insert id="insertJwGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
+        INSERT INTO jw_grid_meta (
+            grid_code, longitude, latitude,
+            west_longitude, east_longitude, north_latitude, south_latitude,
+            province, city, district, poi_count,
+            create_by, create_time, update_time
+        ) VALUES (
+            #{gridCode}, #{longitude}, #{latitude},
+            #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
+            #{province}, #{city}, #{district}, #{poiCount},
+            #{createBy}, sysdate(), sysdate()
+        )
+    </insert>
+
+    <update id="updateJwGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
+        UPDATE jw_grid_meta
+        <set>
+            <if test="longitude != null">longitude = #{longitude},</if>
+            <if test="latitude != null">latitude = #{latitude},</if>
+            <if test="westLongitude != null">west_longitude = #{westLongitude},</if>
+            <if test="eastLongitude != null">east_longitude = #{eastLongitude},</if>
+            <if test="northLatitude != null">north_latitude = #{northLatitude},</if>
+            <if test="southLatitude != null">south_latitude = #{southLatitude},</if>
+            <if test="province != null">province = #{province},</if>
+            <if test="city != null">city = #{city},</if>
+            <if test="district != null">district = #{district},</if>
+            <if test="poiCount != null">poi_count = #{poiCount},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            update_time = sysdate()
+        </set>
+        WHERE grid_code = #{gridCode}
+    </update>
+
+    <delete id="deleteJwGridMetaById" parameterType="String">
+        DELETE FROM jw_grid_meta WHERE grid_code = #{gridCode}
+    </delete>
+
+    <delete id="deleteJwGridMetaByIds" parameterType="String">
+        DELETE FROM jw_grid_meta WHERE grid_code IN
+        <foreach item="code" collection="array" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </delete>
+
+    <delete id="deleteByCity" parameterType="String">
+        DELETE FROM jw_grid_meta WHERE city = #{city}
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_grid_meta (
+            grid_code, longitude, latitude,
+            west_longitude, east_longitude, north_latitude, south_latitude,
+            province, city, district, poi_count,
+            create_time, update_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.gridCode}, #{item.longitude}, #{item.latitude},
+             #{item.westLongitude}, #{item.eastLongitude}, #{item.northLatitude}, #{item.southLatitude},
+             #{item.province}, #{item.city}, #{item.district}, #{item.poiCount},
+             sysdate(), sysdate())
+        </foreach>
+    </insert>
+
+    <insert id="upsertJwGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
+        INSERT INTO jw_grid_meta (
+            grid_code, longitude, latitude,
+            west_longitude, east_longitude, north_latitude, south_latitude,
+            province, city, district, poi_count,
+            create_by, create_time, update_time
+        ) VALUES (
+            #{gridCode}, #{longitude}, #{latitude},
+            #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
+            #{province}, #{city}, #{district}, #{poiCount},
+            #{createBy}, sysdate(), sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            longitude = VALUES(longitude),
+            latitude = VALUES(latitude),
+            west_longitude = VALUES(west_longitude),
+            east_longitude = VALUES(east_longitude),
+            north_latitude = VALUES(north_latitude),
+            south_latitude = VALUES(south_latitude),
+            province = VALUES(province),
+            city = VALUES(city),
+            district = VALUES(district),
+            poi_count = VALUES(poi_count),
+            update_time = sysdate()
+    </insert>
+
+    <insert id="upsertGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
+        INSERT INTO jw_grid_meta (
+            grid_code, longitude, latitude,
+            west_longitude, east_longitude, north_latitude, south_latitude,
+            province, city, district, poi_count,
+            create_by, create_time, update_time
+        ) VALUES (
+            #{gridCode}, #{longitude}, #{latitude},
+            #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
+            #{province}, #{city}, #{district}, #{poiCount},
+            #{createBy}, sysdate(), sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            longitude = VALUES(longitude),
+            latitude = VALUES(latitude),
+            west_longitude = VALUES(west_longitude),
+            east_longitude = VALUES(east_longitude),
+            north_latitude = VALUES(north_latitude),
+            south_latitude = VALUES(south_latitude),
+            province = VALUES(province),
+            city = VALUES(city),
+            district = VALUES(district),
+            poi_count = VALUES(poi_count),
+            update_time = sysdate()
+    </insert>
+
+</mapper>

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwBranchScoreMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwBranchScore" id="JwBranchScoreResult">
+        <id property="scoreId" column="score_id"/>
+        <result property="branchId" column="branch_id"/>
+        <result property="dataYear" column="data_year"/>
+        <result property="city" column="city"/>
+        <result property="scoreCategory" column="score_category"/>
+        <result property="positiveDistance" column="positive_distance"/>
+        <result property="negativeDistance" column="negative_distance"/>
+        <result property="categoryScore" column="category_score"/>
+        <result property="rankNum" column="rank_num"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectJwBranchScoreVo">
+        SELECT score_id, branch_id, data_year, city, score_category,
+               positive_distance, negative_distance, category_score, rank_num, create_time
+        FROM jw_branch_score
+    </sql>
+
+    <select id="selectJwBranchScoreList" parameterType="com.ruoyi.jwmap.domain.JwBranchScore" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        <where>
+            <if test="branchId != null">AND branch_id = #{branchId}</if>
+            <if test="dataYear != null">AND data_year = #{dataYear}</if>
+            <if test="city != null and city != ''">AND city = #{city}</if>
+            <if test="scoreCategory != null and scoreCategory != ''">AND score_category = #{scoreCategory}</if>
+        </where>
+        ORDER BY rank_num
+    </select>
+
+    <select id="selectJwBranchScoreById" parameterType="Long" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE score_id = #{scoreId}
+    </select>
+
+    <select id="selectByBranchAndYear" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE branch_id = #{branchId} AND data_year = #{dataYear}
+        ORDER BY score_category
+    </select>
+
+    <select id="selectByCityAndYear" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE city = #{city} AND data_year = #{dataYear}
+        ORDER BY score_category, rank_num
+    </select>
+
+    <select id="selectByCityAndYearAndCategory" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE city = #{city} AND data_year = #{dataYear} AND score_category = #{category}
+        ORDER BY rank_num
+    </select>
+
+    <insert id="insertJwBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore" useGeneratedKeys="true" keyProperty="scoreId">
+        INSERT INTO jw_branch_score (
+            branch_id, data_year, city, score_category,
+            positive_distance, negative_distance, category_score, rank_num, create_time
+        ) VALUES (
+            #{branchId}, #{dataYear}, #{city}, #{scoreCategory},
+            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, sysdate()
+        )
+    </insert>
+
+    <update id="updateJwBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
+        UPDATE jw_branch_score
+        <set>
+            <if test="branchId != null">branch_id = #{branchId},</if>
+            <if test="dataYear != null">data_year = #{dataYear},</if>
+            <if test="city != null">city = #{city},</if>
+            <if test="scoreCategory != null">score_category = #{scoreCategory},</if>
+            <if test="positiveDistance != null">positive_distance = #{positiveDistance},</if>
+            <if test="negativeDistance != null">negative_distance = #{negativeDistance},</if>
+            <if test="categoryScore != null">category_score = #{categoryScore},</if>
+            <if test="rankNum != null">rank_num = #{rankNum},</if>
+        </set>
+        WHERE score_id = #{scoreId}
+    </update>
+
+    <update id="updateRank" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
+        UPDATE jw_branch_score
+        SET rank_num = #{rankNum}
+        WHERE score_id = #{scoreId}
+    </update>
+
+    <delete id="deleteJwBranchScoreById" parameterType="Long">
+        DELETE FROM jw_branch_score WHERE score_id = #{scoreId}
+    </delete>
+
+    <delete id="deleteJwBranchScoreByIds" parameterType="Long">
+        DELETE FROM jw_branch_score WHERE score_id IN
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteByCityAndYear">
+        DELETE FROM jw_branch_score WHERE city = #{city} AND data_year = #{dataYear}
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_branch_score (
+            branch_id, data_year, city, score_category,
+            positive_distance, negative_distance, category_score, rank_num, create_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.branchId}, #{item.dataYear}, #{item.city}, #{item.scoreCategory},
+             #{item.positiveDistance}, #{item.negativeDistance}, #{item.categoryScore}, #{item.rankNum}, sysdate())
+        </foreach>
+    </insert>
+
+    <insert id="upsertJwBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
+        INSERT INTO jw_branch_score (
+            branch_id, data_year, city, score_category,
+            positive_distance, negative_distance, category_score, rank_num, create_time
+        ) VALUES (
+            #{branchId}, #{dataYear}, #{city}, #{scoreCategory},
+            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            positive_distance = VALUES(positive_distance),
+            negative_distance = VALUES(negative_distance),
+            category_score = VALUES(category_score),
+            rank_num = VALUES(rank_num)
+    </insert>
+
+    <insert id="upsertBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
+        INSERT INTO jw_branch_score (
+            branch_id, data_year, city, score_category,
+            positive_distance, negative_distance, category_score, rank_num, create_time
+        ) VALUES (
+            #{branchId}, #{dataYear}, #{city}, #{scoreCategory},
+            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            positive_distance = VALUES(positive_distance),
+            negative_distance = VALUES(negative_distance),
+            category_score = VALUES(category_score),
+            rank_num = VALUES(rank_num)
+    </insert>
+
+</mapper>

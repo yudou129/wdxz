@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwBranchEffWeightMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwWeightConfig" id="JwWeightConfigResult">
+        <id property="weightId" column="weight_id"/>
+        <result property="level1Name" column="level1_name"/>
+        <result property="level1Ratio" column="level1_ratio"/>
+        <result property="level2Name" column="level2_name"/>
+        <result property="level2Ratio" column="level2_ratio"/>
+        <result property="level3Name" column="level3_name"/>
+        <result property="level3Ratio" column="level3_ratio"/>
+        <result property="totalWeight" column="total_weight"/>
+        <result property="indicatorCode" column="indicator_code"/>
+        <result property="createTime" column="create_time"/>
+        <result property="createBy" column="create_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="selectJwWeightConfigVo">
+        SELECT weight_id, level1_name, level1_ratio, level2_name, level2_ratio,
+               level3_name, level3_ratio, total_weight, indicator_code,
+               create_time, create_by, update_time, update_by, remark
+        FROM jw_branch_efficiency_weight
+    </sql>
+
+    <select id="selectAll" resultMap="JwWeightConfigResult">
+        <include refid="selectJwWeightConfigVo"/>
+        ORDER BY weight_id
+    </select>
+
+    <select id="selectByIndicatorCode" resultMap="JwWeightConfigResult">
+        <include refid="selectJwWeightConfigVo"/>
+        WHERE indicator_code = #{indicatorCode}
+    </select>
+
+    <insert id="insertJwWeightConfig" parameterType="com.ruoyi.jwmap.domain.JwWeightConfig" useGeneratedKeys="true" keyProperty="weightId">
+        INSERT INTO jw_branch_efficiency_weight (
+            level1_name, level1_ratio, level2_name, level2_ratio,
+            level3_name, level3_ratio, total_weight, indicator_code,
+            create_time, update_time
+        ) VALUES (
+            #{level1Name}, #{level1Ratio}, #{level2Name}, #{level2Ratio},
+            #{level3Name}, #{level3Ratio}, #{totalWeight}, #{indicatorCode},
+            sysdate(), sysdate()
+        )
+    </insert>
+
+    <insert id="insertWeightConfig" parameterType="com.ruoyi.jwmap.domain.JwWeightConfig" useGeneratedKeys="true" keyProperty="weightId">
+        INSERT INTO jw_branch_efficiency_weight (
+            level1_name, level1_ratio, level2_name, level2_ratio,
+            level3_name, level3_ratio, total_weight, indicator_code,
+            create_time, update_time
+        ) VALUES (
+            #{level1Name}, #{level1Ratio}, #{level2Name}, #{level2Ratio},
+            #{level3Name}, #{level3Ratio}, #{totalWeight}, #{indicatorCode},
+            sysdate(), sysdate()
+        )
+    </insert>
+
+    <update id="updateJwWeightConfig" parameterType="com.ruoyi.jwmap.domain.JwWeightConfig">
+        UPDATE jw_branch_efficiency_weight
+        <set>
+            <if test="level1Name != null">level1_name = #{level1Name},</if>
+            <if test="level1Ratio != null">level1_ratio = #{level1Ratio},</if>
+            <if test="level2Name != null">level2_name = #{level2Name},</if>
+            <if test="level2Ratio != null">level2_ratio = #{level2Ratio},</if>
+            <if test="level3Name != null">level3_name = #{level3Name},</if>
+            <if test="level3Ratio != null">level3_ratio = #{level3Ratio},</if>
+            <if test="totalWeight != null">total_weight = #{totalWeight},</if>
+            <if test="indicatorCode != null">indicator_code = #{indicatorCode},</if>
+            update_time = sysdate()
+        </set>
+        WHERE weight_id = #{weightId}
+    </update>
+
+    <delete id="deleteJwWeightConfigById" parameterType="Long">
+        DELETE FROM jw_branch_efficiency_weight WHERE weight_id = #{weightId}
+    </delete>
+
+    <delete id="deleteAll">
+        DELETE FROM jw_branch_efficiency_weight
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_branch_efficiency_weight (
+            level1_name, level1_ratio, level2_name, level2_ratio,
+            level3_name, level3_ratio, total_weight, indicator_code,
+            create_time, update_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.level1Name}, #{item.level1Ratio}, #{item.level2Name}, #{item.level2Ratio},
+             #{item.level3Name}, #{item.level3Ratio}, #{item.totalWeight}, #{item.indicatorCode},
+             sysdate(), sysdate())
+        </foreach>
+    </insert>
+
+</mapper>

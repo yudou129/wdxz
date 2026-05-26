@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwBranchSummaryMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwBranchSummary" id="JwBranchSummaryResult">
+        <id property="summaryId" column="summary_id"/>
+        <result property="city" column="city"/>
+        <result property="dataYear" column="data_year"/>
+        <result property="indicatorCode" column="indicator_code"/>
+        <result property="actualWeight" column="actual_weight"/>
+        <result property="maxValue" column="max_value"/>
+        <result property="minValue" column="min_value"/>
+        <result property="maxNorm" column="max_norm"/>
+        <result property="minNorm" column="min_norm"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectJwBranchSummaryVo">
+        SELECT summary_id, city, data_year, indicator_code,
+               actual_weight, max_value, min_value, max_norm, min_norm, create_time
+        FROM jw_branch_summary
+    </sql>
+
+    <select id="selectJwBranchSummaryList" parameterType="com.ruoyi.jwmap.domain.JwBranchSummary" resultMap="JwBranchSummaryResult">
+        <include refid="selectJwBranchSummaryVo"/>
+        <where>
+            <if test="city != null and city != ''">AND city = #{city}</if>
+            <if test="dataYear != null">AND data_year = #{dataYear}</if>
+            <if test="indicatorCode != null and indicatorCode != ''">AND indicator_code = #{indicatorCode}</if>
+        </where>
+        ORDER BY indicator_code
+    </select>
+
+    <select id="selectJwBranchSummaryById" parameterType="Long" resultMap="JwBranchSummaryResult">
+        <include refid="selectJwBranchSummaryVo"/>
+        WHERE summary_id = #{summaryId}
+    </select>
+
+    <select id="selectByCityAndYear" resultMap="JwBranchSummaryResult">
+        <include refid="selectJwBranchSummaryVo"/>
+        WHERE city = #{city} AND data_year = #{dataYear}
+        ORDER BY indicator_code
+    </select>
+
+    <insert id="insertJwBranchSummary" parameterType="com.ruoyi.jwmap.domain.JwBranchSummary" useGeneratedKeys="true" keyProperty="summaryId">
+        INSERT INTO jw_branch_summary (
+            city, data_year, indicator_code, actual_weight,
+            max_value, min_value, max_norm, min_norm, create_time
+        ) VALUES (
+            #{city}, #{dataYear}, #{indicatorCode}, #{actualWeight},
+            #{maxValue}, #{minValue}, #{maxNorm}, #{minNorm}, sysdate()
+        )
+    </insert>
+
+    <insert id="insertBranchSummary" parameterType="com.ruoyi.jwmap.domain.JwBranchSummary" useGeneratedKeys="true" keyProperty="summaryId">
+        INSERT INTO jw_branch_summary (
+            city, data_year, indicator_code, actual_weight,
+            max_value, min_value, max_norm, min_norm, create_time
+        ) VALUES (
+            #{city}, #{dataYear}, #{indicatorCode}, #{actualWeight},
+            #{maxValue}, #{minValue}, #{maxNorm}, #{minNorm}, sysdate()
+        )
+    </insert>
+
+    <update id="updateJwBranchSummary" parameterType="com.ruoyi.jwmap.domain.JwBranchSummary">
+        UPDATE jw_branch_summary
+        <set>
+            <if test="city != null">city = #{city},</if>
+            <if test="dataYear != null">data_year = #{dataYear},</if>
+            <if test="indicatorCode != null">indicator_code = #{indicatorCode},</if>
+            <if test="actualWeight != null">actual_weight = #{actualWeight},</if>
+            <if test="maxValue != null">max_value = #{maxValue},</if>
+            <if test="minValue != null">min_value = #{minValue},</if>
+            <if test="maxNorm != null">max_norm = #{maxNorm},</if>
+            <if test="minNorm != null">min_norm = #{minNorm},</if>
+        </set>
+        WHERE summary_id = #{summaryId}
+    </update>
+
+    <update id="updateBranchSummary" parameterType="com.ruoyi.jwmap.domain.JwBranchSummary">
+        UPDATE jw_branch_summary
+        <set>
+            <if test="city != null">city = #{city},</if>
+            <if test="dataYear != null">data_year = #{dataYear},</if>
+            <if test="indicatorCode != null">indicator_code = #{indicatorCode},</if>
+            <if test="actualWeight != null">actual_weight = #{actualWeight},</if>
+            <if test="maxValue != null">max_value = #{maxValue},</if>
+            <if test="minValue != null">min_value = #{minValue},</if>
+            <if test="maxNorm != null">max_norm = #{maxNorm},</if>
+            <if test="minNorm != null">min_norm = #{minNorm},</if>
+        </set>
+        WHERE summary_id = #{summaryId}
+    </update>
+
+    <delete id="deleteJwBranchSummaryById" parameterType="Long">
+        DELETE FROM jw_branch_summary WHERE summary_id = #{summaryId}
+    </delete>
+
+    <delete id="deleteJwBranchSummaryByIds" parameterType="Long">
+        DELETE FROM jw_branch_summary WHERE summary_id IN
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteByCityAndYear">
+        DELETE FROM jw_branch_summary WHERE city = #{city} AND data_year = #{dataYear}
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_branch_summary (
+            city, data_year, indicator_code, actual_weight,
+            max_value, min_value, max_norm, min_norm, create_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.city}, #{item.dataYear}, #{item.indicatorCode}, #{item.actualWeight},
+             #{item.maxValue}, #{item.minValue}, #{item.maxNorm}, #{item.minNorm}, sysdate())
+        </foreach>
+    </insert>
+
+    <insert id="upsertJwBranchSummary" parameterType="com.ruoyi.jwmap.domain.JwBranchSummary">
+        INSERT INTO jw_branch_summary (
+            city, data_year, indicator_code, actual_weight,
+            max_value, min_value, max_norm, min_norm, create_time
+        ) VALUES (
+            #{city}, #{dataYear}, #{indicatorCode}, #{actualWeight},
+            #{maxValue}, #{minValue}, #{maxNorm}, #{minNorm}, sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            actual_weight = VALUES(actual_weight),
+            max_value = VALUES(max_value),
+            min_value = VALUES(min_value),
+            max_norm = VALUES(max_norm),
+            min_norm = VALUES(min_norm)
+    </insert>
+
+</mapper>
