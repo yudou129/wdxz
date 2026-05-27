@@ -43,6 +43,9 @@ public class GridComputeServiceImpl implements IGridComputeService {
     @Autowired
     private JwExternalResWeightMapper externalWeightMapper;
 
+    @Autowired
+    private JwBranchInfoMapper branchInfoMapper;
+
     private static final double KM_PER_DEGREE_LAT = 111.32;
 
     @Override
@@ -60,24 +63,21 @@ public class GridComputeServiceImpl implements IGridComputeService {
     @Override
     @Transactional
     public int computeGridMeta(String city) {
-        // 获取该市人口热力中所有不重复的网格
-        List<String> gridCodes = populationHeatMapper.selectDistinctGridCodesByCity(city);
-        if (gridCodes == null || gridCodes.isEmpty()) return 0;
+        // 获取人口热力中所有不重复的网格（不JOIN grid_meta，避免循环依赖）
+        List<String> allGridCodes = populationHeatMapper.selectDistinctGridCodes();
+        if (allGridCodes == null || allGridCodes.isEmpty()) return 0;
+
+        // 预加载该市所有已存在的grid_meta，避免逐条查询（N+1）
+        List<JwGridMeta> cityMetas = gridMetaMapper.selectByCity(city);
+        Map<String, JwGridMeta> metaMap = cityMetas.stream()
+            .collect(Collectors.toMap(JwGridMeta::getGridCode, m -> m, (a, b) -> a));
 
         // 获取该市所有POI
         List<JwPoiInfo> poiList = poiInfoMapper.selectByCity(city);
 
-        // 先清理旧数据
-        gridMetaMapper.deleteByCity(city);
-
         List<JwGridMeta> metaList = new ArrayList<>();
-        for (String gridCode : gridCodes) {
-            // 取该网格的人口热力数据中的坐标（取第一条的经纬度，从jw_population_heat的隐含元信息获取）
-            // 由于人口热力表不存坐标，需要从导入时获取grid_code对应的坐标
-            // 这里假设grid_code本身就编码了经纬度信息，或从导入数据中获取
-            // 实际上，人口热力Excel中每行有经纬度，导入时需要同步写jw_grid_meta
-            // 所以如果jw_grid_meta已有数据，就用已有数据
-            JwGridMeta existingMeta = gridMetaMapper.selectByGridCode(gridCode);
+        for (String gridCode : allGridCodes) {
+            JwGridMeta existingMeta = metaMap.get(gridCode);
             if (existingMeta == null) continue;
 
             double lng = existingMeta.getLongitude();
@@ -124,9 +124,6 @@ public class GridComputeServiceImpl implements IGridComputeService {
         // 查询该市所有网格
         List<JwGridMeta> metas = gridMetaMapper.selectByCity(city);
         if (metas.isEmpty()) return;
-
-        // 获取所有启用的网格指标
-        List<JwIndicatorConfig> indicators = indicatorConfigMapper.selectBySourceTable("网格数据");
 
         for (JwGridMeta meta : metas) {
             // 查询该网格的人口热力数据
@@ -296,10 +293,18 @@ public class GridComputeServiceImpl implements IGridComputeService {
 
     @Override
     public List<Map<String, Object>> getAllCityStatus() {
-        List<String> cities = populationHeatMapper.selectDistinctCities();
+        // 从所有数据源收集城市列表，保证即使某个表无数据也能检测到城市
+        Set<String> citySet = new LinkedHashSet<>();
+        citySet.addAll(populationHeatMapper.selectDistinctCities());
+        citySet.addAll(gridMetaMapper.selectDistinctCities());
+        citySet.addAll(poiInfoMapper.selectDistinctCities());
+        citySet.addAll(branchInfoMapper.selectDistinctCities());
+
         List<Map<String, Object>> result = new ArrayList<>();
-        for (String city : cities) {
-            result.add(getCityDataStatus(city));
+        for (String city : citySet) {
+            if (city != null && !city.isEmpty()) {
+                result.add(getCityDataStatus(city));
+            }
         }
         return result;
     }

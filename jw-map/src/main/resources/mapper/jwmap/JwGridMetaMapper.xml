@@ -14,18 +14,15 @@
         <result property="city" column="city"/>
         <result property="district" column="district"/>
         <result property="poiCount" column="poi_count"/>
-        <result property="createBy" column="create_by"/>
         <result property="createTime" column="create_time"/>
-        <result property="updateBy" column="update_by"/>
         <result property="updateTime" column="update_time"/>
-        <result property="remark" column="remark"/>
     </resultMap>
 
     <sql id="selectJwGridMetaVo">
         SELECT grid_code, longitude, latitude,
                west_longitude, east_longitude, north_latitude, south_latitude,
                province, city, district, poi_count,
-               create_by, create_time, update_by, update_time, remark
+               create_time, update_time
         FROM jw_grid_meta
     </sql>
 
@@ -65,12 +62,12 @@
             grid_code, longitude, latitude,
             west_longitude, east_longitude, north_latitude, south_latitude,
             province, city, district, poi_count,
-            create_by, create_time, update_time
+            create_time, update_time
         ) VALUES (
             #{gridCode}, #{longitude}, #{latitude},
             #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
             #{province}, #{city}, #{district}, #{poiCount},
-            #{createBy}, sysdate(), sysdate()
+            sysdate(), sysdate()
         )
     </insert>
 
@@ -87,7 +84,6 @@
             <if test="city != null">city = #{city},</if>
             <if test="district != null">district = #{district},</if>
             <if test="poiCount != null">poi_count = #{poiCount},</if>
-            <if test="updateBy != null">update_by = #{updateBy},</if>
             update_time = sysdate()
         </set>
         WHERE grid_code = #{gridCode}
@@ -128,12 +124,12 @@
             grid_code, longitude, latitude,
             west_longitude, east_longitude, north_latitude, south_latitude,
             province, city, district, poi_count,
-            create_by, create_time, update_time
+            create_time, update_time
         ) VALUES (
             #{gridCode}, #{longitude}, #{latitude},
             #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
             #{province}, #{city}, #{district}, #{poiCount},
-            #{createBy}, sysdate(), sysdate()
+            sysdate(), sysdate()
         )
         ON DUPLICATE KEY UPDATE
             longitude = VALUES(longitude),
@@ -154,12 +150,12 @@
             grid_code, longitude, latitude,
             west_longitude, east_longitude, north_latitude, south_latitude,
             province, city, district, poi_count,
-            create_by, create_time, update_time
+            create_time, update_time
         ) VALUES (
             #{gridCode}, #{longitude}, #{latitude},
             #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
             #{province}, #{city}, #{district}, #{poiCount},
-            #{createBy}, sysdate(), sysdate()
+            sysdate(), sysdate()
         )
         ON DUPLICATE KEY UPDATE
             longitude = VALUES(longitude),

@@ -41,42 +41,42 @@
           <el-collapse v-model="importCollapse">
             <!-- POI导入 -->
             <el-collapse-item title="POI信息导入" name="poi">
-              <ImportPanel label="POI信息（不同地市）" :city.sync="importCity" @import="handleImport('poi')">
+              <ImportPanel label="POI信息（不同地市）" :city.sync="importCity" :cityList="cityList" @import="handleImport('poi', $event)">
                 <template #tips>Excel列：所属机构编码, POI名称, 经度, 维度, 省, 市, 区县, 地址, POI类型</template>
               </ImportPanel>
             </el-collapse-item>
 
             <!-- 人口热力导入 -->
             <el-collapse-item title="人口热力导入" name="pop">
-              <ImportPanel label="人口热力（不同地市）" :city.sync="importCity" @import="handleImport('pop')">
+              <ImportPanel label="人口热力（不同地市）" :city.sync="importCity" :cityList="cityList" @import="handleImport('pop', $event)">
                 <template #tips>Excel包含75列人口统计数据。系统自动识别指标列并映射到指标编码。新指标自动注册。</template>
               </ImportPanel>
             </el-collapse-item>
 
             <!-- 外部资源权重 -->
             <el-collapse-item title="外部资源权重导入" name="extWeight">
-              <ImportPanel label="外部资源权重表" :hideCity="true" @import="handleImport('extWeight')">
+              <ImportPanel label="外部资源权重表" :hideCity="true" @import="handleImport('extWeight', $event)">
                 <template #tips>三级指标名称需与指标配置表匹配。导入后自动清除旧数据重新写入。</template>
               </ImportPanel>
             </el-collapse-item>
 
             <!-- 网点效能权重 -->
             <el-collapse-item title="网点效能权重导入" name="branchWeight">
-              <ImportPanel label="网点效能权重表" :hideCity="true" @import="handleImport('branchWeight')">
+              <ImportPanel label="网点效能权重表" :hideCity="true" @import="handleImport('branchWeight', $event)">
                 <template #tips>用于网点TOPSIS五类得分计算。三级指标名称需与网点指标编码匹配。</template>
               </ImportPanel>
             </el-collapse-item>
 
             <!-- 网点信息导入 -->
             <el-collapse-item title="网点信息导入" name="branch">
-              <ImportPanel label="网点信息表（基础数据Sheet）" :city.sync="importCity" :showDataSource="true" :dataSource.sync="importDataSource" @import="handleImport('branch')">
+              <ImportPanel label="网点信息表（基础数据Sheet）" :city.sync="importCity" :cityList="cityList" :showDataSource="true" :dataSource.sync="importDataSource" @import="handleImport('branch', $event)">
                 <template #tips>导入基础数据Sheet。系统会自动解析每年份的业务指标列，存入垂直指标表。</template>
               </ImportPanel>
             </el-collapse-item>
 
             <!-- 存量网点导入 -->
             <el-collapse-item title="存量网点导入" name="existBranch">
-              <ImportPanel label="存量网点基本信息表" :city.sync="importCity" @import="handleImport('existBranch')">
+              <ImportPanel label="存量网点基本信息表" :city.sync="importCity" :cityList="cityList" @import="handleImport('existBranch', $event)">
                 <template #tips>与网点信息基本结构一致，导入后 data_source 标记为"存量网点"。</template>
               </ImportPanel>
             </el-collapse-item>
@@ -134,8 +134,7 @@
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
                 <el-divider />
-                <el-button type="success" @click="handleExport('gridRaw')" icon="el-icon-download">网格数据表（原始数据）</el-button>
-                <el-button type="success" @click="handleExport('gridNormalized')" icon="el-icon-download">网格数据表（归一化得分）</el-button>
+                <el-button type="success" @click="handleExport('grid')" icon="el-icon-download">网格导出（原始数据+归一化得分）</el-button>
               </el-card>
             </el-col>
 
@@ -150,9 +149,7 @@
                   <el-option label="2023" :value="2023" /><el-option label="2024" :value="2024" /><el-option label="2025" :value="2025" />
                 </el-select>
                 <el-divider />
-                <el-button type="success" @click="handleExport('branchBase')" icon="el-icon-download">网点基础数据</el-button>
-                <el-button type="success" @click="handleExport('branchCalc')" icon="el-icon-download">数据计算表</el-button>
-                <el-button type="success" @click="handleExport('branchNormalized')" icon="el-icon-download">归一化处理表</el-button>
+                <el-button type="success" @click="handleExport('branch')" icon="el-icon-download">网点导出（基础数据+数据计算表+归一化）</el-button>
               </el-card>
             </el-col>
           </el-row>
@@ -171,7 +168,7 @@
                 <el-table-column prop="latitude" label="纬度" width="100" />
                 <el-table-column prop="poiCount" label="POI数" width="80" />
                 <el-table-column prop="siteScore" label="选址得分" width="100">
-                  <template slot-scope="scope">{{ scope.row.siteScore ? scope.row.siteScore.toFixed(6) : '-' }}</template>
+                  <template slot-scope="scope">{{ scope.row.siteScore !== null && scope.row.siteScore !== undefined ? scope.row.siteScore.toFixed(6) : '-' }}</template>
                 </el-table-column>
               </el-table>
             </el-tab-pane>
@@ -221,38 +218,20 @@
 </template>
 
 <script>
+// 贵州省工行二级分行对应地市列表
+const GUIZHOU_CITIES = [
+  '贵阳市', '遵义市', '六盘水市', '安顺市', '毕节市', '铜仁市',
+  '兴义', '凯里', '都匀'
+]
+
 import {
-  getAllCityStatus, computeGridData, computeBranchData, assignGridToBranch,
+  getAllCityStatus, computeGridData, computeGridScore, computeBranchData, assignGridToBranch,
   getGridCities, getGridList, getBranchList, getBranchScore
 } from '@/api/jwmap/data'
 import { importPoi, importPopulationHeat, importExternalWeight, importBranchEfficiencyWeight,
   importBranchInfo, importExistingBranch } from '@/api/jwmap/data'
-import { exportGridRaw, exportGridNormalized, exportBranchBase,
-  exportBranchCalc, exportBranchNormalized } from '@/api/jwmap/data'
-
-// 内联ImportPanel组件
-const ImportPanel = {
-  props: ['label', 'city', 'hideCity', 'showDataSource', 'dataSource'],
-  data() { return { file: null, innerCity: this.city || '', innerDataSource: this.dataSource || '网点信息' } },
-  watch: { city(v) { this.innerCity = v }, dataSource(v) { this.innerDataSource = v } },
-  methods: {
-    handleFileChange(file) { this.file = file.raw || file },
-    handleSubmit() {
-      if (!this.file) { this.$message.warning('请选择文件'); return }
-      if (!this.hideCity && !this.innerCity) { this.$message.warning('请填写城市'); return }
-      this.$emit('import', { file: this.file, city: this.innerCity, dataSource: this.innerDataSource })
-    }
-  },
-  template: `<div style="padding:8px 0">
-    <el-form inline size="small">
-      <el-form-item v-if="!hideCity" label="城市"><el-input v-model="innerCity" placeholder="如：贵阳市" style="width:140px" /></el-form-item>
-      <el-form-item v-if="showDataSource" label="数据来源"><el-select v-model="innerDataSource" style="width:120px"><el-option label="网点信息" value="网点信息" /><el-option label="存量网点" value="存量网点" /></el-select></el-form-item>
-      <el-form-item label="文件"><el-upload :auto-upload="false" :limit="1" :on-change="handleFileChange" accept=".xlsx,.xls"><el-button size="small" icon="el-icon-upload2">选择Excel文件</el-button></el-upload></el-form-item>
-      <el-form-item><el-button type="primary" size="small" @click="handleSubmit" icon="el-icon-upload">开始导入</el-button></el-form-item>
-    </el-form>
-    <div style="color:#909399;font-size:12px"><slot name="tips"></slot></div>
-  </div>`
-}
+import { exportGridCombined, exportBranchCombined } from '@/api/jwmap/data'
+import ImportPanel from './components/ImportPanel'
 
 export default {
   name: 'JwmapIndex',
@@ -264,7 +243,7 @@ export default {
       importCollapse: ['poi'],
       // 城市状态
       cityStatusList: [],
-      cityList: [],
+      cityList: [...GUIZHOU_CITIES],
       // 导入
       importCity: '',
       importDataSource: '网点信息',
@@ -293,16 +272,20 @@ export default {
       try {
         const res = await getAllCityStatus()
         this.cityStatusList = res.data || []
-        this.cityList = this.cityStatusList.map(s => s.city)
+        // 合并静态列表与API返回的城市，保留静态列表且去重
+        const apiCities = this.cityStatusList.map(s => s.city)
+        const seen = new Set(GUIZHOU_CITIES)
+        this.cityList = [...GUIZHOU_CITIES]
+        apiCities.forEach(c => { if (!seen.has(c)) { seen.add(c); this.cityList.push(c) } })
       } catch (e) { /* ignore */ }
     },
-    async handleImport(type) {
+    async handleImport(type, eventData) {
       try {
-        let result
-        const file = arguments[0]?.file
-        const city = arguments[0]?.city
-        const dataSource = arguments[0]?.dataSource
+        const file = eventData?.file
+        const city = eventData?.city
+        const dataSource = eventData?.dataSource
         if (!file) return
+        let result
         const fd = new FormData()
         fd.append('file', file)
         if (city) fd.append('city', city)
@@ -340,9 +323,9 @@ export default {
     async handleGridScore() {
       if (!this.computeGridCity) { this.$message.warning('请选择城市'); return }
       try {
-        // call the score endpoint directly - will use the data in normalized table
-        this.$message.success('得分重算完成')
-      } catch (e) { this.$message.error('计算失败') }
+        const res = await computeGridScore(this.computeGridCity)
+        this.$message.success(res.msg || '得分重算完成')
+      } catch (e) { this.$message.error('计算失败：' + (e.message || '未知错误')) }
     },
     async handleBranchCompute() {
       if (!this.computeBranchCity) { this.$message.warning('请选择城市'); return }
@@ -363,25 +346,38 @@ export default {
     async handleExport(type) {
       if (!this.exportCity) { this.$message.warning('请选择城市'); return }
       try {
-        let res
-        const exportMap = {
-          gridRaw: () => exportGridRaw(this.exportCity),
-          gridNormalized: () => exportGridNormalized(this.exportCity),
-          branchBase: () => exportBranchBase(this.exportCity),
-          branchCalc: () => exportBranchCalc(this.exportCity, this.exportYear),
-          branchNormalized: () => exportBranchNormalized(this.exportCity, this.exportYear)
+        let blob
+        let fileName
+        if (type === 'grid') {
+          blob = await exportGridCombined(this.exportCity)
+          fileName = '网格数据_' + this.exportCity + '.xlsx'
+        } else if (type === 'branch') {
+          blob = await exportBranchCombined(this.exportCity, this.exportYear)
+          fileName = '网点数据_' + this.exportCity + '_' + this.exportYear + '.xlsx'
+        } else {
+          this.$message.error('未知导出类型')
+          return
         }
-        res = await exportMap[type]()
-        const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        // 检查是否为后端错误JSON（xlsx文件以PK开头，JSON以{开头）
+        const header = await blob.slice(0, 1).text()
+        if (header === '{') {
+          const errText = await blob.text()
+          try {
+            const err = JSON.parse(errText)
+            this.$message.error(err.msg || '导出失败')
+          } catch (e) {
+            this.$message.error('导出失败')
+          }
+          return
+        }
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        const nameMap = { gridRaw: '网格原始数据', gridNormalized: '网格归一化得分', branchBase: '网点基础数据', branchCalc: '数据计算表', branchNormalized: '归一化处理' }
-        a.download = nameMap[type] + '_' + this.exportCity + '.xlsx'
+        a.download = fileName
         a.click()
         window.URL.revokeObjectURL(url)
         this.$message.success('导出成功')
-      } catch (e) { this.$message.error('导出失败') }
+      } catch (e) { this.$message.error('导出失败：' + (e.message || '未知错误')) }
     },
     async loadGridList() {
       if (!this.viewCity) return

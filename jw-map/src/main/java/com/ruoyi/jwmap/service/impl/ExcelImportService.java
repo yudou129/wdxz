@@ -46,7 +46,7 @@ public class ExcelImportService {
         BRANCH_INDICATOR_MAP.put("总量（单位：户）", "inclusive_cust_total");
         BRANCH_INDICATOR_MAP.put("柜台日均交易笔数", "counter_txn");
         BRANCH_INDICATOR_MAP.put("自助终端日均交易笔数", "terminal_txn");
-        BRANCH_INDICATOR_MAP.put("附行式、网点自助ATM日均交易笔试", "atm_txn");
+        BRANCH_INDICATOR_MAP.put("附行式、网点自助ATM日均交易笔数", "atm_txn");
     }
 
     @Autowired
@@ -111,8 +111,14 @@ public class ExcelImportService {
 
     /**
      * 导入人口热力数据
-     * Excel格式：第1行为中文指标名，第2行为空或单位行，第3行起为数据
-     * 列: grid_code, 经度, 纬度, 指标1, 指标2, ...
+     * Excel格式：第1行为一级分类名(h1,含合并单元格)，第2行为二级指标名(h2)，第3行起为数据
+     * 列: 网格编号, 经度, 纬度, 省, 市, 区县, 指标列...
+     * <p>
+     * 处理分步：
+     * 1. Row 0 读取 h1（大类名），对合并单元格做填充处理
+     * 2. Row 1 读取 h2（子指标名）
+     * 3. 组合 h1_h2 作为指标全名，自动注册到 indicator_config
+     * 4. Row 2 起为数据行
      */
     @Transactional
     public int importPopulationHeat(InputStream inputStream, String city) throws IOException {
@@ -121,34 +127,59 @@ public class ExcelImportService {
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter();
 
-            // 第1行（Row 0）：中文指标名称行，从第4列开始
-            Row headerRow = sheet.getRow(0);
-            if (headerRow == null) {
+            // 先清理该市旧人口热力数据（因指标编码会随表头解析改变）
+            populationHeatMapper.deleteByCity(city);
+
+            // Row 0: h1 一级分类行（含合并单元格）
+            Row h1Row = sheet.getRow(0);
+            if (h1Row == null) {
                 throw new RuntimeException("Excel文件为空");
             }
+            // Row 1: h2 二级指标行
+            Row h2Row = sheet.getRow(1);
 
-            // 构建指标映射：列索引 -> indicator_code
+            // 逐列构建指标映射：对合并单元格做填充，组合 h1_h2 为指标名
             Map<Integer, String> colIndicatorMap = new LinkedHashMap<>();
-            for (int c = 3; c < headerRow.getLastCellNum(); c++) {
-                Cell cell = headerRow.getCell(c);
-                if (cell == null) continue;
-                String chineseName = formatter.formatCellValue(cell).trim();
-                if (chineseName.isEmpty()) continue;
+            String currentH1 = null;
+            int maxCol = Math.max(
+                h1Row.getLastCellNum(),
+                h2Row != null ? h2Row.getLastCellNum() : 0
+            );
 
-                // 查找是否已注册
-                JwIndicatorConfig config = indicatorConfigMapper.selectByIndicatorName(chineseName);
+            for (int c = 3; c < maxCol; c++) {
+                // 读取 h1，合并单元格时只有首格有值，后续列 null → 沿用 currentH1
+                String h1 = getCellStringValue(h1Row.getCell(c), formatter);
+                if (h1 != null) {
+                    currentH1 = h1;
+                }
+
+                // 读取 h2（不存在时表示该列为单层表头）
+                String h2 = getCellStringValue(h2Row != null ? h2Row.getCell(c) : null, formatter);
+
+                // 确定指标名
+                String indicatorName;
+                if (h2 != null) {
+                    indicatorName = currentH1 + "_" + h2;
+                } else if (h1 != null) {
+                    indicatorName = h1;
+                } else {
+                    // h1、h2 均为空 → 无意义的列，跳过
+                    continue;
+                }
+
+                // 查找或自动注册指标
+                JwIndicatorConfig config = indicatorConfigMapper.selectByIndicatorName(indicatorName);
                 if (config == null) {
-                    // 自动注册新指标
-                    String code = "pop_" + chineseName.replaceAll("[\\s()（）、]", "_");
+                    String code = "pop_" + indicatorName.replaceAll("[\\s()（）、]", "_");
                     config = new JwIndicatorConfig();
                     config.setIndicatorCode(code);
-                    config.setIndicatorName(chineseName);
+                    config.setIndicatorName(indicatorName);
                     config.setSourceTables("人口热力");
                     config.setIsWeighted("1");
                     config.setIsActive("1");
                     config.setDataType("decimal");
                     indicatorConfigMapper.insertIndicatorConfig(config);
-                    log.info("自动注册新指标: {} -> {}", chineseName, code);
+                    log.info("自动注册新指标: {} -> {}", indicatorName, code);
                 }
                 colIndicatorMap.put(c, config.getIndicatorCode());
             }
@@ -197,6 +228,9 @@ public class ExcelImportService {
 
     /**
      * 导入外部资源权重表（替换策略：先清空再全量插入）
+     * Excel结构：一级指标(0) / 一级权重(1) / 二级指标(2) / 二级权重(3) /
+     *           三级指标(4) / 三级权重(5) / 总权重(6) / indicator_code(7, 可选)
+     * 当第8列(indicator_code)缺失或为空时，自动根据三级指标名称模糊匹配 indicator_config
      */
     @Transactional
     public int importExternalWeight(InputStream inputStream) throws IOException {
@@ -219,7 +253,14 @@ public class ExcelImportService {
                 config.setLevel3Name(getCellStringValue(row.getCell(4), formatter));
                 config.setLevel3Ratio(getCellDoubleValue(row.getCell(5)));
                 config.setTotalWeight(getCellDoubleValue(row.getCell(6)));
-                config.setIndicatorCode(getCellStringValue(row.getCell(7), formatter));
+
+                // 读取第8列(indicator_code)，为空时自动从三级指标名称匹配
+                String indicatorCode = getCellStringValue(row.getCell(7), formatter);
+                if (indicatorCode == null || indicatorCode.isEmpty()) {
+                    indicatorCode = matchIndicatorCode(config.getLevel3Name());
+                }
+                config.setIndicatorCode(indicatorCode);
+
                 list.add(config);
             }
 
@@ -234,6 +275,7 @@ public class ExcelImportService {
 
     /**
      * 导入网点效能权重表（替换策略：先清空再全量插入）
+     * 同外部资源权重表，第8列(indicator_code)可选，缺失时自动匹配
      */
     @Transactional
     public int importBranchEfficiencyWeight(InputStream inputStream) throws IOException {
@@ -256,7 +298,14 @@ public class ExcelImportService {
                 config.setLevel3Name(getCellStringValue(row.getCell(4), formatter));
                 config.setLevel3Ratio(getCellDoubleValue(row.getCell(5)));
                 config.setTotalWeight(getCellDoubleValue(row.getCell(6)));
-                config.setIndicatorCode(getCellStringValue(row.getCell(7), formatter));
+
+                // 第8列缺失时自动匹配
+                String indicatorCode = getCellStringValue(row.getCell(7), formatter);
+                if (indicatorCode == null || indicatorCode.isEmpty()) {
+                    indicatorCode = matchIndicatorCode(config.getLevel3Name());
+                }
+                config.setIndicatorCode(indicatorCode);
+
                 list.add(config);
             }
 
@@ -270,65 +319,246 @@ public class ExcelImportService {
     }
 
     /**
-     * 导入网点信息表
-     * Excel格式复杂，包含基础信息列和多年份的年度指标列
-     * Row 3（第4行）为列名行，包含网点基础信息列名和年度指标列名
-     * 数据行从Row 4（第5行）开始
+     * 导入网点基础数据（Excel的"基础数据"Sheet）
      * <p>
-     * 列结构：
-     * - A(0): 序号
-     * - B(1): 所属分行
-     * - C(2): 所属支行
-     * - D(3): 网点名称/机构号
-     * - ... 基础信息列
-     * - 然后是2024年、2023年、2022年各年份的指标列组
+     * 格式A（推荐）：Row0-1为分类标题, Row2为列名, Row3为年份(全"2024"),
+     * Row4-6为非数据行(实际权值/MAX/MIN), Row7+为数据
+     * 列: 一级支行, 二级支行, 机构号, 经度, 纬度, 指标列(通过Row1子分类+Row2名定位)
+     * <p>
+     * 格式B（兼容旧格式）：Row3为列名行, Row4+为数据
      */
     @Transactional
     public int importBranchInfo(InputStream inputStream, String city, String dataSource) throws IOException {
         int count = 0;
         try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
-            Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter();
 
-            // 读取列名行（第4行，index=3）
-            Row headerRow = sheet.getRow(3);
-            if (headerRow == null) {
-                throw new RuntimeException("Excel列名行（第4行）为空");
+            // — 自动检测应读取哪个 Sheet —
+            // 优先找"基础数据"格式的 sheet（Row3 为年份行），否则取第一个 sheet
+            Sheet sheet = null;
+            for (int si = 0; si < workbook.getNumberOfSheets(); si++) {
+                Sheet s = workbook.getSheetAt(si);
+                if (s.getRow(3) != null && isYearOnlyRow(s.getRow(3), formatter)) {
+                    sheet = s;
+                    log.info("检测到基础数据格式sheet[{}]: {}", si, workbook.getSheetName(si));
+                    break;
+                }
+            }
+            if (sheet == null) {
+                sheet = workbook.getSheetAt(0);
             }
 
-            // 解析列头，识别基础信息列和年度指标列
+            Row row0 = sheet.getRow(0);
+            Row row1 = sheet.getRow(1);
+            Row row2 = sheet.getRow(2);
+            Row row3 = sheet.getRow(3);
+
+            // 判断是否为"基础数据"格式：Row3 大部分非空单元格为 "2024"
+            int headerRowIndex;
+            int dataStartIndex;
+            boolean isCalcDataFormat = isYearOnlyRow(row3, formatter);
+
+            if (isCalcDataFormat) {
+                // 格式A：基础数据格式
+                headerRowIndex = 2;  // Row2 = 列名行
+                // 动态检测标记行：Row4 第一格为"实际权值/实际值"说明有标记行
+                boolean hasMarkerRows = false;
+                Row r4 = sheet.getRow(4);
+                if (r4 != null) {
+                    String marker = getCellStringValue(r4.getCell(0), formatter);
+                    hasMarkerRows = "实际权值".equals(marker) || "实际值".equals(marker);
+                }
+                dataStartIndex = hasMarkerRows ? 7 : 4;
+                log.info("检测到基础数据格式，Row2为列名行，{}标记行，数据从Row{}开始",
+                    hasMarkerRows ? "有" : "无", dataStartIndex);
+            } else {
+                // 格式B：旧格式，兼容
+                headerRowIndex = 3;
+                dataStartIndex = 4;
+            }
+
+            Row headerRow = sheet.getRow(headerRowIndex);
+            if (headerRow == null) {
+                throw new RuntimeException("Excel列名行（第" + (headerRowIndex + 1) + "行）为空");
+            }
+
+            // — 解析列头 —
             List<ColumnDef> columnDefs = new ArrayList<>();
-            for (int c = 0; c < headerRow.getLastCellNum(); c++) {
-                Cell cell = headerRow.getCell(c);
-                if (cell == null) continue;
-                String colName = formatter.formatCellValue(cell).trim();
+            int maxCol = 0;
+            for (int r = headerRowIndex; r <= headerRowIndex; r++) {
+                Row hr = sheet.getRow(r);
+                if (hr != null && hr.getLastCellNum() > maxCol) maxCol = hr.getLastCellNum();
+            }
+            // 对于格式A，还要看 row3 的 cell num
+            if (isCalcDataFormat && row3 != null) {
+                maxCol = Math.max(maxCol, row3.getLastCellNum());
+            }
+            // 确保至少扫描到 27 列（基础数据完整列数）
+            if (maxCol < 27) maxCol = 27;
+
+            // 跟踪最近的指标列名称和子分类（用于继承给后续年份列）
+            String pendingIndicatorName = null;
+            String pendingSubCategory = null;
+
+            for (int c = 0; c < maxCol; c++) {
+                // 获取列名（格式A取Row2，格式B取Row3）
+                String colName = getCellStringValue(headerRow.getCell(c), formatter);
+                boolean fromFallback = false;
+
+                // 格式A：当Row2为空时，尝试从Row1或继承前一个指标列名
+                if (colName == null && isCalcDataFormat) {
+                    Integer maybeYear = null;
+                    if (row3 != null) {
+                        String ys = getCellStringValue(row3.getCell(c), formatter);
+                        if (ys != null && ys.matches("\\d{4}")) maybeYear = Integer.parseInt(ys);
+                    }
+                    if (maybeYear != null) {
+                        // 先尝试 Row1 的值作为列名（处理业务运营等无Row2列名的分类）
+                        if (row1 != null) {
+                            String r1 = getCellStringValue(row1.getCell(c), formatter);
+                            if (r1 != null) {
+                                colName = r1;
+                                fromFallback = true;
+                            }
+                        }
+                        // 再尝试继承前一个指标列名
+                        if (colName == null && pendingIndicatorName != null) {
+                            colName = pendingIndicatorName;
+                            fromFallback = true;
+                        }
+                    }
+                }
+
+                if (colName == null) continue;
+
+                // 去除列名中的 \n（Excel单元格内换行）
+                colName = colName.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim();
                 if (colName.isEmpty()) continue;
 
                 ColumnDef def = new ColumnDef();
                 def.colIndex = c;
                 def.colName = colName;
 
-                // 判断列类型：看colName是否包含年份（如"2024年"）
-                // 或通过固定列索引判断
-                if (c <= 3) {
-                    def.colType = "skip"; // 序号、分行、支行、网点名称
+                // 基础信息列（前5列：根据列名映射字段，而非固定位置）
+                if (isCalcDataFormat && c <= 4) {
+                    String fieldName = mapColumnToField(colName);
+                    if (fieldName != null) {
+                        def.colType = "branch_field";
+                        def.fieldName = fieldName;
+                        columnDefs.add(def);
+                    }
+                    continue;
+                } else if (!isCalcDataFormat && c <= 3) {
+                    def.colType = "skip";
+                    columnDefs.add(def);
+                    continue;
+                }
+
+                // 读取年份（格式A从Row3取，格式B从colName解析）
+                Integer year = null;
+                if (isCalcDataFormat && row3 != null) {
+                    String yearStr = getCellStringValue(row3.getCell(c), formatter);
+                    if (yearStr != null && yearStr.matches("\\d{4}")) {
+                        year = Integer.parseInt(yearStr);
+                    }
+                }
+
+                // 尝试匹配年份指标
+                if (isCalcDataFormat && year != null) {
+                    // 格式A：从 Row1 (子分类) + Row2 (名称) 组合成完整指标名
+                    String subCategory;
+                    if (fromFallback) {
+                        // 继承来的列名：复用 pendingSubCategory
+                        subCategory = pendingSubCategory;
+                    } else {
+                        // 读取 Row1 子分类，并更新 pending 值
+                        if (row1 != null) {
+                            String sc = getCellStringValue(row1.getCell(c), formatter);
+                            subCategory = (sc != null) ? sc.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim() : null;
+                        } else {
+                            subCategory = null;
+                        }
+                        pendingIndicatorName = colName;
+                        pendingSubCategory = subCategory;
+                    }
+
+                    String fullIndicatorName = (subCategory != null && !subCategory.isEmpty())
+                            ? subCategory + " " + colName
+                            : colName;
+
+                    def.colType = "yearly_indicator";
+                    def.year = year;
+                    def.indicatorCode = matchBranchIndicator(fullIndicatorName, colName);
+                    columnDefs.add(def);
                 } else if (isYearColumn(colName)) {
+                    // 格式B：旧格式年份列
                     def.colType = "yearly_indicator";
                     def.year = parseYear(colName);
                     def.indicatorCode = extractIndicatorCode(colName);
+                    columnDefs.add(def);
                 } else {
-                    def.colType = "branch_field";
-                    def.fieldName = mapColumnToField(colName);
+                    // 基础信息字段
+                    String fieldName = mapColumnToField(colName);
+                    if (fieldName != null) {
+                        def.colType = "branch_field";
+                        def.fieldName = fieldName;
+                        columnDefs.add(def);
+                    } else if (!isCalcDataFormat) {
+                        // 格式B：未识别的列名跳过
+                        log.debug("跳过未识别的列: {} (col={})", colName, c);
+                    }
                 }
-                columnDefs.add(def);
             }
 
-            // 读取数据行（从第5行开始，index=4）
-            for (int i = 4; i <= sheet.getLastRowNum(); i++) {
+            // 如果是格式A但没有产生任何 yearly_indicator，降级为旧格式
+            if (isCalcDataFormat && columnDefs.stream().noneMatch(d -> "yearly_indicator".equals(d.colType))) {
+                log.warn("基础数据格式未识别到指标列，降级为旧格式解析");
+                headerRowIndex = 3;
+                dataStartIndex = 4;
+                // 重新解析（简化：走旧逻辑但用新代码路径）
+                headerRow = sheet.getRow(3);
+                if (headerRow != null) {
+                    columnDefs.clear();
+                    for (int c = 0; c < maxCol; c++) {
+                        String colName = getCellStringValue(headerRow.getCell(c), formatter);
+                        if (colName == null) continue;
+                        ColumnDef def = new ColumnDef();
+                        def.colIndex = c; def.colName = colName;
+                        if (c <= 3) {
+                            def.colType = "skip";
+                        } else if (isYearColumn(colName)) {
+                            def.colType = "yearly_indicator";
+                            def.year = parseYear(colName);
+                            def.indicatorCode = extractIndicatorCode(colName);
+                        } else {
+                            String fieldName = mapColumnToField(colName);
+                            if (fieldName != null) {
+                                def.colType = "branch_field";
+                                def.fieldName = fieldName;
+                            } else continue;
+                        }
+                        columnDefs.add(def);
+                    }
+                }
+            }
+
+            // — 读取数据行 —
+            for (int i = dataStartIndex; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
-                String branchCode = getCellStringValue(row.getCell(3), formatter);
+                // 跳过汇总/标记行（实际权值、MAX、MIN）
+                String firstCellVal = getCellStringValue(row.getCell(0), formatter);
+                if (firstCellVal != null && ("MAX".equalsIgnoreCase(firstCellVal)
+                        || "MIN".equalsIgnoreCase(firstCellVal)
+                        || "实际权值".equals(firstCellVal)
+                        || "实际值".equals(firstCellVal))) {
+                    continue;
+                }
+
+                // 读取机构号（格式A：col2，格式B：col3）
+                int branchCodeCol = isCalcDataFormat ? 2 : 3;
+                String branchCode = getCellStringValue(row.getCell(branchCodeCol), formatter);
                 if (branchCode == null || branchCode.isEmpty()) continue;
 
                 // 构建JwBranchInfo基础信息
@@ -337,9 +567,9 @@ public class ExcelImportService {
                 branch.setDataSource(dataSource);
                 branch.setBranchCode(branchCode);
 
-                // 逐列填充
-                Map<Integer, Map<String, Double>> yearlyData = new LinkedHashMap<>(); // year -> (indicatorCode -> value)
+                Map<Integer, Map<String, Double>> yearlyData = new LinkedHashMap<>();
 
+                // 逐列填充
                 for (ColumnDef def : columnDefs) {
                     String cellVal = getCellStringValue(row.getCell(def.colIndex), formatter);
                     if (cellVal == null || cellVal.isEmpty()) continue;
@@ -350,7 +580,7 @@ public class ExcelImportService {
                             break;
                         case "yearly_indicator":
                             Double numericVal = getCellDoubleValue(row.getCell(def.colIndex));
-                            if (numericVal != null) {
+                            if (numericVal != null && def.indicatorCode != null) {
                                 yearlyData.computeIfAbsent(def.year, k -> new LinkedHashMap<>())
                                         .put(def.indicatorCode, numericVal);
                             }
@@ -375,10 +605,7 @@ public class ExcelImportService {
                     for (Map.Entry<Integer, Map<String, Double>> yearEntry : yearlyData.entrySet()) {
                         Integer year = yearEntry.getKey();
                         Map<String, Double> indicators = yearEntry.getValue();
-
-                        // 先清理该网点该年基础数据
                         branchIndicatorMapper.deleteByBranchAndYear(branchId, year, "基础数据");
-
                         for (Map.Entry<String, Double> indEntry : indicators.entrySet()) {
                             JwBranchIndicator ind = new JwBranchIndicator();
                             ind.setBranchId(branchId);
@@ -393,9 +620,10 @@ public class ExcelImportService {
 
                 count++;
             }
+
+            log.info("导入网点信息完成，共{}条网点", count);
+            return count;
         }
-        log.info("导入网点信息完成，共{}条网点", count);
-        return count;
     }
 
     /**
@@ -443,6 +671,115 @@ public class ExcelImportService {
 
     // ========== 辅助方法 ==========
 
+    /**
+     * 确保 poi_count 指标在 indicator_config 中存在
+     * 该指标由 computeGridRawData 写入，但必须注册为加权指标才能参与 TOPSIS 计算
+     */
+    private void ensurePoiCountIndicator() {
+        JwIndicatorConfig existing = indicatorConfigMapper.selectByCode("poi_count");
+        if (existing == null) {
+            JwIndicatorConfig config = new JwIndicatorConfig();
+            config.setIndicatorCode("poi_count");
+            config.setIndicatorName("POI数量");
+            config.setSourceTables("网格数据");
+            config.setIsWeighted("1");
+            config.setIsActive("1");
+            config.setDataType("int");
+            indicatorConfigMapper.insertIndicatorConfig(config);
+            log.info("自动注册指标: poi_count -> POI数量");
+        } else if (!"1".equals(existing.getIsWeighted()) || !"1".equals(existing.getIsActive())) {
+            // 已存在但未标记为加权或非活跃时修正
+            existing.setIsWeighted("1");
+            existing.setIsActive("1");
+            indicatorConfigMapper.updateJwIndicatorConfig(existing);
+            log.info("修正 poi_count 指标为加权/活跃状态");
+        }
+    }
+
+    /**
+     * 根据三级指标名称模糊匹配 indicator_code
+     * 匹配策略（按优先级）：
+     * 1. POI数量 → poi_count（固定映射）
+     * 2. 在 indicator_config 中精确匹配指标名
+     * 3. 去除"人口"后缀后做后缀匹配（h1_h2 格式的指标名以 _h2 结尾）
+     * 4. 归一化特殊字符后匹配
+     * 5. 包含关系匹配
+     */
+    private String matchIndicatorCode(String level3Name) {
+        if (level3Name == null || level3Name.isEmpty()) return null;
+
+        // 固定映射 + 自动注册 poi_count 指标（确保能被 selectActiveWeighted 返回）
+        if ("POI数量".equals(level3Name)) {
+            ensurePoiCountIndicator();
+            return "poi_count";
+        }
+
+        // 加载所有指标
+        List<JwIndicatorConfig> allIndicators = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
+        if (allIndicators == null || allIndicators.isEmpty()) return null;
+
+        // 构建 name→code 快速查找
+        Map<String, String> nameToCode = new LinkedHashMap<>();
+        List<String> allNames = new ArrayList<>();
+        for (JwIndicatorConfig ind : allIndicators) {
+            if (ind.getIndicatorName() != null) {
+                nameToCode.put(ind.getIndicatorName(), ind.getIndicatorCode());
+                allNames.add(ind.getIndicatorName());
+            }
+        }
+
+        // 1. 精确匹配
+        String direct = nameToCode.get(level3Name);
+        if (direct != null) return direct;
+
+        // 2. 处理"人口"后缀：工作人口 → 工作，居住人口 → 居住
+        String trimmedName = level3Name;
+        if (level3Name.endsWith("人口") && level3Name.length() > 2) {
+            trimmedName = level3Name.substring(0, level3Name.length() - 2);
+            String trimmedMatch = nameToCode.get(trimmedName);
+            if (trimmedMatch != null) return trimmedMatch;
+        }
+
+        // 3. 后缀匹配：指标名以 _trimmedName 结尾（对应 h1_h2 格式）
+        String suffix = "_" + trimmedName;
+        for (String name : allNames) {
+            if (name.endsWith(suffix)) {
+                return nameToCode.get(name);
+            }
+        }
+
+        // 4. 归一化后匹配（~ 与 - 视为等价）
+        String norm = trimmedName.replaceAll("[~\\-]", "_");
+        String normSuffix = "_" + norm;
+        for (String name : allNames) {
+            String nameNorm = name.replaceAll("[~\\-]", "_");
+            if (nameNorm.equals(norm)) {
+                return nameToCode.get(name);
+            }
+            if (nameNorm.endsWith(normSuffix)) {
+                return nameToCode.get(name);
+            }
+        }
+
+        // 5. 包含匹配（处理"IT通信电子"→"IT"这类复合名称）
+        for (String name : allNames) {
+            // 取 h1_h2 格式中的 h2 部分
+            String h2part = name.substring(name.lastIndexOf('_') + 1);
+            if (!h2part.isEmpty() && (trimmedName.contains(h2part) || h2part.contains(trimmedName))) {
+                return nameToCode.get(name);
+            }
+        }
+        // 再用完整名尝试包含匹配
+        for (String name : allNames) {
+            if (name.contains(trimmedName) || trimmedName.contains(name)) {
+                return nameToCode.get(name);
+            }
+        }
+
+        log.warn("无法自动匹配权重指标: {}，请在Excel第8列手动指定indicator_code", level3Name);
+        return null;
+    }
+
     private String getCellStringValue(Cell cell, DataFormatter formatter) {
         if (cell == null) return null;
         String val = formatter.formatCellValue(cell).trim();
@@ -475,6 +812,27 @@ public class ExcelImportService {
      */
     private boolean isYearColumn(String colName) {
         return colName.contains("2024") || colName.contains("2023") || colName.contains("2022");
+    }
+
+    /**
+     * 判断 Row3 是否为纯年份行（基础数据格式的特征）
+     * 统计非空单元格中匹配 "2024"/"2023"/"2022" 的比例
+     */
+    private boolean isYearOnlyRow(Row row, DataFormatter formatter) {
+        if (row == null) return false;
+        int total = 0;
+        int yearMatch = 0;
+        for (int c = 0; c < row.getLastCellNum(); c++) {
+            String val = getCellStringValue(row.getCell(c), formatter);
+            if (val != null) {
+                total++;
+                if (val.matches("\\d{4}")) {
+                    yearMatch++;
+                }
+            }
+        }
+        // 至少有一个非空单元格，且 80% 以上为 4 位数字（年份）
+        return total > 0 && (yearMatch * 100 / total) >= 80;
     }
 
     /**
@@ -521,33 +879,51 @@ public class ExcelImportService {
 
         Map<String, String> mapping = new LinkedHashMap<>();
         mapping.put("所属分行", "primaryBranch");
+        mapping.put("一级支行", "primaryBranch");
         mapping.put("所属支行", "secondaryBranch");
+        mapping.put("二级支行", "secondaryBranch");
         mapping.put("网点名称", "branchCode");
         mapping.put("机构号", "branchCode");
         mapping.put("所属行政区", "districtName");
+        mapping.put("行政区", "districtName");
         mapping.put("所属街道", "street");
+        mapping.put("街道", "street");
         mapping.put("地址", "address");
+        mapping.put("详细地址", "address");
         mapping.put("经度", "longitude");
         mapping.put("纬度", "latitude");
         mapping.put("总人数", "totalStaff");
+        mapping.put("在岗人数", "totalStaff");
         mapping.put("个人客户经理", "personalManager");
+        mapping.put("个人客户经理数", "personalManager");
         mapping.put("公司客户经理", "corporateManager");
+        mapping.put("对公客户经理", "corporateManager");
         mapping.put("柜员", "counterStaff");
+        mapping.put("客服人员", "counterStaff");
         mapping.put("大堂经理", "lobbyStaff");
         mapping.put("网点负责人", "branchManager");
+        mapping.put("网点行长", "branchManager");
         mapping.put("负责人年限", "managerTenure");
+        mapping.put("在岗任职年限", "managerTenure");
         mapping.put("负责人简历", "managerResume");
         mapping.put("负责人历史", "managerHistory");
         mapping.put("总面积", "totalArea");
+        mapping.put("营业面积", "totalArea");
         mapping.put("其他楼层面积", "otherFloorArea");
         mapping.put("现金柜台", "cashCounter");
+        mapping.put("现金柜台数量", "cashCounter");
         mapping.put("非现金柜台", "nonCashCounter");
+        mapping.put("非现金柜台数量", "nonCashCounter");
         mapping.put("管户席位", "managerSeat");
+        mapping.put("个人客户经理管户", "managerSeat");
         mapping.put("产权性质", "propertyRight");
+        mapping.put("产权状态", "propertyRight");
         mapping.put("租赁到期日", "leaseExpire");
         mapping.put("最近装修", "lastRenovation");
         mapping.put("网点类型", "branchType");
+        mapping.put("网点业态类型", "branchType");
         mapping.put("是否拟迁址", "relocation");
+        mapping.put("迁址标识", "relocation");
 
         return mapping.getOrDefault(colName, null);
     }
@@ -556,7 +932,7 @@ public class ExcelImportService {
      * 根据字段名设置JwBranchInfo属性
      */
     private void setBranchField(JwBranchInfo branch, String fieldName, String value) {
-        if (value == null) return;
+        if (value == null || fieldName == null) return;
         try {
             switch (fieldName) {
                 case "primaryBranch": branch.setPrimaryBranch(value); break;
@@ -591,6 +967,114 @@ public class ExcelImportService {
         } catch (NumberFormatException e) {
             log.warn("字段{}的值{}转换失败: {}", fieldName, value, e.getMessage());
         }
+    }
+
+    /**
+     * 将基础数据格式的指标列名（含子分类前缀）匹配到 BRANCH_INDICATOR_MAP 编码
+     * <p>
+     * 策略：
+     * 1. 标准化列名（去前缀、统一标点、去空格）
+     * 2. 在 BRANCH_INDICATOR_MAP 中精确匹配
+     * 3. 包含匹配
+     * 4. 关键词匹配（提取 mapKey 中 >=4 个字符的连续中文关键词）
+     *
+     * @param fullName  子分类 + 列名组合（如 "全量个人金融资产 日均余额 (万元)"）
+     * @param shortName 仅列名（如 "日均余额 (万元)"）
+     * @return indicatorCode，匹配不到返回 null
+     */
+    private String matchBranchIndicator(String fullName, String shortName) {
+        if (fullName == null && shortName == null) return null;
+
+        String cleanFull = fullName != null ? normalizeIndicatorName(fullName) : "";
+        String cleanShort = shortName != null ? normalizeIndicatorName(shortName) : "";
+
+        for (Map.Entry<String, String> entry : BRANCH_INDICATOR_MAP.entrySet()) {
+            String mapKeyNorm = entry.getKey().replaceAll("[（()）]", "").replaceAll("\\s+", "");
+
+            // 1. 精确匹配
+            if (!cleanFull.isEmpty() && cleanFull.equals(mapKeyNorm)) {
+                return entry.getValue();
+            }
+            if (!cleanShort.isEmpty() && cleanShort.equals(mapKeyNorm)) {
+                return entry.getValue();
+            }
+
+            // 2. 包含匹配
+            if (!cleanFull.isEmpty() && (cleanFull.contains(mapKeyNorm) || mapKeyNorm.contains(cleanFull))) {
+                return entry.getValue();
+            }
+            if (!cleanShort.isEmpty() && (cleanShort.contains(mapKeyNorm) || mapKeyNorm.contains(cleanShort))) {
+                return entry.getValue();
+            }
+        }
+
+        // 3. 滑动窗口子串匹配：将 mapKey 切分为所有长度 >=4 的连续子串，
+        //    检查 cleanFull 是否包含其中任意一个
+        if (!cleanFull.isEmpty()) {
+            for (Map.Entry<String, String> entry : BRANCH_INDICATOR_MAP.entrySet()) {
+                String mapKeyNorm = entry.getKey().replaceAll("[（()）]", "").replaceAll("\\s+", "");
+                if (containsSharedSubstring(cleanFull, mapKeyNorm, 4)) {
+                    return entry.getValue();
+                }
+            }
+        }
+
+        // 4. 关键词匹配：从 mapKey 提取连续中文关键词（>=4 字）
+        if (!cleanFull.isEmpty()) {
+            for (Map.Entry<String, String> entry : BRANCH_INDICATOR_MAP.entrySet()) {
+                String mapKeyNorm = entry.getKey().replaceAll("\\s+", "");
+                String[] keywords = mapKeyNorm.split("[^\\u4e00-\\u9fff]+");
+                for (String kw : keywords) {
+                    if (kw.length() >= 4 && cleanFull.contains(kw)) {
+                        return entry.getValue();
+                    }
+                }
+            }
+        }
+
+        log.debug("未匹配到指标编码: full={} short={}", cleanFull, cleanShort);
+        return null;
+    }
+
+    /**
+     * 标准化指标名称：去前缀、统一标点、去空格
+     */
+    private String normalizeIndicatorName(String name) {
+        if (name == null) return "";
+        String s = name;
+        // 去除 Excel 单元格内换行
+        s = s.replace('\n', ' ').replace('\r', ' ');
+        // 去除前缀 "人均管辖"（含子分类后的空间）
+        s = s.replaceAll("\\s*人均管辖\\s*", "");
+        // 去除多余的 "人均"（在 "人均营销额"、"人均放贷额" 等中出现）
+        s = s.replaceAll("\\s*人均\\s*", "");
+        // 去除 "每单位面积" 前缀
+        s = s.replaceAll("\\s*每单位面积\\s*", "");
+        // 统一中文括号/标点
+        s = s.replaceAll("[（()）]", "");
+        s = s.replaceAll("[、，]", "");
+        // 统一全角空格等
+        s = s.replaceAll("[　]", " ");
+        // 去除所有空格
+        s = s.replaceAll("\\s+", "");
+        return s;
+    }
+
+    /**
+     * 检查 two 中是否存在长度 >= minLen 的子串也出现在 one 中
+     */
+    private boolean containsSharedSubstring(String one, String two, int minLen) {
+        if (one == null || two == null || one.length() < minLen || two.length() < minLen) return false;
+        // 从 two 中提取所有长度 >= minLen 的子串，检查是否在 one 中出现
+        for (int start = 0; start <= two.length() - minLen; start++) {
+            for (int end = start + minLen; end <= two.length() && end - start <= 12; end++) {
+                String sub = two.substring(start, end);
+                if (one.contains(sub)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

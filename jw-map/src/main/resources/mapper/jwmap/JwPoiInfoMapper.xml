@@ -14,16 +14,13 @@
         <result property="address" column="address"/>
         <result property="poiType" column="poi_type"/>
         <result property="delFlag" column="del_flag"/>
-        <result property="createBy" column="create_by"/>
         <result property="createTime" column="create_time"/>
-        <result property="updateBy" column="update_by"/>
         <result property="updateTime" column="update_time"/>
-        <result property="remark" column="remark"/>
     </resultMap>
 
     <sql id="selectJwPoiInfoVo">
         SELECT poi_id, org_code, poi_name, longitude, latitude, province, city, district,
-               address, poi_type, del_flag, create_by, create_time, update_by, update_time, remark
+               address, poi_type, del_flag, create_time, update_time
         FROM jw_poi_info
     </sql>
 
@@ -59,23 +56,29 @@
         WHERE city = #{city} AND (del_flag IS NULL OR del_flag = '0')
     </select>
 
+    <select id="selectDistinctCities" resultType="String">
+        SELECT DISTINCT city FROM jw_poi_info
+        WHERE (del_flag IS NULL OR del_flag = '0')
+        ORDER BY city
+    </select>
+
     <insert id="insertJwPoiInfo" parameterType="com.ruoyi.jwmap.domain.JwPoiInfo" useGeneratedKeys="true" keyProperty="poiId">
         INSERT INTO jw_poi_info (
             org_code, poi_name, longitude, latitude, province, city, district,
-            address, poi_type, del_flag, create_by, create_time, update_time
+            address, poi_type, del_flag, create_time, update_time
         ) VALUES (
             #{orgCode}, #{poiName}, #{longitude}, #{latitude}, #{province}, #{city}, #{district},
-            #{address}, #{poiType}, #{delFlag}, #{createBy}, sysdate(), sysdate()
+            #{address}, #{poiType}, #{delFlag}, sysdate(), sysdate()
         )
     </insert>
 
     <insert id="upsertPoiInfo" parameterType="com.ruoyi.jwmap.domain.JwPoiInfo">
         INSERT INTO jw_poi_info (
             org_code, poi_name, longitude, latitude, province, city, district,
-            address, poi_type, del_flag, create_by, create_time, update_time
+            address, poi_type, del_flag, create_time, update_time
         ) VALUES (
             #{orgCode}, #{poiName}, #{longitude}, #{latitude}, #{province}, #{city}, #{district},
-            #{address}, #{poiType}, #{delFlag}, #{createBy}, sysdate(), sysdate()
+            #{address}, #{poiType}, #{delFlag}, sysdate(), sysdate()
         )
         ON DUPLICATE KEY UPDATE
             poi_name = VALUES(poi_name),
@@ -102,7 +105,6 @@
             <if test="address != null">address = #{address},</if>
             <if test="poiType != null">poi_type = #{poiType},</if>
             <if test="delFlag != null">del_flag = #{delFlag},</if>
-            <if test="updateBy != null">update_by = #{updateBy},</if>
             update_time = sysdate()
         </set>
         WHERE poi_id = #{poiId}

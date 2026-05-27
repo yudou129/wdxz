@@ -37,6 +37,8 @@ public interface JwPopulationHeatMapper {
 
     int deleteByGridCode(@Param("gridCode") String gridCode);
 
+    int deleteByCity(@Param("city") String city);
+
     int batchInsert(List<JwPopulationHeat> list);
 
     int upsertJwPopulationHeat(JwPopulationHeat heat);

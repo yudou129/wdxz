@@ -180,6 +180,19 @@ export const dynamicRoutes = [
         meta: { title: '网点地图', icon: 'map' }
       }
     ]
+  },
+  {
+    path: '/jwmap/tianditu',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/jwmap/map/tianditu'),
+        name: 'JwMapTianditu',
+        meta: { title: '天地图', icon: 'map' }
+      }
+    ]
   }
 ]
 

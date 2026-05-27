@@ -13,16 +13,13 @@
         <result property="totalWeight" column="total_weight"/>
         <result property="indicatorCode" column="indicator_code"/>
         <result property="createTime" column="create_time"/>
-        <result property="createBy" column="create_by"/>
         <result property="updateTime" column="update_time"/>
-        <result property="updateBy" column="update_by"/>
-        <result property="remark" column="remark"/>
     </resultMap>
 
     <sql id="selectJwWeightConfigVo">
         SELECT weight_id, level1_name, level1_ratio, level2_name, level2_ratio,
                level3_name, level3_ratio, total_weight, indicator_code,
-               create_time, create_by, update_time, update_by, remark
+               create_time, update_time
         FROM jw_external_resource_weight
     </sql>
 

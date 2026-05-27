@@ -31,18 +31,29 @@ export function importExistingBranch(data) {
   return request({ url: '/jwmap/import/existingBranch', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data' } })
 }
 
-// ===== 计算 =====
+// ===== 计算（超时5分钟，数据量大） =====
 export function computeGridData(city) {
-  return request({ url: '/jwmap/compute/grid/' + city, method: 'post' })
+  return request({ url: '/jwmap/compute/grid/' + city, method: 'post', timeout: 300000 })
 }
 export function computeBranchData(city, year) {
-  return request({ url: '/jwmap/compute/branch/' + city + '/' + year, method: 'post' })
+  return request({ url: '/jwmap/compute/branch/' + city + '/' + year, method: 'post', timeout: 300000 })
 }
 export function assignGridToBranch(city) {
-  return request({ url: '/jwmap/compute/branch/assignGrid/' + city, method: 'post' })
+  return request({ url: '/jwmap/compute/branch/assignGrid/' + city, method: 'post', timeout: 300000 })
+}
+export function computeGridScore(city) {
+  return request({ url: '/jwmap/compute/grid/score/' + city, method: 'post', timeout: 300000 })
 }
 
-// ===== 导出 =====
+// ===== 导出（组合式，一个文件多个Sheet） =====
+export function exportGridCombined(city) {
+  return request({ url: '/jwmap/export/grid/' + city, method: 'get', responseType: 'blob' })
+}
+export function exportBranchCombined(city, year) {
+  return request({ url: '/jwmap/export/branch/' + city + '/' + year, method: 'get', responseType: 'blob' })
+}
+
+// ===== 导出（单sheet，向后兼容） =====
 export function exportGridRaw(city) {
   return request({ url: '/jwmap/export/gridRaw/' + city, method: 'get', responseType: 'blob' })
 }

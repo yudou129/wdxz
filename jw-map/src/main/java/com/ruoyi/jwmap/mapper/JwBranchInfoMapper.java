@@ -20,6 +20,8 @@ public interface JwBranchInfoMapper {
 
     List<JwBranchInfo> selectByCity(@Param("city") String city);
 
+    List<String> selectDistinctCities();
+
     int insertJwBranchInfo(JwBranchInfo branch);
 
     int insertBranchInfo(JwBranchInfo branch);

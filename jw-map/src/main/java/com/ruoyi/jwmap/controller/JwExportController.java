@@ -19,6 +19,43 @@ public class JwExportController extends BaseController {
     private ExcelExportService excelExportService;
 
     /**
+     * 导出网格数据（组合）：原始指标数据 + 归一化得分（含TOPSIS评分）
+     */
+    @GetMapping("/grid/{city}")
+    public void exportGridCombined(@PathVariable String city, HttpServletResponse response) {
+        try {
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setCharacterEncoding("utf-8");
+            String fileName = URLEncoder.encode("网格数据_" + city + ".xlsx", "UTF-8");
+            response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
+            excelExportService.exportGridCombined(city, response.getOutputStream());
+        } catch (Exception e) {
+            logger.error("网格导出失败", e);
+            throw new RuntimeException("导出失败：" + e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : ""));
+        }
+    }
+
+    /**
+     * 导出网点数据（组合）：基础数据 + 数据计算表 + 归一化处理（含TOPSIS评分）
+     */
+    @GetMapping("/branch/{city}/{year}")
+    public void exportBranchCombined(@PathVariable String city, @PathVariable Integer year,
+                                      HttpServletResponse response) {
+        try {
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setCharacterEncoding("utf-8");
+            String fileName = URLEncoder.encode("网点数据_" + city + "_" + year + ".xlsx", "UTF-8");
+            response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
+            excelExportService.exportBranchCombined(city, year, response.getOutputStream());
+        } catch (Exception e) {
+            logger.error("网点导出失败", e);
+            throw new RuntimeException("导出失败：" + e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : ""));
+        }
+    }
+
+    // ===== 以下为单sheet导出（保留向后兼容）=====
+
+    /**
      * 导出网格数据表（原始数据表）
      */
     @GetMapping("/gridRaw/{city}")

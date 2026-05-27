@@ -28,7 +28,8 @@ public class JwImportController extends BaseController {
             int count = excelImportService.importPoiInfo(file.getInputStream(), city, getUsername());
             return success("成功导入 " + count + " 条POI数据");
         } catch (Exception e) {
-            return error("导入失败：" + e.getMessage());
+            logger.error("导入POI异常", e);
+            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
 
@@ -43,7 +44,8 @@ public class JwImportController extends BaseController {
             int count = excelImportService.importPopulationHeat(file.getInputStream(), city);
             return success("成功导入 " + count + " 条人口热力数据");
         } catch (Exception e) {
-            return error("导入失败：" + e.getMessage());
+            logger.error("导入人口热力异常", e);
+            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
 
@@ -56,7 +58,8 @@ public class JwImportController extends BaseController {
             int count = excelImportService.importExternalWeight(file.getInputStream());
             return success("成功导入 " + count + " 条权重数据");
         } catch (Exception e) {
-            return error("导入失败：" + e.getMessage());
+            logger.error("导入外部资源权重异常", e);
+            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
 
@@ -69,7 +72,8 @@ public class JwImportController extends BaseController {
             int count = excelImportService.importBranchEfficiencyWeight(file.getInputStream());
             return success("成功导入 " + count + " 条权重数据");
         } catch (Exception e) {
-            return error("导入失败：" + e.getMessage());
+            logger.error("导入网点效能权重异常", e);
+            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
 
@@ -85,7 +89,8 @@ public class JwImportController extends BaseController {
             int count = excelImportService.importBranchInfo(file.getInputStream(), city, dataSource);
             return success("成功导入 " + count + " 条网点数据");
         } catch (Exception e) {
-            return error("导入失败：" + e.getMessage());
+            logger.error("导入网点信息异常", e);
+            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
 
@@ -100,7 +105,8 @@ public class JwImportController extends BaseController {
             int count = excelImportService.importExistingBranch(file.getInputStream(), city);
             return success("成功导入 " + count + " 条存量网点数据");
         } catch (Exception e) {
-            return error("导入失败：" + e.getMessage());
+            logger.error("导入存量网点异常", e);
+            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
 }

@@ -15,15 +15,12 @@
         <result property="isActive" column="is_active"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
-        <result property="createBy" column="create_by"/>
-        <result property="updateBy" column="update_by"/>
-        <result property="remark" column="remark"/>
     </resultMap>
 
     <sql id="selectJwIndicatorConfigVo">
         SELECT indicator_id, indicator_code, indicator_name, category_level1, category_level2,
                data_type, sort_order, source_tables, is_weighted, is_active,
-               create_time, update_time, create_by, update_by, remark
+               create_time, update_time
         FROM jw_indicator_config
     </sql>
 
@@ -83,11 +80,11 @@
         INSERT INTO jw_indicator_config (
             indicator_code, indicator_name, category_level1, category_level2,
             data_type, sort_order, source_tables, is_weighted, is_active,
-            create_by, update_by, remark, create_time, update_time
+            create_time, update_time
         ) VALUES (
             #{indicatorCode}, #{indicatorName}, #{categoryLevel1}, #{categoryLevel2},
             #{dataType}, #{sortOrder}, #{sourceTables}, #{isWeighted}, #{isActive},
-            #{createBy}, #{updateBy}, #{remark}, sysdate(), sysdate()
+            sysdate(), sysdate()
         )
     </insert>
 
@@ -95,11 +92,11 @@
         INSERT INTO jw_indicator_config (
             indicator_code, indicator_name, category_level1, category_level2,
             data_type, sort_order, source_tables, is_weighted, is_active,
-            create_by, update_by, remark, create_time, update_time
+            create_time, update_time
         ) VALUES (
             #{indicatorCode}, #{indicatorName}, #{categoryLevel1}, #{categoryLevel2},
             #{dataType}, #{sortOrder}, #{sourceTables}, #{isWeighted}, #{isActive},
-            #{createBy}, #{updateBy}, #{remark}, sysdate(), sysdate()
+            sysdate(), sysdate()
         )
     </insert>
 
@@ -115,7 +112,6 @@
             <if test="sourceTables != null">source_tables = #{sourceTables},</if>
             <if test="isWeighted != null">is_weighted = #{isWeighted},</if>
             <if test="isActive != null">is_active = #{isActive},</if>
-            <if test="updateBy != null">update_by = #{updateBy},</if>
             update_time = sysdate()
         </set>
         WHERE indicator_id = #{indicatorId}

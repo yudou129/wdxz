@@ -35,11 +35,8 @@
         <result property="relocation" column="relocation"/>
         <result property="dataSource" column="data_source"/>
         <result property="delFlag" column="del_flag"/>
-        <result property="createBy" column="create_by"/>
         <result property="createTime" column="create_time"/>
-        <result property="updateBy" column="update_by"/>
         <result property="updateTime" column="update_time"/>
-        <result property="remark" column="remark"/>
     </resultMap>
 
     <sql id="selectJwBranchInfoVo">
@@ -49,7 +46,7 @@
                branch_manager, manager_tenure, manager_resume, manager_history,
                total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
                property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
-               del_flag, create_by, create_time, update_by, update_time, remark
+               del_flag, create_time, update_time
         FROM jw_branch_info
     </sql>
 
@@ -100,6 +97,12 @@
         ORDER BY branch_id
     </select>
 
+    <select id="selectDistinctCities" resultType="String">
+        SELECT DISTINCT city FROM jw_branch_info
+        WHERE (del_flag IS NULL OR del_flag = '0')
+        ORDER BY city
+    </select>
+
     <insert id="insertJwBranchInfo" parameterType="com.ruoyi.jwmap.domain.JwBranchInfo" useGeneratedKeys="true" keyProperty="branchId">
         INSERT INTO jw_branch_info (
             primary_branch, secondary_branch, branch_code, city, grid_code,
@@ -108,7 +111,7 @@
             branch_manager, manager_tenure, manager_resume, manager_history,
             total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
             property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
-            del_flag, create_by, create_time, update_time
+            del_flag, create_time, update_time
         ) VALUES (
             #{primaryBranch}, #{secondaryBranch}, #{branchCode}, #{city}, #{gridCode},
             #{districtName}, #{street}, #{address}, #{longitude}, #{latitude},
@@ -116,7 +119,7 @@
             #{branchManager}, #{managerTenure}, #{managerResume}, #{managerHistory},
             #{totalArea}, #{otherFloorArea}, #{cashCounter}, #{nonCashCounter}, #{managerSeat},
             #{propertyRight}, #{leaseExpire}, #{lastRenovation}, #{branchType}, #{relocation}, #{dataSource},
-            #{delFlag}, #{createBy}, sysdate(), sysdate()
+            #{delFlag}, sysdate(), sysdate()
         )
     </insert>
 
@@ -128,7 +131,7 @@
             branch_manager, manager_tenure, manager_resume, manager_history,
             total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
             property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
-            del_flag, create_by, create_time, update_time
+            del_flag, create_time, update_time
         ) VALUES (
             #{primaryBranch}, #{secondaryBranch}, #{branchCode}, #{city}, #{gridCode},
             #{districtName}, #{street}, #{address}, #{longitude}, #{latitude},
@@ -136,7 +139,7 @@
             #{branchManager}, #{managerTenure}, #{managerResume}, #{managerHistory},
             #{totalArea}, #{otherFloorArea}, #{cashCounter}, #{nonCashCounter}, #{managerSeat},
             #{propertyRight}, #{leaseExpire}, #{lastRenovation}, #{branchType}, #{relocation}, #{dataSource},
-            #{delFlag}, #{createBy}, sysdate(), sysdate()
+            #{delFlag}, sysdate(), sysdate()
         )
     </insert>
 
@@ -174,7 +177,6 @@
             <if test="relocation != null">relocation = #{relocation},</if>
             <if test="dataSource != null">data_source = #{dataSource},</if>
             <if test="delFlag != null">del_flag = #{delFlag},</if>
-            <if test="updateBy != null">update_by = #{updateBy},</if>
             update_time = sysdate()
         </set>
         WHERE branch_id = #{branchId}
@@ -214,7 +216,6 @@
             <if test="relocation != null">relocation = #{relocation},</if>
             <if test="dataSource != null">data_source = #{dataSource},</if>
             <if test="delFlag != null">del_flag = #{delFlag},</if>
-            <if test="updateBy != null">update_by = #{updateBy},</if>
             update_time = sysdate()
         </set>
         WHERE branch_id = #{branchId}
@@ -266,7 +267,7 @@
             branch_manager, manager_tenure, manager_resume, manager_history,
             total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
             property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
-            del_flag, create_by, create_time, update_time
+            del_flag, create_time, update_time
         ) VALUES (
             #{primaryBranch}, #{secondaryBranch}, #{branchCode}, #{city}, #{gridCode},
             #{districtName}, #{street}, #{address}, #{longitude}, #{latitude},
@@ -274,7 +275,7 @@
             #{branchManager}, #{managerTenure}, #{managerResume}, #{managerHistory},
             #{totalArea}, #{otherFloorArea}, #{cashCounter}, #{nonCashCounter}, #{managerSeat},
             #{propertyRight}, #{leaseExpire}, #{lastRenovation}, #{branchType}, #{relocation}, #{dataSource},
-            #{delFlag}, #{createBy}, sysdate(), sysdate()
+            #{delFlag}, sysdate(), sysdate()
         )
         ON DUPLICATE KEY UPDATE
             primary_branch = VALUES(primary_branch),
