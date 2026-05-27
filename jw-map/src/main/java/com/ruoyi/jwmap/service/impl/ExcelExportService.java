@@ -420,8 +420,12 @@ public class ExcelExportService {
                 }
             }
 
-            // 数据行
+            // 数据行（跳过表头类垃圾行）
+            Set<String> headerLike = new HashSet<>(Arrays.asList("一级支行", "二级支行", "机构号"));
             for (JwBranchInfo branch : branches) {
+                if (branch.getPrimaryBranch() != null && headerLike.contains(branch.getPrimaryBranch().trim())) {
+                    continue;
+                }
                 Row row = sheet.createRow(rowNum++);
                 row.createCell(0).setCellValue(branch.getBranchCode() != null ? branch.getBranchCode() : "");
                 row.getCell(0).setCellStyle(dataStyle);
@@ -610,7 +614,10 @@ public class ExcelExportService {
             colIdx = fixedCols;
             for (String code : codeList) {
                 Cell c = row.createCell(colIdx++);
-                if (vals != null && vals.containsKey(code)) c.setCellValue(vals.get(code));
+                if (vals != null) {
+                    Double v = vals.get(code);
+                    if (v != null) c.setCellValue(v);
+                }
                 c.setCellStyle(dataStyle);
             }
             // TOPSIS得分
@@ -639,6 +646,43 @@ public class ExcelExportService {
 
     // ==================== 网点组合导出（一个文件多个Sheet） ====================
 
+    // 计算指标显示名称（用于数据计算表/归一化Sheet的列头，严格匹配参考格式）
+    private static final Map<String, String> CALC_DISPLAY_NAME_MAP = new LinkedHashMap<>();
+    static {
+        // revenue
+        CALC_DISPLAY_NAME_MAP.put("branch_rev_per_capita", "人均营业收入\n(万元)");
+        CALC_DISPLAY_NAME_MAP.put("branch_rev_per_area", "单位面积营业收入\n(万元)");
+        // indicator / 全量个人金融资产
+        CALC_DISPLAY_NAME_MAP.put("branch_asset_avg_balance", "户日均余额\n(万元)");
+        CALC_DISPLAY_NAME_MAP.put("branch_asset_avg_growth", "日均增幅");
+        // indicator / 储蓄存款
+        CALC_DISPLAY_NAME_MAP.put("branch_saving_avg_balance", "户日均余额\n(万元)");
+        CALC_DISPLAY_NAME_MAP.put("branch_saving_avg_growth", "日均增幅");
+        // indicator / 公司客户存款
+        CALC_DISPLAY_NAME_MAP.put("branch_corp_dep_avg_balance", "户日均余额\n(万元)");
+        CALC_DISPLAY_NAME_MAP.put("branch_corp_dep_avg_growth", "日均增幅");
+        // indicator / 机构客户存款
+        CALC_DISPLAY_NAME_MAP.put("branch_inst_dep_avg_balance", "户日均余额\n(万元)");
+        CALC_DISPLAY_NAME_MAP.put("branch_inst_dep_avg_growth", "日均增幅");
+        // indicator / 普惠贷款 + 个人贷款
+        CALC_DISPLAY_NAME_MAP.put("branch_incloan_per_capita", "人均营销额\n(万元)");
+        CALC_DISPLAY_NAME_MAP.put("branch_perloan_per_capita", "人均发放额\n(万元)");
+        // customer / 个人客户
+        CALC_DISPLAY_NAME_MAP.put("branch_pcust_t1_per_capita", "人均服务日均0元(不含)-20万元(不含)客户数\n(单位：户)");
+        CALC_DISPLAY_NAME_MAP.put("branch_pcust_t2_per_capita", "人均服务日均20万元(含)-600万元(不含)客户数\n(单位：户)");
+        CALC_DISPLAY_NAME_MAP.put("branch_pcust_t3_per_capita", "人均服务日均大于等于600万元(含)客户数\n(单位：户)");
+        // customer / 对公客户
+        CALC_DISPLAY_NAME_MAP.put("branch_ccust_h_per_capita", "人均服务头部、中部对公客户数日均资产30万元(含)以上\n(单位：户)");
+        CALC_DISPLAY_NAME_MAP.put("branch_ccust_l_per_capita", "人均服务底尾部对公客户数日均资产30万元(不含)以下\n(单位：户)");
+        // customer / 机构客户
+        CALC_DISPLAY_NAME_MAP.put("branch_icust_h_per_capita", "人均服务日均资产1万元(不含)以上机构客户数\n(单位：户)");
+        CALC_DISPLAY_NAME_MAP.put("branch_icust_l_per_capita", "人均服务日均资产1万元(含)以下机构客户数\n(单位：户)");
+        // operation
+        CALC_DISPLAY_NAME_MAP.put("branch_counter_per_area", "每单位面积柜台日均工作量(笔)");
+        CALC_DISPLAY_NAME_MAP.put("branch_terminal_per_area", "每单位面积自助终端日均交易笔数");
+        CALC_DISPLAY_NAME_MAP.put("branch_atm_per_area", "每单位面积附行式ATM日均交易笔数");
+    }
+
     // 22个计算指标编码（按分类顺序）
     private static final List<String> ALL_CALC_INDICATORS = Collections.unmodifiableList(Arrays.asList(
         // revenue (2)
@@ -659,6 +703,60 @@ public class ExcelExportService {
 
     // 分类边界 (startIndex inclusive, endIndex exclusive)
     private static final int[] CAT_BOUNDARIES = {0, 2, 12, 19, 22}; // revenue, indicator, customer, operation
+
+    // 基础数据指标编码→中文名称（BRANCH_INDICATOR_MAP 的逆映射，用于导出时展示中文列名）
+    private static final Map<String, String> BASE_INDICATOR_NAME_MAP = new LinkedHashMap<>();
+    static {
+        BASE_INDICATOR_NAME_MAP.put("interest_income", "利息净收入(万元)");
+        BASE_INDICATOR_NAME_MAP.put("fee_income", "手续费净收入(万元)");
+        BASE_INDICATOR_NAME_MAP.put("total_asset_balance", "全量个人金融资产 日均余额(万元)");
+        BASE_INDICATOR_NAME_MAP.put("total_asset_growth", "全量个人金融资产 日均增量(万元)");
+        BASE_INDICATOR_NAME_MAP.put("saving_balance", "储蓄存款 日均余额(万元)");
+        BASE_INDICATOR_NAME_MAP.put("saving_growth", "储蓄存款 日均增量(万元)");
+        BASE_INDICATOR_NAME_MAP.put("corp_dep_balance", "公司客户存款 日均余额(万元)");
+        BASE_INDICATOR_NAME_MAP.put("corp_dep_growth", "公司客户存款 日均增量(万元)");
+        BASE_INDICATOR_NAME_MAP.put("inst_dep_balance", "机构客户存款 日均余额(万元)");
+        BASE_INDICATOR_NAME_MAP.put("inst_dep_growth", "机构客户存款 日均增量(万元)");
+        BASE_INDICATOR_NAME_MAP.put("inclusive_loan_amount", "普惠贷款 营销额(万元)");
+        BASE_INDICATOR_NAME_MAP.put("personal_loan_amount", "个人贷款 发放额(万元)");
+        BASE_INDICATOR_NAME_MAP.put("pcust_t1", "日均0元（不含）-20万元（不含客户数）(单位：户)");
+        BASE_INDICATOR_NAME_MAP.put("pcust_t2", "日均20万元（含）-600万元（不含客户数）(单位：户)");
+        BASE_INDICATOR_NAME_MAP.put("pcust_t3", "日均大于等于600万（含）客户数(单位：户)");
+        BASE_INDICATOR_NAME_MAP.put("ccust_h", "头部、中部对公客户数 日均资产50万元（含）以上（单位：户）");
+        BASE_INDICATOR_NAME_MAP.put("ccust_l", "底尾部部对公客户数 日均资产50万元（不含）以下（单位：户）");
+        BASE_INDICATOR_NAME_MAP.put("icust_h", "日均资产1万元（不含）以上机构客户数（单位：户）");
+        BASE_INDICATOR_NAME_MAP.put("icust_l", "日均资产1万元（含）以下机构客户数（单位：户）");
+        BASE_INDICATOR_NAME_MAP.put("inclusive_cust_total", "总量（单位：户）");
+        BASE_INDICATOR_NAME_MAP.put("counter_txn", "柜台日均交易笔数");
+        BASE_INDICATOR_NAME_MAP.put("terminal_txn", "自助终端日均交易笔数");
+        BASE_INDICATOR_NAME_MAP.put("atm_txn", "附行式、网点自助ATM日均交易笔数");
+    }
+
+    // 基础数据Sheet Row3 简短指标名称（不带子分类前缀，匹配参考格式）
+    private static final Map<String, String> BASE_INDICATOR_SHORT_NAMES = new LinkedHashMap<>();
+    static {
+        BASE_INDICATOR_SHORT_NAMES.put("interest_income", "利息净收入(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("fee_income", "手续费净收入(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("total_asset_balance", "日均余额(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("total_asset_growth", "日均增量(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("saving_balance", "日均余额(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("saving_growth", "日均增量(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("corp_dep_balance", "日均余额(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("corp_dep_growth", "日均增量(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("inst_dep_balance", "日均余额(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("inst_dep_growth", "日均增量(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("inclusive_loan_amount", "营销额(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("personal_loan_amount", "发放额(万元)");
+        BASE_INDICATOR_SHORT_NAMES.put("pcust_t1", "日均0元（不含）-20万元（不含客户数）(单位：户)");
+        BASE_INDICATOR_SHORT_NAMES.put("pcust_t2", "日均20万元（含）-600万元（不含客户数）(单位：户)");
+        BASE_INDICATOR_SHORT_NAMES.put("pcust_t3", "日均大于等于600万（含）客户数(单位：户)");
+        BASE_INDICATOR_SHORT_NAMES.put("ccust_h", "头部、中部对公客户数 日均资产50万元（含）以上（单位：户）");
+        BASE_INDICATOR_SHORT_NAMES.put("ccust_l", "底尾部部对公客户数 日均资产50万元（不含）以下（单位：户）");
+        BASE_INDICATOR_SHORT_NAMES.put("icust_h", "日均资产1万元（不含）以上机构客户数（单位：户）");
+        BASE_INDICATOR_SHORT_NAMES.put("icust_l", "日均资产1万元（含）以下机构客户数（单位：户）");
+        BASE_INDICATOR_SHORT_NAMES.put("inclusive_cust_total", "总量（单位：户）");
+        // counter_txn/terminal_txn/atm_txn short names not used—these are displayed via Row1-Row2 merge
+    }
 
     /**
      * 导出网点组合数据：基础数据 + 数据计算表 + 归一化处理（含TOPSIS得分）
@@ -700,15 +798,21 @@ public class ExcelExportService {
             throw e;
         }
 
-        // 预加载所有可能用到的指标名称
+        // 预加载所有可能用到的指标名称（含基础数据指标）
         Set<String> allCodes = new LinkedHashSet<>();
+        if (baseIndicators != null) baseIndicators.forEach(i -> allCodes.add(i.getIndicatorCode()));
         if (calcIndicators != null) calcIndicators.forEach(i -> allCodes.add(i.getIndicatorCode()));
         if (normIndicators != null) normIndicators.forEach(i -> allCodes.add(i.getIndicatorCode()));
         allCodes.addAll(ALL_CALC_INDICATORS);
         Map<String, String> nameMap = new LinkedHashMap<>();
         for (String code : allCodes) {
             JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
-            nameMap.put(code, cfg != null ? cfg.getIndicatorName() : code);
+            if (cfg != null) {
+                nameMap.put(code, cfg.getIndicatorName());
+            } else {
+                // 基础数据指标可能不在 config 表中，用硬编码映射兜底
+                nameMap.put(code, BASE_INDICATOR_NAME_MAP.getOrDefault(code, code));
+            }
         }
 
         Map<String, JwBranchSummary> summaryMap = summaries.stream()
@@ -740,7 +844,9 @@ public class ExcelExportService {
 
     /**
      * 写入基础数据Sheet
-     * 8个固定列 + 各年份指标列
+     * 参考格式: Row0=分类(合并) Row1=子分类 Row2=列名 Row3=细分/年份 Row4+=数据
+     * 27个固定列(A-AA) + 各年份指标列(AB-CR)，共96列
+     * 业务运营类的3个指标（柜台/自助终端/ATM），子分类即指标名，Row1跨Row2合并
      */
     private void writeBranchBaseSheet(Sheet sheet,
                                        List<JwBranchInfo> branches,
@@ -749,165 +855,309 @@ public class ExcelExportService {
         CellStyle headerStyle = createHeaderStyle(sheet.getWorkbook());
         CellStyle dataStyle = createDataStyle(sheet.getWorkbook());
 
-        // 固定列
-        String[] fixedHeaders = {"一级支行", "二级支行", "机构号", "行政区", "街道", "地址", "经度", "纬度"};
+        // ===== 27个固定列定义 =====
+        int FIXED_COLS = 27; // A-AA
+        String[] fRow2 = {
+            "一级支行", "二级支行", "网点号", "行政区", "街道", "具体地址", "经度", "纬度",
+            null, null, null, null, null,   // 8-12: 整体情况
+            null, null, null, null,          // 13-16: 网点行长任职情况
+            null, null,                      // 17-18: 营业面积（不含公摊）
+            "现金柜台个数", "非现金柜台个数", "个人客户经理工位个数",
+            null, null,                      // 22-23: 产权状态
+            "最近一次装修时间", "网点业态分类", "迁并情况"
+        };
+        String[] fRow3 = {
+            "", "", "", "", "", "", "", "",   // 0-7: 合并到Row2
+            "总人数", "个人客户经理人数", "对公客户经理人数（专职）", "客服经理（柜面）人数", "客服经理（厅堂）人数",
+            "网点行长姓名", "在本网点任职时间", "完整履历信息（人力资源系统内格式）", "2023-2025年本网点历任行长",
+            "总面积", "其中：若为多层，请填写除首层以外面积",
+            "", "", "",                     // 19-21: 合并到Row2
+            "自有/租赁", "租赁到期时间",
+            "", "", ""                      // 24-26: 合并到Row2
+        };
+        String[] fRow1Labels = {"网点名称", "地理位置", "人员信息", "面积及功能分区", "其他"};
+        int[][] fRow1Ranges = {{0, 2}, {3, 7}, {8, 16}, {17, 21}, {22, 26}};
+        String[] fRow2MergeLabels = {"整体情况", "网点行长任职情况", "营业面积（不含公摊）", "产权状态"};
+        int[][] fRow2MergeRanges = {{8, 12}, {13, 16}, {17, 18}, {22, 23}};
+        // 逐列Row2-Row3合并（替代之前的大块合并）
+        int[][] fRow23Merges = {
+            {0, 0}, {1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7},
+            {19, 19}, {20, 20}, {21, 21},
+            {24, 24}, {25, 25}, {26, 26}
+        };
 
-        // 从指标数据中提取所有年份和指标编码
+        // ===== 指标列定义 =====
+        // {code, row0Cat, row1SubCat, isOpCategory}
+        // isOpCategory=true: 业务运营类，子分类即指标名，Row1跨Row2合并
+        String[][] indicatorDefs = {
+            {"interest_income", "经营情况", "营业收入", null},
+            {"fee_income", "经营情况", "营业收入", null},
+            {"total_asset_balance", "业绩表现", "全量个人金融资产", null},
+            {"total_asset_growth", "业绩表现", "全量个人金融资产", null},
+            {"saving_balance", "业绩表现", "储蓄存款", null},
+            {"saving_growth", "业绩表现", "储蓄存款", null},
+            {"corp_dep_balance", "业绩表现", "公司客户存款", null},
+            {"corp_dep_growth", "业绩表现", "公司客户存款", null},
+            {"inst_dep_balance", "业绩表现", "机构客户存款", null},
+            {"inst_dep_growth", "业绩表现", "机构客户存款", null},
+            {"inclusive_loan_amount", "业绩表现", "普惠贷款", null},
+            {"personal_loan_amount", "业绩表现", "个人贷款", null},
+            {"pcust_t1", "客户发展", "个人客户", null},
+            {"pcust_t2", "客户发展", "个人客户", null},
+            {"pcust_t3", "客户发展", "个人客户", null},
+            {"ccust_h", "客户发展", "对公客户", null},
+            {"ccust_l", "客户发展", "对公客户", null},
+            {"icust_h", "客户发展", "机构客户", null},
+            {"icust_l", "客户发展", "机构客户", null},
+            {"inclusive_cust_total", "客户发展", "普惠客户", null},
+            {"counter_txn", "业务运营", "柜台日均交易笔数", "op"},
+            {"terminal_txn", "业务运营", "自助终端日均交易笔数", "op"},
+            {"atm_txn", "业务运营", "附行式、网点自助ATM日均交易笔试", "op"},
+        };
+
+        // ===== 提取数据 =====
         Set<Integer> years = new TreeSet<>();
-        Set<String> indicatorCodes = new LinkedHashSet<>();
-        Map<Long, Map<String, Map<Integer, Double>>> branchData = new LinkedHashMap<>(); // branchId -> code -> year -> value
+        Map<Long, Map<String, Map<Integer, Double>>> branchData = new LinkedHashMap<>();
         if (indicators != null) {
             for (JwBranchIndicator ind : indicators) {
                 years.add(ind.getDataYear());
-                indicatorCodes.add(ind.getIndicatorCode());
                 branchData.computeIfAbsent(ind.getBranchId(), k -> new LinkedHashMap<>())
                         .computeIfAbsent(ind.getIndicatorCode(), k -> new LinkedHashMap<>())
                         .put(ind.getDataYear(), ind.getIndicatorValue());
             }
         }
-
-        List<String> codeList = new ArrayList<>(indicatorCodes);
         List<Integer> yearList = new ArrayList<>(years);
-        int totalCols = fixedHeaders.length + codeList.size() * yearList.size();
+        int yearsPerIndicator = yearList.size();
+        int indicatorCols = indicatorDefs.length * yearsPerIndicator;
+        int totalCols = FIXED_COLS + indicatorCols;
 
-        int rowNum = 0;
-
-        // Row0: 分类行（合并单元格）
-        Row catRow = sheet.createRow(rowNum++);
-        for (int i = 0; i < fixedHeaders.length; i++) {
-            Cell c = catRow.createCell(i);
-            c.setCellValue(i == 0 ? "网点信息" : "");
-            c.setCellStyle(headerStyle);
-        }
-        if (fixedHeaders.length > 0) {
-            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, fixedHeaders.length - 1));
-        }
-
-        // 按分类合并指标列
-        int colIdx = fixedHeaders.length;
-        Map<String, Integer> catRangeStart = new LinkedHashMap<>();
-        Map<String, String> catLabels = new LinkedHashMap<>();
-        catLabels.put("经营概况", "经营概况");
-        catLabels.put("业务指标", "业务指标");
-        catLabels.put("客户发展", "客户发展");
-        catLabels.put("业务运营", "业务运营");
-        String activeCat = null;
-        for (String code : codeList) {
-            String displayName = nameMap.getOrDefault(code, code);
-            String cat = "业务指标";
-            if (ALL_CALC_INDICATORS.indexOf(code) >= 0) {
-                int idx = ALL_CALC_INDICATORS.indexOf(code);
-                if (idx < 2) cat = "经营概况";
-                else if (idx < 12) cat = "业务指标";
-                else if (idx < 19) cat = "客户发展";
-                else cat = "业务运营";
-            }
-            if (!cat.equals(activeCat)) {
-                catRangeStart.put(cat, colIdx);
-                activeCat = cat;
-            }
-            for (int yi = 0; yi < yearList.size(); yi++) {
-                Cell c = catRow.createCell(colIdx++);
-                c.setCellValue(cat);
-                c.setCellStyle(headerStyle);
-            }
-        }
-        // 注册合并区域
-        for (String cat : new String[]{"经营概况", "业务指标", "客户发展", "业务运营"}) {
-            Integer start = catRangeStart.get(cat);
-            if (start != null) {
-                // 找到该分类的结束列（下一个分类的start - 1，或总列数 - 1）
-                int end = colIdx - 1;
-                String nextCat = null;
-                for (String nc : new String[]{"经营概况", "业务指标", "客户发展", "业务运营"}) {
-                    Integer ns = catRangeStart.get(nc);
-                    if (ns != null && ns > start) {
-                        end = ns - 1;
-                        break;
-                    }
-                }
-                if (end >= start) {
-                    sheet.addMergedRegion(new CellRangeAddress(0, 0, start, end));
-                }
-            }
-        }
-
-        // Row1: 子分类行（空行，保持格式）
-        Row subRow = sheet.createRow(rowNum++);
+        // ===== Row0: 分类行 =====
+        Row row0 = sheet.createRow(0);
         for (int i = 0; i < totalCols; i++) {
-            subRow.createCell(i).setCellStyle(headerStyle);
-        }
-
-        // Row2: 指标名称行
-        Row nameRow = sheet.createRow(rowNum++);
-        for (int i = 0; i < fixedHeaders.length; i++) {
-            nameRow.createCell(i).setCellStyle(headerStyle);
-        }
-        colIdx = fixedHeaders.length;
-        for (String code : codeList) {
-            String displayName = nameMap.getOrDefault(code, code);
-            for (int yi = 0; yi < yearList.size(); yi++) {
-                Cell c = nameRow.createCell(colIdx++);
-                c.setCellValue(displayName);
-                c.setCellStyle(headerStyle);
-            }
-        }
-
-        // Row2: 年份行
-        Row yearRow = sheet.createRow(rowNum++);
-        for (int i = 0; i < fixedHeaders.length; i++) {
-            Cell c = yearRow.createCell(i);
+            Cell c = row0.createCell(i);
             c.setCellStyle(headerStyle);
         }
-        colIdx = fixedHeaders.length;
-        for (String ignored : codeList) {
-            for (Integer y : yearList) {
-                Cell c = yearRow.createCell(colIdx++);
-                c.setCellValue(y);
-                c.setCellStyle(headerStyle);
+        row0.getCell(0).setCellValue("基本信息");
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, FIXED_COLS - 1));
+
+        int col = FIXED_COLS;
+        String prevCat = null;
+        int catStart = FIXED_COLS;
+        for (String[] idef : indicatorDefs) {
+            String cat = idef[1];
+            if (!cat.equals(prevCat)) {
+                if (prevCat != null && col - 1 >= catStart) {
+                    sheet.addMergedRegion(new CellRangeAddress(0, 0, catStart, col - 1));
+                    row0.getCell(catStart).setCellValue(prevCat);
+                }
+                catStart = col;
+                prevCat = cat;
+            }
+            col += yearsPerIndicator;
+        }
+        if (prevCat != null && col - 1 >= catStart) {
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, catStart, col - 1));
+            row0.getCell(catStart).setCellValue(prevCat);
+        }
+
+        // ===== Row1: 子分类行 =====
+        Row row1 = sheet.createRow(1);
+        for (int i = 0; i < totalCols; i++) {
+            Cell c = row1.createCell(i);
+            c.setCellStyle(headerStyle);
+        }
+        for (int i = 0; i < fRow1Ranges.length; i++) {
+            int[] rng = fRow1Ranges[i];
+            if (rng[1] >= rng[0]) {
+                sheet.addMergedRegion(new CellRangeAddress(1, 1, rng[0], rng[1]));
+                row1.getCell(rng[0]).setCellValue(fRow1Labels[i]);
             }
         }
 
-        // Row3+: 数据行
-        for (JwBranchInfo branch : branches) {
-            Row row = sheet.createRow(rowNum++);
-            row.createCell(0).setCellValue(branch.getPrimaryBranch() != null ? branch.getPrimaryBranch() : "");
-            row.getCell(0).setCellStyle(dataStyle);
-            row.createCell(1).setCellValue(branch.getSecondaryBranch() != null ? branch.getSecondaryBranch() : "");
-            row.getCell(1).setCellStyle(dataStyle);
-            row.createCell(2).setCellValue(branch.getBranchCode() != null ? branch.getBranchCode() : "");
-            row.getCell(2).setCellStyle(dataStyle);
-            row.createCell(3).setCellValue(branch.getDistrictName() != null ? branch.getDistrictName() : "");
-            row.getCell(3).setCellStyle(dataStyle);
-            row.createCell(4).setCellValue(branch.getStreet() != null ? branch.getStreet() : "");
-            row.getCell(4).setCellStyle(dataStyle);
-            row.createCell(5).setCellValue(branch.getAddress() != null ? branch.getAddress() : "");
-            row.getCell(5).setCellStyle(dataStyle);
-            row.createCell(6).setCellValue(branch.getLongitude() != null ? branch.getLongitude() : 0);
-            row.getCell(6).setCellStyle(dataStyle);
-            row.createCell(7).setCellValue(branch.getLatitude() != null ? branch.getLatitude() : 0);
-            row.getCell(7).setCellStyle(dataStyle);
+        // 指标子分类（业务运营类跨Row1-Row2合并）
+        col = FIXED_COLS;
+        String prevSubCat = null;
+        int subStart = FIXED_COLS;
+        for (String[] idef : indicatorDefs) {
+            String sub = idef[2];
+            if (!sub.equals(prevSubCat)) {
+                if (prevSubCat != null && !prevSubCat.isEmpty() && col - 1 >= subStart) {
+                    sheet.addMergedRegion(new CellRangeAddress(1, 1, subStart, col - 1));
+                    row1.getCell(subStart).setCellValue(prevSubCat);
+                }
+                subStart = col;
+                prevSubCat = sub;
+            }
+            col += yearsPerIndicator;
+        }
+        if (prevSubCat != null && !prevSubCat.isEmpty() && col - 1 >= subStart) {
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, subStart, col - 1));
+            row1.getCell(subStart).setCellValue(prevSubCat);
+        }
 
+        // ===== Row2: 列名行 =====
+        Row row2 = sheet.createRow(2);
+        for (int i = 0; i < totalCols; i++) {
+            Cell c = row2.createCell(i);
+            c.setCellStyle(headerStyle);
+        }
+        for (int i = 0; i < fRow2MergeRanges.length; i++) {
+            int[] rng = fRow2MergeRanges[i];
+            if (rng[1] >= rng[0]) {
+                sheet.addMergedRegion(new CellRangeAddress(2, 2, rng[0], rng[1]));
+                row2.getCell(rng[0]).setCellValue(fRow2MergeLabels[i]);
+            }
+        }
+        for (int i = 0; i < FIXED_COLS; i++) {
+            if (fRow2[i] != null) row2.getCell(i).setCellValue(fRow2[i]);
+        }
+
+        // 指标列名：每个指标跨yearsPerIndicator列合并
+        // 业务运营类(Row2作为Row1子分类合并区域一部分，不显示独立标签)
+        col = FIXED_COLS;
+        for (String[] idef : indicatorDefs) {
+            String code = idef[0];
+            boolean isOp = "op".equals(idef[3]);
+            int endCol = col + yearsPerIndicator - 1;
+            if (endCol > col && !isOp) {
+                sheet.addMergedRegion(new CellRangeAddress(2, 2, col, endCol));
+            }
+            if (!isOp) {
+                String displayName = BASE_INDICATOR_SHORT_NAMES.get(code);
+                if (displayName == null) displayName = nameMap.getOrDefault(code, code);
+                row2.getCell(col).setCellValue(displayName);
+            }
+            col += yearsPerIndicator;
+        }
+
+        // ===== Row3: 细分/年份行 =====
+        Row row3 = sheet.createRow(3);
+        for (int i = 0; i < totalCols; i++) {
+            Cell c = row3.createCell(i);
+            c.setCellStyle(headerStyle);
+        }
+        // 固定列Row2-Row3合并
+        for (int[] mg : fRow23Merges) {
+            if (mg[1] >= mg[0]) {
+                sheet.addMergedRegion(new CellRangeAddress(2, 3, mg[0], mg[1]));
+            }
+        }
+        for (int i = 0; i < FIXED_COLS; i++) {
+            if (fRow3[i] != null && !fRow3[i].isEmpty()) {
+                row3.getCell(i).setCellValue(fRow3[i]);
+            }
+        }
+        // 年份行
+        col = FIXED_COLS;
+        for (String[] idef : indicatorDefs) {
+            for (Integer y : yearList) {
+                row3.getCell(col++).setCellValue(String.valueOf(y));
+            }
+        }
+
+        // ===== Row4+: 数据行 =====
+        int rowNum = 4;
+        Set<String> headerLike = new HashSet<>(Arrays.asList(
+            "一级支行", "二级支行", "机构号", "网点号", "行政区", "街道",
+            "具体地址", "详细地址", "经度", "纬度"));
+        for (JwBranchInfo branch : branches) {
+            String p = branch.getPrimaryBranch();
+            if (p == null) continue;
+            String trimmed = p.trim();
+            if (trimmed.isEmpty() || headerLike.contains(trimmed)) continue;
+            // Also skip rows with header-like text in districtName or street
+            String dn = branch.getDistrictName();
+            if (dn != null && headerLike.contains(dn.trim())) continue;
+            String st = branch.getStreet();
+            if (st != null && headerLike.contains(st.trim())) continue;
+            String ad = branch.getAddress();
+            if (ad != null && (ad.trim().equals("具体地址") || ad.trim().equals("详细地址"))) continue;
+
+            Row row = sheet.createRow(rowNum++);
+            for (int i = 0; i < totalCols; i++) {
+                Cell c = row.createCell(i);
+                c.setCellStyle(dataStyle);
+            }
+            // 27个固定列值
+            setCellValue(row.getCell(0), branch.getPrimaryBranch(), dataStyle);
+            setCellValue(row.getCell(1), branch.getSecondaryBranch(), dataStyle);
+            setCellValue(row.getCell(2), branch.getBranchCode(), dataStyle);
+            setCellValue(row.getCell(3), branch.getDistrictName(), dataStyle);
+            setCellValue(row.getCell(4), branch.getStreet(), dataStyle);
+            setCellValue(row.getCell(5), branch.getAddress(), dataStyle);
+            row.getCell(6).setCellValue(branch.getLongitude() != null ? branch.getLongitude() : 0);
+            row.getCell(7).setCellValue(branch.getLatitude() != null ? branch.getLatitude() : 0);
+            row.getCell(8).setCellValue(branch.getTotalStaff() != null ? branch.getTotalStaff().doubleValue() : 0);
+            row.getCell(9).setCellValue(branch.getPersonalManager() != null ? branch.getPersonalManager().doubleValue() : 0);
+            row.getCell(10).setCellValue(branch.getCorporateManager() != null ? branch.getCorporateManager().doubleValue() : 0);
+            row.getCell(11).setCellValue(branch.getCounterStaff() != null ? branch.getCounterStaff().doubleValue() : 0);
+            row.getCell(12).setCellValue(branch.getLobbyStaff() != null ? branch.getLobbyStaff().doubleValue() : 0);
+            setCellValue(row.getCell(13), branch.getBranchManager(), dataStyle);
+            setCellValue(row.getCell(14), branch.getManagerTenure(), dataStyle);
+            setCellValue(row.getCell(15), branch.getManagerResume(), dataStyle);
+            setCellValue(row.getCell(16), branch.getManagerHistory(), dataStyle);
+            row.getCell(17).setCellValue(branch.getTotalArea() != null ? branch.getTotalArea() : 0);
+            row.getCell(18).setCellValue(branch.getOtherFloorArea() != null ? branch.getOtherFloorArea() : 0);
+            row.getCell(19).setCellValue(branch.getCashCounter() != null ? branch.getCashCounter().doubleValue() : 0);
+            row.getCell(20).setCellValue(branch.getNonCashCounter() != null ? branch.getNonCashCounter().doubleValue() : 0);
+            row.getCell(21).setCellValue(branch.getManagerSeat() != null ? branch.getManagerSeat().doubleValue() : 0);
+            setCellValue(row.getCell(22), branch.getPropertyRight(), dataStyle);
+            setCellValue(row.getCell(23), branch.getLeaseExpire(), dataStyle);
+            setCellValue(row.getCell(24), branch.getLastRenovation(), dataStyle);
+            setCellValue(row.getCell(25), branch.getBranchType(), dataStyle);
+            setCellValue(row.getCell(26), branch.getRelocation(), dataStyle);
+
+            // 指标数据
             Map<String, Map<Integer, Double>> bd = branchData.get(branch.getBranchId());
-            colIdx = fixedHeaders.length;
-            for (String code : codeList) {
-                Map<Integer, Double> yearVals = bd != null ? bd.get(code) : null;
-                for (Integer ignored : yearList) {
-                    Cell c = row.createCell(colIdx++);
-                    if (yearVals != null && yearVals.containsKey(ignored)) {
-                        c.setCellValue(yearVals.get(ignored));
+            col = FIXED_COLS;
+            for (String[] idef : indicatorDefs) {
+                Map<Integer, Double> yearVals = bd != null ? bd.get(idef[0]) : null;
+                for (Integer y : yearList) {
+                    Cell c = row.getCell(col++);
+                    if (yearVals != null) {
+                        Double yv = yearVals.get(y);
+                        if (yv != null) c.setCellValue(yv);
                     }
-                    c.setCellStyle(dataStyle);
                 }
             }
         }
 
-        // 自适应列宽
-        for (int i = 0; i < totalCols; i++) sheet.autoSizeColumn(i);
+        // 统一列宽（最大18字符，避免某些列过宽）
+        for (int i = 0; i < totalCols; i++) {
+            sheet.autoSizeColumn(i);
+            int w = sheet.getColumnWidth(i);
+            if (w > 18 * 256) sheet.setColumnWidth(i, 18 * 256);
+            if (w < 10 * 256) sheet.setColumnWidth(i, 10 * 256);
+        }
+    }
+
+    /** 设置字符串单元格值，null时留空 */
+    private void setCellValue(Cell cell, String value, CellStyle style) {
+        if (value != null) cell.setCellValue(value);
+    }
+
+    // Map indicator code to category name
+    private String catForIndicatorCode(String code) {
+        int idx = ALL_CALC_INDICATORS.indexOf(code);
+        if (idx >= 0) {
+            if (idx < 2) return "经营情况";
+            if (idx < 12) return "业绩表现";
+            if (idx < 19) return "客户发展";
+            return "业务运营";
+        }
+        // 基础数据指标编码 → 分类映射
+        if (code.equals("interest_income") || code.equals("fee_income")) return "经营情况";
+        if (code.equals("counter_txn") || code.equals("terminal_txn") || code.equals("atm_txn")) return "业务运营";
+        if (code.startsWith("pcust_") || code.startsWith("ccust_") || code.startsWith("icust_")
+            || code.equals("inclusive_cust_total")) return "客户发展";
+        return "业绩表现"; // default for non-matching codes
     }
 
     /**
      * 写入数据计算表Sheet（含多级表头、实际权值/MAX/MIN行）
+     * 参考格式：Row0=分类(含跨行合并), Row1=子分类, Row2=指标名称, Row3=年份,
+     * Row4=实际权值, Row5=MAX, Row6=MIN, Row7+=数据
+     * 归一化sheet右侧追加TOPSIS五类得分(4列/类: D+, D-, 得分, 排名)
      */
     private void writeBranchCalcSheet(Sheet sheet,
                                        List<JwBranchInfo> branches,
@@ -922,9 +1172,14 @@ public class ExcelExportService {
         CellStyle maxMinStyle = createMaxMinStyle(sheet.getWorkbook());
         CellStyle dataStyle = createDataStyle(sheet.getWorkbook());
 
-        // 5个固定列 + 22个指标
         int fixedCols = 5;
-        String[] fixedHeaders = {"一级支行", "二级支行", "机构号", "经度", "纬度"};
+        String[] fixedHeaders = {"一级支行", "二级支行", "网点号", "经度", "纬度"};
+
+        // 固定列分组：A-C=网点信息(跨行0-1), D-E=基础信息(Row0)/地理位置(Row1)
+        int[][] fixedR0 = {{0, 1, 0, 2}, {0, 0, 3, 4}};
+        String[] fixedR0Labels = {"网点信息", "基础信息"};
+        int[][] fixedR1 = {{1, 1, 3, 4}};
+        String[] fixedR1Labels = {"地理位置"};
 
         List<String> codeList = new ArrayList<>(ALL_CALC_INDICATORS);
 
@@ -937,74 +1192,151 @@ public class ExcelExportService {
             }
         }
 
-        // 分类名称和列范围 (col index from fixedCols)
-        String[][] categories = {
-            {"经营概况", "0", "2"},   // revenue: 2 indicators
-            {"业务指标", "2", "12"},  // indicator: 10
-            {"客户发展", "12", "19"}, // customer: 7
-            {"业务运营", "19", "22"}  // operation: 3
-        };
+        // 指标分类布局: startIdx, endIdx(EXCLUSIVE), spansBothRows
+        int[] catStart = {0, 2, 12, 19};
+        int[] catEnd   = {2, 12, 19, 22};
+        boolean[] catSpan = {true, false, false, true};
+        String[] catNames = {"经营情况", "业绩表现", "客户发展", "业务运营"};
 
-        int totalCols = fixedCols + codeList.size();
+        // Row1子分类(仅spansBothRows=false的分类需要)
+        int[][] subRange = {{2,4}, {4,6}, {6,8}, {8,10}, {10,11}, {11,12}, {12,15}, {15,17}, {17,19}};
+        String[] subNames = {"全量个人金融资产", "储蓄存款", "公司客户存款", "机构客户存款",
+                             "普惠贷款", "个人贷款", "个人客户", "对公客户", "机构客户"};
+
+        // TOPSIS得分区(仅归一化sheet)
+        String[] scoreCats = {"overall", "revenue", "indicator", "customer", "operation"};
+        String[] scoreLabels = {"总分", "营收", "指标", "客户", "运营"};
+        String[] distLabels = {"正理想解欧式距离", "负理想解欧式距离", "得分", "排名"};
+        int colsPerCat = 4;
+        int scoreTotal = isNormalized ? scoreCats.length * colsPerCat : 0;
+
+        int indicatorCount = codeList.size();
+        int totalCols = fixedCols + indicatorCount + scoreTotal;
         int rowNum = 0;
 
-        // ===== Row0: 分类名称（合并单元格） =====
+        // ===== Row0: 分类名称（合并单元格，部分跨行） =====
         Row row0 = sheet.createRow(rowNum++);
-        for (int i = 0; i < fixedCols; i++) {
-            Cell c = row0.createCell(i);
-            c.setCellValue(i == 0 ? "网点信息" : "");
-            c.setCellStyle(headerStyle);
-        }
-        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, fixedCols - 1));
-        for (String[] cat : categories) {
-            int start = fixedCols + Integer.parseInt(cat[1]);
-            int end = fixedCols + Integer.parseInt(cat[2]) - 1; // CellRangeAddress end inclusive
+
+        // 固定列区域
+        for (int i = 0; i < fixedCols; i++) row0.createCell(i).setCellStyle(headerStyle);
+        row0.getCell(0).setCellValue("网点名称");
+        row0.getCell(3).setCellValue("基础信息");
+        sheet.addMergedRegion(new CellRangeAddress(0, 1, 0, 2));  // 网点信息 A-C
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 3, 4));  // 基础信息 D-E
+
+        // 指标分类区域
+        for (int ci = 0; ci < catNames.length; ci++) {
+            int start = fixedCols + catStart[ci];
+            int end = fixedCols + catEnd[ci] - 1;
             for (int i = start; i <= end; i++) {
                 Cell c = row0.createCell(i);
-                c.setCellValue(i == start ? cat[0] : "");
+                c.setCellValue(i == start ? catNames[ci] : "");
                 c.setCellStyle(headerStyle);
             }
             if (end >= start) {
-                sheet.addMergedRegion(new CellRangeAddress(0, 0, start, end));
+                if (catSpan[ci]) {
+                    sheet.addMergedRegion(new CellRangeAddress(0, 1, start, end));
+                } else {
+                    sheet.addMergedRegion(new CellRangeAddress(0, 0, start, end));
+                }
             }
         }
 
-        // ===== Row1: 子分类（空行，保持格式对齐） =====
-        Row subCatRow = sheet.createRow(rowNum++);
+        // TOPSIS得分分类(Row0): 每个分类合并4列
+        if (isNormalized) {
+            int s0 = totalCols - scoreTotal;
+            for (int si = 0; si < scoreCats.length; si++) {
+                int s = s0 + si * colsPerCat;
+                int e = s + colsPerCat - 1;
+                for (int i = s; i <= e; i++) {
+                    Cell c = row0.createCell(i);
+                    c.setCellValue(i == s ? scoreLabels[si] : "");
+                    c.setCellStyle(headerStyle);
+                }
+                sheet.addMergedRegion(new CellRangeAddress(0, 1, s, e));
+            }
+        }
+
+        // ===== Row1: 子分类 =====
+        Row row1 = sheet.createRow(rowNum++);
+
+        // A-C: 网点信息跨行合并覆盖, 留空
+        for (int i = 0; i < 3; i++) row1.createCell(i).setCellStyle(headerStyle);
+        // D-E: 地理位置（确保合并区域的首单元格也设置样式）
+        Cell cellD2 = row1.createCell(3);
+        cellD2.setCellValue("地理位置");
+        cellD2.setCellStyle(headerStyle);
+        row1.createCell(4).setCellStyle(headerStyle);
+        sheet.addMergedRegion(new CellRangeAddress(1, 1, 3, 4));
+
+        // 指标子分类
+        for (int si = 0; si < subNames.length; si++) {
+            int start = fixedCols + subRange[si][0];
+            int end = fixedCols + subRange[si][1] - 1;
+            for (int i = start; i <= end; i++) {
+                Cell c = row1.createCell(i);
+                c.setCellValue(i == start ? subNames[si] : "");
+                c.setCellStyle(headerStyle);
+            }
+            if (end > start) {
+                sheet.addMergedRegion(new CellRangeAddress(1, 1, start, end));
+            }
+        }
+
+        // 补全Row1空cell样式
         for (int i = 0; i < totalCols; i++) {
-            Cell c = subCatRow.createCell(i);
-            c.setCellStyle(headerStyle);
+            if (row1.getCell(i) == null) row1.createCell(i).setCellStyle(headerStyle);
         }
 
         // ===== Row2: 指标名称 =====
-        Row indicatorRow = sheet.createRow(rowNum++);
+        Row nameRow = sheet.createRow(rowNum++);
         for (int i = 0; i < fixedCols; i++) {
-            Cell c = indicatorRow.createCell(i);
+            Cell c = nameRow.createCell(i);
+            c.setCellValue(fixedHeaders[i]);
             c.setCellStyle(headerStyle);
         }
         int colIdx = fixedCols;
         for (String code : codeList) {
-            Cell c = indicatorRow.createCell(colIdx++);
-            c.setCellValue(nameMap.getOrDefault(code, code));
+            Cell c = nameRow.createCell(colIdx++);
+            // 优先使用CALC_DISPLAY_NAME_MAP（含换行符，匹配参考格式）
+            c.setCellValue(CALC_DISPLAY_NAME_MAP.getOrDefault(code,
+                    nameMap.getOrDefault(code, code)));
             c.setCellStyle(headerStyle);
+        }
+        // TOPSIS得分列标签(Row2): 每个分类4列(正理想解欧式距离/负理想解欧式距离/得分/排名)
+        if (isNormalized) {
+            int s0 = totalCols - scoreTotal;
+            for (int si = 0; si < scoreCats.length; si++) {
+                for (int di = 0; di < colsPerCat; di++) {
+                    Cell c = nameRow.createCell(s0 + si * colsPerCat + di);
+                    c.setCellValue(distLabels[di]);
+                    c.setCellStyle(headerStyle);
+                }
+            }
         }
 
         // ===== Row3: 年份 =====
+        // 固定列Row2-Row3逐列合并（匹配参考格式 A3:A4, B3:B4, ...）
+        for (int i = 0; i < fixedCols; i++) {
+            sheet.addMergedRegion(new CellRangeAddress(2, 3, i, i));
+        }
         Row yearRow = sheet.createRow(rowNum++);
         for (int i = 0; i < fixedCols; i++) {
-            Cell c = yearRow.createCell(i);
-            c.setCellStyle(headerStyle);
+            yearRow.createCell(i).setCellStyle(headerStyle);
         }
         colIdx = fixedCols;
         for (String ignored : codeList) {
             Cell c = yearRow.createCell(colIdx++);
-            if (dataYear != null) c.setCellValue(dataYear.doubleValue());
+            if (dataYear != null) c.setCellValue(String.valueOf(dataYear));
             c.setCellStyle(headerStyle);
         }
+        for (int i = fixedCols + indicatorCount; i < totalCols; i++) {
+            yearRow.createCell(i).setCellStyle(headerStyle);
+        }
 
-        // ===== Row3: 实际权值 =====
+        // ===== Row4: 实际权重 =====
         Row weightRow = sheet.createRow(rowNum++);
-        weightRow.createCell(0).setCellValue("实际权值");
+        weightRow.createCell(0).setCellValue("实际权重");
         weightRow.getCell(0).setCellStyle(weightStyle);
         for (int i = 1; i < fixedCols; i++) weightRow.createCell(i).setCellStyle(maxMinStyle);
         colIdx = fixedCols;
@@ -1016,8 +1348,11 @@ public class ExcelExportService {
             }
             c.setCellStyle(weightStyle);
         }
+        for (int i = fixedCols + indicatorCount; i < totalCols; i++) {
+            weightRow.createCell(i).setCellStyle(maxMinStyle);
+        }
 
-        // ===== Row4: MAX =====
+        // ===== Row5: MAX =====
         Row maxRow = sheet.createRow(rowNum++);
         maxRow.createCell(0).setCellValue("MAX");
         maxRow.getCell(0).setCellStyle(maxMinStyle);
@@ -1036,8 +1371,11 @@ public class ExcelExportService {
             }
             c.setCellStyle(maxMinStyle);
         }
+        for (int i = fixedCols + indicatorCount; i < totalCols; i++) {
+            maxRow.createCell(i).setCellStyle(maxMinStyle);
+        }
 
-        // ===== Row5: MIN =====
+        // ===== Row6: MIN =====
         Row minRow = sheet.createRow(rowNum++);
         minRow.createCell(0).setCellValue("MIN");
         minRow.getCell(0).setCellStyle(maxMinStyle);
@@ -1056,9 +1394,22 @@ public class ExcelExportService {
             }
             c.setCellStyle(maxMinStyle);
         }
+        for (int i = fixedCols + indicatorCount; i < totalCols; i++) {
+            minRow.createCell(i).setCellStyle(maxMinStyle);
+        }
 
-        // ===== Row6+: 数据行 =====
+        // ===== Row7+: 数据行（跳过表头类垃圾行和空行） =====
+        Set<String> headerLike = new HashSet<>(Arrays.asList("一级支行", "二级支行", "机构号"));
         for (JwBranchInfo branch : branches) {
+            String p = branch.getPrimaryBranch();
+            if (p != null) {
+                String trimmed = p.trim();
+                if (trimmed.isEmpty() || headerLike.contains(trimmed)) {
+                    continue;
+                }
+            } else {
+                continue;
+            }
             Row row = sheet.createRow(rowNum++);
             row.createCell(0).setCellValue(branch.getPrimaryBranch() != null ? branch.getPrimaryBranch() : "");
             row.getCell(0).setCellStyle(dataStyle);
@@ -1075,62 +1426,41 @@ public class ExcelExportService {
             colIdx = fixedCols;
             for (String code : codeList) {
                 Cell c = row.createCell(colIdx++);
-                if (vals != null && vals.containsKey(code)) c.setCellValue(vals.get(code));
+                if (vals != null) {
+                    Double v = vals.get(code);
+                    if (v != null) c.setCellValue(v);
+                }
                 c.setCellStyle(dataStyle);
             }
-        }
 
-        // 如果归一化且有得分数据，在右侧追加TOPSIS五类得分列
-        if (isNormalized && scoreMap != null && !scoreMap.isEmpty()) {
-            String[] scoreCategories = {"revenue", "indicator", "customer", "operation", "overall"};
-            String[] scoreLabels = {"营收得分", "指标得分", "客户得分", "运营得分", "总分"};
-            String[] distLabels = {"D+", "D-", "得分"};
-            int scoreStartCol = totalCols;
-
-            // 增加得分列头到header行 (Row1)
-            colIdx = totalCols;
-            for (int si = 0; si < scoreCategories.length; si++) {
-                for (String dl : distLabels) {
-                    Cell c = indicatorRow.createCell(colIdx++);
-                    c.setCellValue(scoreLabels[si] + dl);
-                    c.setCellStyle(headerStyle);
-                }
-            }
-
-            // 更新year/weight/MAX/MIN行 — 添加占位
-            for (int i = colIdx; i < scoreStartCol + scoreCategories.length * 3; i++) {
-                yearRow.createCell(i).setCellStyle(headerStyle);
-                weightRow.createCell(i).setCellStyle(maxMinStyle);
-                maxRow.createCell(i).setCellStyle(maxMinStyle);
-                minRow.createCell(i).setCellStyle(maxMinStyle);
-            }
-
-            // 数据行填充得分
-            int scoreColCount = scoreCategories.length * 3;
-            int dataRowStart = rowNum - branches.size(); // 当前已写到rowNum行，数据从rowNum - branches.size()开始
-            int dataIdx = 0;
-            for (JwBranchInfo branch : branches) {
-                Row row = sheet.getRow(dataRowStart + dataIdx++);
+            // TOPSIS得分列(归一化sheet)
+            if (isNormalized && scoreMap != null) {
                 Map<String, JwBranchScore> branchScores = scoreMap.get(branch.getBranchId());
-                colIdx = scoreStartCol;
-                for (String cat : scoreCategories) {
+                for (String cat : scoreCats) {
                     JwBranchScore sc = branchScores != null ? branchScores.get(cat) : null;
-                    Cell dc = row.createCell(colIdx++);
-                    if (sc != null && sc.getPositiveDistance() != null) dc.setCellValue(sc.getPositiveDistance());
-                    dc.setCellStyle(dataStyle);
+                    Cell pc = row.createCell(colIdx++);
+                    if (sc != null && sc.getPositiveDistance() != null) pc.setCellValue(sc.getPositiveDistance());
+                    pc.setCellStyle(dataStyle);
                     Cell nc = row.createCell(colIdx++);
                     if (sc != null && sc.getNegativeDistance() != null) nc.setCellValue(sc.getNegativeDistance());
                     nc.setCellStyle(dataStyle);
-                    Cell sc_c = row.createCell(colIdx++);
-                    if (sc != null && sc.getCategoryScore() != null) sc_c.setCellValue(sc.getCategoryScore());
-                    sc_c.setCellStyle(dataStyle);
+                    Cell scc = row.createCell(colIdx++);
+                    if (sc != null && sc.getCategoryScore() != null) scc.setCellValue(sc.getCategoryScore());
+                    scc.setCellStyle(dataStyle);
+                    Cell rc = row.createCell(colIdx++);
+                    if (sc != null && sc.getRankNum() != null) rc.setCellValue(sc.getRankNum());
+                    rc.setCellStyle(dataStyle);
                 }
             }
-            totalCols += scoreColCount;
         }
 
-        // 自适应列宽
-        for (int i = 0; i < totalCols; i++) sheet.autoSizeColumn(i);
+        // 统一列宽（最大18字符，最小10字符）
+        for (int i = 0; i < totalCols; i++) {
+            sheet.autoSizeColumn(i);
+            int w = sheet.getColumnWidth(i);
+            if (w > 18 * 256) sheet.setColumnWidth(i, 18 * 256);
+            if (w < 10 * 256) sheet.setColumnWidth(i, 10 * 256);
+        }
     }
 
     private CellStyle createHeaderStyle(Workbook workbook) {
@@ -1146,6 +1476,8 @@ public class ExcelExportService {
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
         style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        style.setWrapText(true);
         return style;
     }
 
@@ -1161,6 +1493,8 @@ public class ExcelExportService {
         style.setBorderTop(BorderStyle.THIN);
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
         return style;
     }
 
@@ -1176,6 +1510,8 @@ public class ExcelExportService {
         style.setBorderTop(BorderStyle.THIN);
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
         return style;
     }
 
@@ -1185,7 +1521,8 @@ public class ExcelExportService {
         style.setBorderTop(BorderStyle.THIN);
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
-        style.setAlignment(HorizontalAlignment.RIGHT);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
         return style;
     }
 }

@@ -47,6 +47,7 @@ public class ExcelImportService {
         BRANCH_INDICATOR_MAP.put("柜台日均交易笔数", "counter_txn");
         BRANCH_INDICATOR_MAP.put("自助终端日均交易笔数", "terminal_txn");
         BRANCH_INDICATOR_MAP.put("附行式、网点自助ATM日均交易笔数", "atm_txn");
+        BRANCH_INDICATOR_MAP.put("附行式、网点自助ATM日均交易笔试", "atm_txn");
     }
 
     @Autowired
@@ -421,10 +422,17 @@ public class ExcelImportService {
                                 fromFallback = true;
                             }
                         }
-                        // 再尝试继承前一个指标列名
+                        // Row1也是合并单元格非首格(null)时，尝试继承前一个指标列名
                         if (colName == null && pendingIndicatorName != null) {
                             colName = pendingIndicatorName;
                             fromFallback = true;
+                        }
+                    }
+                    // ★ Row2为null且不是年份列时，尝试从Row4(细分行)取固定字段列名
+                    if (colName == null && row3 != null) {
+                        String row4Name = getCellStringValue(row3.getCell(c), formatter);
+                        if (row4Name != null) {
+                            colName = row4Name;
                         }
                     }
                 }
@@ -439,7 +447,7 @@ public class ExcelImportService {
                 def.colIndex = c;
                 def.colName = colName;
 
-                // 基础信息列（前5列：根据列名映射字段，而非固定位置）
+                // 基础信息列：根据列名映射字段
                 if (isCalcDataFormat && c <= 4) {
                     String fieldName = mapColumnToField(colName);
                     if (fieldName != null) {
@@ -470,11 +478,17 @@ public class ExcelImportService {
                     if (fromFallback) {
                         // 继承来的列名：复用 pendingSubCategory
                         subCategory = pendingSubCategory;
+                        // ★ 同时更新 pendingIndicatorName（业务运营等第2/3年列通过继承获取colName时）
+                        pendingIndicatorName = colName;
                     } else {
                         // 读取 Row1 子分类，并更新 pending 值
                         if (row1 != null) {
                             String sc = getCellStringValue(row1.getCell(c), formatter);
                             subCategory = (sc != null) ? sc.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim() : null;
+                            // ★ Row1是合并单元格时，同组内后续列的getCell返回null → 继承前一个子分类
+                            if (subCategory == null && pendingSubCategory != null) {
+                                subCategory = pendingSubCategory;
+                            }
                         } else {
                             subCategory = null;
                         }
@@ -499,6 +513,18 @@ public class ExcelImportService {
                 } else {
                     // 基础信息字段
                     String fieldName = mapColumnToField(colName);
+                    // ★ 对于isCalcDataFormat，若Row3列名是分组标签（如"整体情况"）无法映射，
+                    //    则尝试Row4（细分列名行）的字段名
+                    if (fieldName == null && isCalcDataFormat && row3 != null) {
+                        String row4Name = getCellStringValue(row3.getCell(c), formatter);
+                        if (row4Name != null) {
+                            row4Name = row4Name.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim();
+                            fieldName = mapColumnToField(row4Name);
+                            if (fieldName != null) {
+                                def.colName = row4Name; // 更新为实际字段名
+                            }
+                        }
+                    }
                     if (fieldName != null) {
                         def.colType = "branch_field";
                         def.fieldName = fieldName;
@@ -831,8 +857,8 @@ public class ExcelImportService {
                 }
             }
         }
-        // 至少有一个非空单元格，且 80% 以上为 4 位数字（年份）
-        return total > 0 && (yearMatch * 100 / total) >= 80;
+        // 至少有一个非空单元格，且 60% 以上为 4 位数字（年份）
+        return total > 0 && (yearMatch * 100 / total) >= 60;
     }
 
     /**
@@ -884,44 +910,70 @@ public class ExcelImportService {
         mapping.put("二级支行", "secondaryBranch");
         mapping.put("网点名称", "branchCode");
         mapping.put("机构号", "branchCode");
+        mapping.put("网点号", "branchCode");
         mapping.put("所属行政区", "districtName");
         mapping.put("行政区", "districtName");
         mapping.put("所属街道", "street");
         mapping.put("街道", "street");
         mapping.put("地址", "address");
         mapping.put("详细地址", "address");
+        mapping.put("具体地址", "address");
         mapping.put("经度", "longitude");
         mapping.put("纬度", "latitude");
+        // 人员信息
         mapping.put("总人数", "totalStaff");
         mapping.put("在岗人数", "totalStaff");
+        mapping.put("个人客户经理人数", "personalManager");
         mapping.put("个人客户经理", "personalManager");
         mapping.put("个人客户经理数", "personalManager");
-        mapping.put("公司客户经理", "corporateManager");
+        mapping.put("对公客户经理人数（专职）", "corporateManager");
         mapping.put("对公客户经理", "corporateManager");
+        mapping.put("公司客户经理", "corporateManager");
+        mapping.put("客服经理（柜面）人数", "counterStaff");
+        mapping.put("客服经理（柜面）", "counterStaff");
         mapping.put("柜员", "counterStaff");
         mapping.put("客服人员", "counterStaff");
+        mapping.put("客服经理（厅堂）人数", "lobbyStaff");
+        mapping.put("客服经理（厅堂）", "lobbyStaff");
         mapping.put("大堂经理", "lobbyStaff");
+        // 行长信息
+        mapping.put("网点行长姓名", "branchManager");
         mapping.put("网点负责人", "branchManager");
         mapping.put("网点行长", "branchManager");
+        mapping.put("在本网点任职时间", "managerTenure");
         mapping.put("负责人年限", "managerTenure");
         mapping.put("在岗任职年限", "managerTenure");
+        mapping.put("完整履历信息（人力资源系统内格式）", "managerResume");
         mapping.put("负责人简历", "managerResume");
+        mapping.put("2023-2025年本网点历任行长", "managerHistory");
         mapping.put("负责人历史", "managerHistory");
+        // 面积
         mapping.put("总面积", "totalArea");
         mapping.put("营业面积", "totalArea");
+        mapping.put("其中：若为多层，请填写除首层以外面积", "otherFloorArea");
         mapping.put("其他楼层面积", "otherFloorArea");
+        // 柜台
+        mapping.put("现金柜台个数", "cashCounter");
         mapping.put("现金柜台", "cashCounter");
         mapping.put("现金柜台数量", "cashCounter");
+        mapping.put("非现金柜台个数", "nonCashCounter");
         mapping.put("非现金柜台", "nonCashCounter");
         mapping.put("非现金柜台数量", "nonCashCounter");
+        mapping.put("个人客户经理工位个数", "managerSeat");
         mapping.put("管户席位", "managerSeat");
         mapping.put("个人客户经理管户", "managerSeat");
+        // 产权/其他
+        mapping.put("自有/租赁", "propertyRight");
         mapping.put("产权性质", "propertyRight");
         mapping.put("产权状态", "propertyRight");
+        mapping.put("租赁到期时间", "leaseExpire");
         mapping.put("租赁到期日", "leaseExpire");
+        mapping.put("最近一次装修时间", "lastRenovation");
         mapping.put("最近装修", "lastRenovation");
-        mapping.put("网点类型", "branchType");
+        mapping.put("网点业态分类", "branchType");
         mapping.put("网点业态类型", "branchType");
+        mapping.put("网点类型", "branchType");
+        mapping.put("迁并情况", "relocation");
         mapping.put("是否拟迁址", "relocation");
         mapping.put("迁址标识", "relocation");
 
