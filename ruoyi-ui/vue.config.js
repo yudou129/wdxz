@@ -17,6 +17,10 @@ const port = process.env.port || process.env.npm_config_port || 8099 // 端口
 // 百度离线瓦片目录 (tiler-master 下载，标准 XYZ 格式)
 const TILES_DIR = process.env.MAP_TILES_DIR || 'E:/coding/wangdianxuanzhi/mapfile/guizhou_baidu_tiles'
 
+// 天地图离线瓦片目录 (EPSG:3857 Web Mercator，标准 XYZ 格式)
+const TIANDITU_VEC_DIR = 'E:/coding/wangdianxuanzhi/mapfile/tianditu_vec/tianditu_vec-z9-17'
+const TIANDITU_CVA_DIR = 'E:/coding/wangdianxuanzhi/mapfile/tianditu_cva/tianditu_cva-z9-17'
+
 // vue.config.js 配置说明
 //官方vue.config.js 参考文档 https://cli.vuejs.org/zh/config/#css-loaderoptions
 // 这里只列一部分，具体配置参考文档
@@ -53,10 +57,25 @@ module.exports = {
       }
     },
     disableHostCheck: true,
-    // 百度离线瓦片服务中间件 (express.static)
+    // 离线瓦片服务中间件 (express.static)
     before(app) {
       const express = require('express')
+      // 百度瓦片 (自定义BaiduCRS)
       app.use('/tiles', express.static(TILES_DIR, {
+        maxAge: '30d',
+        setHeaders(res) {
+          res.setHeader('Content-Type', 'image/png')
+        }
+      }))
+      // 天地图矢量底图 (EPSG:3857 标准XYZ)
+      app.use('/tiles_tianditu/vec', express.static(TIANDITU_VEC_DIR, {
+        maxAge: '30d',
+        setHeaders(res) {
+          res.setHeader('Content-Type', 'image/png')
+        }
+      }))
+      // 天地图标注层 (EPSG:3857 标准XYZ)
+      app.use('/tiles_tianditu/cva', express.static(TIANDITU_CVA_DIR, {
         maxAge: '30d',
         setHeaders(res) {
           res.setHeader('Content-Type', 'image/png')

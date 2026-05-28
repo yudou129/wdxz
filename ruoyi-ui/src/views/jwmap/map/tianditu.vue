@@ -7,6 +7,7 @@
 <script>
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { TiandituBd09Crs } from './utils/tiandituCrs.js'
 import { BoundaryManager } from './utils/boundaryManager.js'
 import { MeasureTool } from './utils/measureTool.js'
 
@@ -36,8 +37,9 @@ export default {
   },
   methods: {
     initMap() {
-      // 天地图使用 Leaflet 默认 EPSG:3857 投影
+      // 天地图瓦片使用 EPSG:3857，但用户坐标统一用 BD09（由 TiandituBd09Crs 自动转换）
       this.map = L.map(this.$refs.mapEl, {
+        crs: TiandituBd09Crs,
         center: [26.5807, 106.7238],
         zoom: 10,
         minZoom: 9,
@@ -49,7 +51,7 @@ export default {
       })
 
       // 天地图矢量底图（vec）
-      const vecLayer = L.tileLayer('/tianditu_vec/{z}/{x}/{y}.png', {
+      const vecLayer = L.tileLayer('/tiles_tianditu/vec/{z}/{x}/{y}.png', {
         minZoom: 9,
         maxZoom: 17,
         tileSize: 256,
@@ -59,7 +61,7 @@ export default {
       vecLayer.addTo(this.map)
 
       // 天地图注记层（cva），叠加在底图上
-      const cvaLayer = L.tileLayer('/tianditu_cva/{z}/{x}/{y}.png', {
+      const cvaLayer = L.tileLayer('/tiles_tianditu/cva/{z}/{x}/{y}.png', {
         minZoom: 9,
         maxZoom: 17,
         tileSize: 256,

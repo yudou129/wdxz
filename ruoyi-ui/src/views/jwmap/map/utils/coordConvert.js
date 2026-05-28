@@ -80,8 +80,32 @@ export function wgs84ToBd09(lng, lat) {
   return gcj02ToBd09(gcj.lng, gcj.lat)
 }
 
+/**
+ * GCJ02 → WGS84（迭代近似）
+ * GCJ→WGS 的误差 ≈ -(WGS→GCJ 的误差)，一次近似即可达亚米级精度
+ */
+export function gcj02ToWgs84(lng, lat) {
+  const wgs = wgs84ToGcj02(lng, lat)
+  return {
+    lng: 2 * lng - wgs.lng,
+    lat: 2 * lat - wgs.lat
+  }
+}
+
+/**
+ * BD09 → WGS84（完整链路）
+ * BD09 → GCJ02 → WGS84
+ */
+export function bd09ToWgs84(lng, lat) {
+  const gcj = bd09ToGcj02(lng, lat)
+  return gcj02ToWgs84(gcj.lng, gcj.lat)
+}
+
 /** GCJ-02 → BD09 单点（别名，语义化） */
 export { gcj02ToBd09 as fromGcj02 }
+
+/** GCJ-02 → WGS84 单点（别名，语义化） */
+export { gcj02ToWgs84 as fromGcj02ToWgs84 }
 
 // ---- 批量转换（GCJ-02 → BD09，原地修改） ----
 
