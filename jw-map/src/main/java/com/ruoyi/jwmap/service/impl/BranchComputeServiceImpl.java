@@ -322,7 +322,7 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
             // 网点归一化: value * weight / SQRT(SUMSQ)
             double sumSq = TopsisCalculator.calcSumSq(colValues);
             double weight = summary.getActualWeight();
-            double maxNorm = Double.MIN_VALUE, minNorm = Double.MAX_VALUE;
+            double maxNorm = 0, minNorm = Double.MAX_VALUE;
             for (Map.Entry<Long, Double> entry : branchValueMap.entrySet()) {
                 double norm = TopsisCalculator.normalizeBranch(entry.getValue(), weight, sumSq);
                 maxNorm = Math.max(maxNorm, norm);

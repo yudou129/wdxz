@@ -143,51 +143,72 @@ public class ExcelExportService {
                 indicatorNameMap.put(code, config != null ? config.getIndicatorName() : code);
             }
 
+            // ===== 固定列: 9列双层表头 (网格编号/经度/纬度/西经/东经/北纬/南纬/省/市) =====
+            int FIXED_COLS = 9;
+            String[] h1Labels = {"网格编号", "经度", "纬度", "经度范围", "", "纬度范围", "", "省", "市"};
+            String[] h2Labels = {null,    null,  null,   "西经",  "东经", "北纬", "南纬", null, null};
+            // Row1 horizontal merge: only 经度范围(D-E) and 纬度范围(F-G); 省(7)市(8)单独
+            int[] h1MergeGroups = {0, 1, 2, 3, 5};
+            int[] h1MergeCounts  = {1, 1, 1, 2, 2};
+            int[] h12MergeSingle = {0, 1, 2, 7, 8};
+
             int rowNum = 0;
 
-            // 第1行：指标名称行
-            Row headerRow = sheet.createRow(rowNum++);
-            headerRow.createCell(0).setCellValue("网格编码");
-            headerRow.getCell(0).setCellStyle(headerStyle);
-            headerRow.createCell(1).setCellValue("经度");
-            headerRow.getCell(1).setCellStyle(headerStyle);
-            headerRow.createCell(2).setCellValue("纬度");
-            headerRow.getCell(2).setCellStyle(headerStyle);
-            headerRow.createCell(3).setCellValue("所属区");
-            headerRow.getCell(3).setCellStyle(headerStyle);
-
-            int colIdx = 4;
-            for (String code : codeList) {
-                Cell cell = headerRow.createCell(colIdx++);
-                cell.setCellValue(indicatorNameMap.getOrDefault(code, code));
-                cell.setCellStyle(headerStyle);
+            Row h1Row = sheet.createRow(rowNum++);
+            int col = 0;
+            for (int g = 0; g < h1MergeGroups.length; g++) {
+                int start = h1MergeGroups[g];
+                int count = h1MergeCounts[g];
+                for (int i = 0; i < count; i++) {
+                    Cell c = h1Row.createCell(col++);
+                    c.setCellStyle(headerStyle);
+                    if (i == 0) c.setCellValue(h1Labels[start]);
+                }
+                if (count > 1) sheet.addMergedRegion(new CellRangeAddress(0, 0, col - count, col - 1));
+            }
+            h1Row.getCell(7).setCellValue("省");
+            h1Row.getCell(8).setCellValue("市");
+            for (int c : h12MergeSingle) {
+                sheet.addMergedRegion(new CellRangeAddress(0, 1, c, c));
             }
 
-            // 第2行：实际权重
+            // Row 2: header level 2 (西经/东经/北纬/南纬)
+            Row h2Row = sheet.createRow(rowNum++);
+            for (int i = 0; i < FIXED_COLS; i++) {
+                Cell c = h2Row.createCell(i);
+                c.setCellStyle(headerStyle);
+                if (h2Labels[i] != null) c.setCellValue(h2Labels[i]);
+            }
+
+            // indicator column headers
+            int colIdx = FIXED_COLS;
+            for (String code : codeList) {
+                Cell cell = h1Row.createCell(colIdx);
+                cell.setCellValue(indicatorNameMap.getOrDefault(code, code));
+                cell.setCellStyle(headerStyle);
+                h2Row.createCell(colIdx).setCellStyle(headerStyle);
+                colIdx++;
+            }
+
+            // 第3行：实际权重
             Row weightRow = sheet.createRow(rowNum++);
             weightRow.createCell(0).setCellValue("实际权重");
             weightRow.getCell(0).setCellStyle(weightStyle);
-            weightRow.createCell(1).setCellStyle(maxMinStyle);
-            weightRow.createCell(2).setCellStyle(maxMinStyle);
-            weightRow.createCell(3).setCellStyle(maxMinStyle);
-            colIdx = 4;
+            for (int i = 1; i < FIXED_COLS; i++) weightRow.createCell(i).setCellStyle(maxMinStyle);
+            colIdx = FIXED_COLS;
             for (String code : codeList) {
                 JwGridSummary summary = summaryMap.get(code);
                 Cell cell = weightRow.createCell(colIdx++);
-                if (summary != null && summary.getActualWeight() != null) {
-                    cell.setCellValue(summary.getActualWeight());
-                }
+                if (summary != null && summary.getActualWeight() != null) cell.setCellValue(summary.getActualWeight());
                 cell.setCellStyle(weightStyle);
             }
 
-            // 第3行：MAX
+            // 第4行：MAX
             Row maxRow = sheet.createRow(rowNum++);
             maxRow.createCell(0).setCellValue("MAX");
             maxRow.getCell(0).setCellStyle(maxMinStyle);
-            maxRow.createCell(1).setCellStyle(maxMinStyle);
-            maxRow.createCell(2).setCellStyle(maxMinStyle);
-            maxRow.createCell(3).setCellStyle(maxMinStyle);
-            colIdx = 4;
+            for (int i = 1; i < FIXED_COLS; i++) maxRow.createCell(i).setCellStyle(maxMinStyle);
+            colIdx = FIXED_COLS;
             for (String code : codeList) {
                 JwGridSummary summary = summaryMap.get(code);
                 Cell cell = maxRow.createCell(colIdx++);
@@ -199,14 +220,12 @@ public class ExcelExportService {
                 cell.setCellStyle(maxMinStyle);
             }
 
-            // 第4行：MIN
+            // 第5行：MIN
             Row minRow = sheet.createRow(rowNum++);
             minRow.createCell(0).setCellValue("MIN");
             minRow.getCell(0).setCellStyle(maxMinStyle);
-            minRow.createCell(1).setCellStyle(maxMinStyle);
-            minRow.createCell(2).setCellStyle(maxMinStyle);
-            minRow.createCell(3).setCellStyle(maxMinStyle);
-            colIdx = 4;
+            for (int i = 1; i < FIXED_COLS; i++) minRow.createCell(i).setCellStyle(maxMinStyle);
+            colIdx = FIXED_COLS;
             for (String code : codeList) {
                 JwGridSummary summary = summaryMap.get(code);
                 Cell cell = minRow.createCell(colIdx++);
@@ -218,20 +237,22 @@ public class ExcelExportService {
                 cell.setCellStyle(maxMinStyle);
             }
 
-            // 第5行起：数据行
+            // 第6行起：数据行
             for (JwGridMeta meta : gridMetas) {
                 Row row = sheet.createRow(rowNum++);
                 row.createCell(0).setCellValue(meta.getGridCode());
-                row.getCell(0).setCellStyle(dataStyle);
-                row.createCell(1).setCellValue(meta.getLongitude() != null ? meta.getLongitude() : 0);
-                row.getCell(1).setCellStyle(dataStyle);
-                row.createCell(2).setCellValue(meta.getLatitude() != null ? meta.getLatitude() : 0);
-                row.getCell(2).setCellStyle(dataStyle);
-                row.createCell(3).setCellValue(meta.getDistrict() != null ? meta.getDistrict() : "");
-                row.getCell(3).setCellStyle(dataStyle);
+                row.getCell(1).setCellValue(meta.getLongitude() != null ? meta.getLongitude() : 0);
+                row.getCell(2).setCellValue(meta.getLatitude() != null ? meta.getLatitude() : 0);
+                row.getCell(3).setCellValue(meta.getWestLongitude() != null ? meta.getWestLongitude() : 0);
+                row.getCell(4).setCellValue(meta.getEastLongitude() != null ? meta.getEastLongitude() : 0);
+                row.getCell(5).setCellValue(meta.getNorthLatitude() != null ? meta.getNorthLatitude() : 0);
+                row.getCell(6).setCellValue(meta.getSouthLatitude() != null ? meta.getSouthLatitude() : 0);
+                row.getCell(7).setCellValue(meta.getProvince() != null ? meta.getProvince() : "");
+                row.getCell(8).setCellValue(meta.getCity() != null ? meta.getCity() : "");
+                for (int i = 0; i < FIXED_COLS; i++) row.getCell(i).setCellStyle(dataStyle);
 
                 Map<String, Double> indicatorValues = gridIndicatorMap.get(meta.getGridCode());
-                colIdx = 4;
+                colIdx = FIXED_COLS;
                 for (String code : codeList) {
                     Cell cell = row.createCell(colIdx++);
                     if (indicatorValues != null && indicatorValues.containsKey(code)) {
@@ -241,17 +262,9 @@ public class ExcelExportService {
                 }
             }
 
-            // 自适应列宽（SXSSF需要先track列）
-            try {
-                if (sheet instanceof SXSSFSheet) {
-                    ((SXSSFSheet) sheet).trackAllColumnsForAutoSizing();
-                }
-                for (int i = 0; i < codeList.size() + 4; i++) {
-                    sheet.autoSizeColumn(i);
-                }
-            } catch (Exception e) {
-                log.warn("自动调整列宽失败，跳过: {}", e.getMessage());
-            }
+            // 固定列宽
+            for (int i = 0; i < FIXED_COLS; i++) sheet.setColumnWidth(i, 14 * 256);
+            for (int i = FIXED_COLS; i < FIXED_COLS + codeList.size(); i++) sheet.setColumnWidth(i, 12 * 256);
 
             workbook.write(outputStream);
         } finally {
@@ -515,64 +528,150 @@ public class ExcelExportService {
         CellStyle dataStyle = createDataStyle(sheet.getWorkbook());
         CellStyle maxMinStyle = createMaxMinStyle(sheet.getWorkbook());
 
-        List<String> codeList = new ArrayList<>(indicatorCodes);
-        Map<String, String> indicatorNameMap = new LinkedHashMap<>();
-        for (String code : codeList) {
-            JwIndicatorConfig config = indicatorConfigMapper.selectByCode(code);
-            indicatorNameMap.put(code, config != null ? config.getIndicatorName() : code);
+        // ===== 1. 按 categoryLevel1 分组 =====
+        Map<String, JwIndicatorConfig> configMap = new LinkedHashMap<>();
+        for (String code : indicatorCodes) {
+            if (!configMap.containsKey(code)) {
+                JwIndicatorConfig config = indicatorConfigMapper.selectByCode(code);
+                if (config != null) configMap.put(code, config);
+            }
         }
 
+        LinkedHashMap<String, List<String>> catGroups = new LinkedHashMap<>();
+        for (String code : indicatorCodes) {
+            JwIndicatorConfig cfg = configMap.get(code);
+            String cat = (cfg != null && cfg.getCategoryLevel1() != null && !cfg.getCategoryLevel1().isEmpty())
+                    ? cfg.getCategoryLevel1() : "其他";
+            catGroups.computeIfAbsent(cat, k -> new ArrayList<>()).add(code);
+        }
+
+        // 参考模板类别顺序
+        String[] CATEGORY_ORDER = {
+            "常住、流动人口", "年龄", "收入水平", "教育水平", "性别",
+            "所在行业", "职业类别", "资产状况", "人生阶段", "消费水平", "POI"
+        };
+
+        List<String> orderedCodes = new ArrayList<>();
+        List<String> catLabels = new ArrayList<>();
+        List<Integer> catCounts = new ArrayList<>();
+
+        for (String refCat : CATEGORY_ORDER) {
+            List<String> codes = catGroups.remove(refCat);
+            if (codes != null) {
+                catLabels.add(refCat);
+                catCounts.add(codes.size());
+                orderedCodes.addAll(codes);
+            }
+        }
+        for (Map.Entry<String, List<String>> e : catGroups.entrySet()) {
+            catLabels.add(e.getKey());
+            catCounts.add(e.getValue().size());
+            orderedCodes.addAll(e.getValue());
+        }
+
+        // ===== 2. 布局常量 =====
+        int FIXED_COLS = 10; // 新增 区县
         int scoreColCount = (scoreMap != null) ? 3 : 0;
-        int fixedCols = 4; // 网格编码, 经度, 纬度, 所属区
-        int totalCols = fixedCols + codeList.size() + scoreColCount;
+        int totalCols = FIXED_COLS + orderedCodes.size() + scoreColCount;
+
+        String[] fixedH1 = {"网格编号", "经度", "纬度", "经度范围", "", "纬度范围", "", "省", "市", "区县"};
+        String[] fixedH2 = {null, null, null, "西经", "东经", "北纬", "南纬", null, null, null};
+        // 需要合并R0-R1的固定列（单列垂直合并）
+        int[] h12Singles = {0, 1, 2, 7, 8, 9};
+        // 需要R0横向合并的分组
+        int[][] fixedGroups = {{3, 4}, {5, 6}};
 
         int rowNum = 0;
 
-        // 第1行：指标名称行
-        Row headerRow = sheet.createRow(rowNum++);
-        String[] headerLabels = {"网格编码", "经度", "纬度", "所属区"};
-        for (int i = 0; i < fixedCols; i++) {
-            Cell c = headerRow.createCell(i);
-            c.setCellValue(headerLabels[i]);
+        // ===== Row 0: 类别行 =====
+        Row h0Row = sheet.createRow(rowNum++);
+        for (int i = 0; i < FIXED_COLS; i++) {
+            Cell c = h0Row.createCell(i);
             c.setCellStyle(headerStyle);
+            String v = fixedH1[i];
+            if (v != null && !v.isEmpty()) c.setCellValue(v);
         }
-        int colIdx = fixedCols;
-        for (String code : codeList) {
-            Cell c = headerRow.createCell(colIdx++);
-            c.setCellValue(indicatorNameMap.getOrDefault(code, code));
+        for (int[] g : fixedGroups) {
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, g[0], g[1]));
+        }
+
+        // 指标类别
+        int colIdx = FIXED_COLS;
+        for (int gi = 0; gi < catLabels.size(); gi++) {
+            String cat = catLabels.get(gi);
+            int cnt = catCounts.get(gi);
+            Cell c = h0Row.createCell(colIdx);
+            c.setCellValue(cat);
             c.setCellStyle(headerStyle);
+            if (cnt > 1) {
+                sheet.addMergedRegion(new CellRangeAddress(0, 0, colIdx, colIdx + cnt - 1));
+            }
+            for (int j = 1; j < cnt; j++) {
+                h0Row.createCell(colIdx + j).setCellStyle(headerStyle);
+            }
+            colIdx += cnt;
         }
-        // 得分列头
+
+        // 得分列标题
         if (scoreMap != null) {
-            for (String label : new String[]{"D+", "D-", "选址得分"}) {
-                Cell c = headerRow.createCell(colIdx++);
-                c.setCellValue(label);
+            for (String lbl : new String[]{"D+", "D-", "选址得分"}) {
+                Cell c = h0Row.createCell(colIdx++);
+                c.setCellValue(lbl);
                 c.setCellStyle(headerStyle);
             }
         }
 
-        // 第2行：实际权重
+        // ===== Row 1: 指标名行 =====
+        Row h1Row = sheet.createRow(rowNum++);
+        for (int i = 0; i < FIXED_COLS; i++) {
+            Cell c = h1Row.createCell(i);
+            c.setCellStyle(headerStyle);
+            if (fixedH2[i] != null) c.setCellValue(fixedH2[i]);
+        }
+        // 单列垂直合并（固定列）
+        for (int s : h12Singles) {
+            sheet.addMergedRegion(new CellRangeAddress(0, 1, s, s));
+        }
+
+        colIdx = FIXED_COLS;
+        for (String code : orderedCodes) {
+            JwIndicatorConfig cfg = configMap.get(code);
+            String name = (cfg != null && cfg.getIndicatorName() != null) ? cfg.getIndicatorName() : code;
+            Cell c = h1Row.createCell(colIdx++);
+            c.setCellValue(name);
+            c.setCellStyle(headerStyle);
+        }
+        if (scoreMap != null) {
+            for (int i = 0; i < 3; i++) {
+                h1Row.createCell(colIdx++).setCellStyle(headerStyle);
+            }
+        }
+
+        // ===== Row 2: 实际权重 =====
         Row weightRow = sheet.createRow(rowNum++);
-        weightRow.createCell(0).setCellValue("实际权重");
-        weightRow.getCell(0).setCellStyle(weightStyle);
-        for (int i = 1; i < totalCols; i++) weightRow.createCell(i).setCellStyle(maxMinStyle);
-        colIdx = fixedCols;
-        for (String code : codeList) {
-            JwGridSummary summary = summaryMap.get(code);
+        Cell wc0 = weightRow.createCell(0);
+        wc0.setCellValue("实际权重");
+        wc0.setCellStyle(weightStyle);
+        for (int i = 1; i < FIXED_COLS; i++) weightRow.createCell(i).setCellStyle(maxMinStyle);
+        colIdx = FIXED_COLS;
+        for (String code : orderedCodes) {
             Cell c = weightRow.createCell(colIdx++);
+            JwGridSummary summary = summaryMap.get(code);
             if (summary != null && summary.getActualWeight() != null) c.setCellValue(summary.getActualWeight());
             c.setCellStyle(weightStyle);
         }
+        for (int i = 0; i < scoreColCount; i++) weightRow.createCell(colIdx++).setCellStyle(maxMinStyle);
 
-        // 第3行：MAX
+        // ===== Row 3: MAX =====
         Row maxRow = sheet.createRow(rowNum++);
-        maxRow.createCell(0).setCellValue("MAX");
-        maxRow.getCell(0).setCellStyle(maxMinStyle);
-        for (int i = 1; i < totalCols; i++) maxRow.createCell(i).setCellStyle(maxMinStyle);
-        colIdx = fixedCols;
-        for (String code : codeList) {
-            JwGridSummary summary = summaryMap.get(code);
+        Cell maxC0 = maxRow.createCell(0);
+        maxC0.setCellValue("MAX");
+        maxC0.setCellStyle(maxMinStyle);
+        for (int i = 1; i < FIXED_COLS; i++) maxRow.createCell(i).setCellStyle(maxMinStyle);
+        colIdx = FIXED_COLS;
+        for (String code : orderedCodes) {
             Cell c = maxRow.createCell(colIdx++);
+            JwGridSummary summary = summaryMap.get(code);
             if (summary != null) {
                 c.setCellValue(isNormalized
                         ? (summary.getMaxNorm() != null ? summary.getMaxNorm() : 0)
@@ -580,16 +679,18 @@ public class ExcelExportService {
             }
             c.setCellStyle(maxMinStyle);
         }
+        for (int i = 0; i < scoreColCount; i++) maxRow.createCell(colIdx++).setCellStyle(maxMinStyle);
 
-        // 第4行：MIN
+        // ===== Row 4: MIN =====
         Row minRow = sheet.createRow(rowNum++);
-        minRow.createCell(0).setCellValue("MIN");
-        minRow.getCell(0).setCellStyle(maxMinStyle);
-        for (int i = 1; i < totalCols; i++) minRow.createCell(i).setCellStyle(maxMinStyle);
-        colIdx = fixedCols;
-        for (String code : codeList) {
-            JwGridSummary summary = summaryMap.get(code);
+        Cell minC0 = minRow.createCell(0);
+        minC0.setCellValue("MIN");
+        minC0.setCellStyle(maxMinStyle);
+        for (int i = 1; i < FIXED_COLS; i++) minRow.createCell(i).setCellStyle(maxMinStyle);
+        colIdx = FIXED_COLS;
+        for (String code : orderedCodes) {
             Cell c = minRow.createCell(colIdx++);
+            JwGridSummary summary = summaryMap.get(code);
             if (summary != null) {
                 c.setCellValue(isNormalized
                         ? (summary.getMinNorm() != null ? summary.getMinNorm() : 0)
@@ -597,22 +698,26 @@ public class ExcelExportService {
             }
             c.setCellStyle(maxMinStyle);
         }
+        for (int i = 0; i < scoreColCount; i++) minRow.createCell(colIdx++).setCellStyle(maxMinStyle);
 
-        // 第5行起：数据行
+        // ===== Row 5+: 数据行 =====
         for (JwGridMeta meta : gridMetas) {
             Row row = sheet.createRow(rowNum++);
             row.createCell(0).setCellValue(meta.getGridCode());
-            row.getCell(0).setCellStyle(dataStyle);
             row.createCell(1).setCellValue(meta.getLongitude() != null ? meta.getLongitude() : 0);
-            row.getCell(1).setCellStyle(dataStyle);
             row.createCell(2).setCellValue(meta.getLatitude() != null ? meta.getLatitude() : 0);
-            row.getCell(2).setCellStyle(dataStyle);
-            row.createCell(3).setCellValue(meta.getDistrict() != null ? meta.getDistrict() : "");
-            row.getCell(3).setCellStyle(dataStyle);
+            row.createCell(3).setCellValue(meta.getWestLongitude() != null ? meta.getWestLongitude() : 0);
+            row.createCell(4).setCellValue(meta.getEastLongitude() != null ? meta.getEastLongitude() : 0);
+            row.createCell(5).setCellValue(meta.getNorthLatitude() != null ? meta.getNorthLatitude() : 0);
+            row.createCell(6).setCellValue(meta.getSouthLatitude() != null ? meta.getSouthLatitude() : 0);
+            row.createCell(7).setCellValue(meta.getProvince() != null ? meta.getProvince() : "");
+            row.createCell(8).setCellValue(meta.getCity() != null ? meta.getCity() : "");
+            row.createCell(9).setCellValue(meta.getDistrict() != null ? meta.getDistrict() : "");
+            for (int i = 0; i < FIXED_COLS; i++) row.getCell(i).setCellStyle(dataStyle);
 
             Map<String, Double> vals = gridIndicatorMap.get(meta.getGridCode());
-            colIdx = fixedCols;
-            for (String code : codeList) {
+            colIdx = FIXED_COLS;
+            for (String code : orderedCodes) {
                 Cell c = row.createCell(colIdx++);
                 if (vals != null) {
                     Double v = vals.get(code);
@@ -620,7 +725,6 @@ public class ExcelExportService {
                 }
                 c.setCellStyle(dataStyle);
             }
-            // TOPSIS得分
             if (scoreMap != null) {
                 JwGridScore sc = scoreMap.get(meta.getGridCode());
                 Cell dc = row.createCell(colIdx++);
@@ -629,19 +733,15 @@ public class ExcelExportService {
                 Cell nc = row.createCell(colIdx++);
                 if (sc != null && sc.getNegativeDistance() != null) nc.setCellValue(sc.getNegativeDistance());
                 nc.setCellStyle(dataStyle);
-                Cell sc_c = row.createCell(colIdx++);
-                if (sc != null && sc.getSiteScore() != null) sc_c.setCellValue(sc.getSiteScore());
-                sc_c.setCellStyle(dataStyle);
+                Cell scCell = row.createCell(colIdx++);
+                if (sc != null && sc.getSiteScore() != null) scCell.setCellValue(sc.getSiteScore());
+                scCell.setCellStyle(dataStyle);
             }
         }
 
-        // 自适应列宽
-        try {
-            if (sheet instanceof SXSSFSheet) ((SXSSFSheet) sheet).trackAllColumnsForAutoSizing();
-            for (int i = 0; i < totalCols; i++) sheet.autoSizeColumn(i);
-        } catch (Exception e) {
-            log.warn("自动调整列宽失败，跳过: {}", e.getMessage());
-        }
+        // ===== 固定列宽（避免 SXSSF autoSize 卡死） =====
+        for (int i = 0; i < FIXED_COLS; i++) sheet.setColumnWidth(i, 14 * 256);
+        for (int i = FIXED_COLS; i < totalCols; i++) sheet.setColumnWidth(i, 12 * 256);
     }
 
     // ==================== 网点组合导出（一个文件多个Sheet） ====================
@@ -700,6 +800,12 @@ public class ExcelExportService {
         // operation (3)
         "branch_counter_per_area", "branch_terminal_per_area", "branch_atm_per_area"
     ));
+
+    // 需要显示为百分比的指标编码（日均增幅列）
+    private static final Set<String> PCT_INDICATORS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        "branch_asset_avg_growth", "branch_saving_avg_growth",
+        "branch_corp_dep_avg_growth", "branch_inst_dep_avg_growth"
+    )));
 
     // 分类边界 (startIndex inclusive, endIndex exclusive)
     private static final int[] CAT_BOUNDARIES = {0, 2, 12, 19, 22}; // revenue, indicator, customer, operation
@@ -869,7 +975,7 @@ public class ExcelExportService {
         String[] fRow3 = {
             "", "", "", "", "", "", "", "",   // 0-7: 合并到Row2
             "总人数", "个人客户经理人数", "对公客户经理人数（专职）", "客服经理（柜面）人数", "客服经理（厅堂）人数",
-            "网点行长姓名", "在本网点任职时间", "完整履历信息（人力资源系统内格式）", "2023-2025年本网点历任行长",
+            "网点行长姓名", "在本网点任职时间", "完整履历信息（人力资源系统内格式）", "本网点历任行长",
             "总面积", "其中：若为多层，请填写除首层以外面积",
             "", "", "",                     // 19-21: 合并到Row2
             "自有/租赁", "租赁到期时间",
@@ -912,7 +1018,7 @@ public class ExcelExportService {
             {"inclusive_cust_total", "客户发展", "普惠客户", null},
             {"counter_txn", "业务运营", "柜台日均交易笔数", "op"},
             {"terminal_txn", "业务运营", "自助终端日均交易笔数", "op"},
-            {"atm_txn", "业务运营", "附行式、网点自助ATM日均交易笔试", "op"},
+            {"atm_txn", "业务运营", "附行式、网点自助ATM日均交易笔数", "op"},
         };
 
         // ===== 提取数据 =====
@@ -1171,6 +1277,7 @@ public class ExcelExportService {
         CellStyle weightStyle = createWeightStyle(sheet.getWorkbook());
         CellStyle maxMinStyle = createMaxMinStyle(sheet.getWorkbook());
         CellStyle dataStyle = createDataStyle(sheet.getWorkbook());
+        CellStyle pctStyle = createPctStyle(sheet.getWorkbook());
 
         int fixedCols = 5;
         String[] fixedHeaders = {"一级支行", "二级支行", "网点号", "经度", "纬度"};
@@ -1346,7 +1453,7 @@ public class ExcelExportService {
                 JwBranchSummary s = summaryMap.get(code);
                 if (s != null && s.getActualWeight() != null) c.setCellValue(s.getActualWeight());
             }
-            c.setCellStyle(weightStyle);
+            c.setCellStyle(PCT_INDICATORS.contains(code) ? pctStyle : weightStyle);
         }
         for (int i = fixedCols + indicatorCount; i < totalCols; i++) {
             weightRow.createCell(i).setCellStyle(maxMinStyle);
@@ -1369,7 +1476,7 @@ public class ExcelExportService {
                     c.setCellValue(val);
                 }
             }
-            c.setCellStyle(maxMinStyle);
+            c.setCellStyle(PCT_INDICATORS.contains(code) ? pctStyle : maxMinStyle);
         }
         for (int i = fixedCols + indicatorCount; i < totalCols; i++) {
             maxRow.createCell(i).setCellStyle(maxMinStyle);
@@ -1392,7 +1499,7 @@ public class ExcelExportService {
                     c.setCellValue(val);
                 }
             }
-            c.setCellStyle(maxMinStyle);
+            c.setCellStyle(PCT_INDICATORS.contains(code) ? pctStyle : maxMinStyle);
         }
         for (int i = fixedCols + indicatorCount; i < totalCols; i++) {
             minRow.createCell(i).setCellStyle(maxMinStyle);
@@ -1430,7 +1537,7 @@ public class ExcelExportService {
                     Double v = vals.get(code);
                     if (v != null) c.setCellValue(v);
                 }
-                c.setCellStyle(dataStyle);
+                c.setCellStyle(PCT_INDICATORS.contains(code) ? pctStyle : dataStyle);
             }
 
             // TOPSIS得分列(归一化sheet)
@@ -1523,6 +1630,21 @@ public class ExcelExportService {
         style.setBorderRight(BorderStyle.THIN);
         style.setAlignment(HorizontalAlignment.CENTER);
         style.setVerticalAlignment(VerticalAlignment.CENTER);
+        return style;
+    }
+
+    /**
+     * 百分比样式（保留2位小数，适用于日均增幅列）
+     */
+    private CellStyle createPctStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        style.setDataFormat(workbook.createDataFormat().getFormat("0.00%"));
         return style;
     }
 }
