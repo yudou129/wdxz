@@ -39,4 +39,6 @@ public interface JwBranchInfoMapper {
     int batchInsert(List<JwBranchInfo> list);
 
     int upsertJwBranchInfo(JwBranchInfo branch);
+
+    List<JwBranchInfo> selectByGridCode(@Param("gridCode") String gridCode);
 }

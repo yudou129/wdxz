@@ -13,7 +13,6 @@
         <result property="province" column="province"/>
         <result property="city" column="city"/>
         <result property="district" column="district"/>
-        <result property="poiCount" column="poi_count"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
     </resultMap>
@@ -21,7 +20,7 @@
     <sql id="selectJwGridMetaVo">
         SELECT grid_code, longitude, latitude,
                west_longitude, east_longitude, north_latitude, south_latitude,
-               province, city, district, poi_count,
+               province, city, district,
                create_time, update_time
         FROM jw_grid_meta
     </sql>
@@ -61,12 +60,12 @@
         INSERT INTO jw_grid_meta (
             grid_code, longitude, latitude,
             west_longitude, east_longitude, north_latitude, south_latitude,
-            province, city, district, poi_count,
+            province, city, district,
             create_time, update_time
         ) VALUES (
             #{gridCode}, #{longitude}, #{latitude},
             #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
-            #{province}, #{city}, #{district}, #{poiCount},
+            #{province}, #{city}, #{district},
             sysdate(), sysdate()
         )
     </insert>
@@ -83,7 +82,7 @@
             <if test="province != null">province = #{province},</if>
             <if test="city != null">city = #{city},</if>
             <if test="district != null">district = #{district},</if>
-            <if test="poiCount != null">poi_count = #{poiCount},</if>
+
             update_time = sysdate()
         </set>
         WHERE grid_code = #{gridCode}
@@ -108,7 +107,7 @@
         INSERT INTO jw_grid_meta (
             grid_code, longitude, latitude,
             west_longitude, east_longitude, north_latitude, south_latitude,
-            province, city, district, poi_count,
+            province, city, district,
             create_time, update_time
         ) VALUES
         <foreach item="item" collection="list" separator=",">
@@ -123,12 +122,12 @@
         INSERT INTO jw_grid_meta (
             grid_code, longitude, latitude,
             west_longitude, east_longitude, north_latitude, south_latitude,
-            province, city, district, poi_count,
+            province, city, district,
             create_time, update_time
         ) VALUES (
             #{gridCode}, #{longitude}, #{latitude},
             #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
-            #{province}, #{city}, #{district}, #{poiCount},
+            #{province}, #{city}, #{district},
             sysdate(), sysdate()
         )
         ON DUPLICATE KEY UPDATE
@@ -141,7 +140,7 @@
             province = VALUES(province),
             city = VALUES(city),
             district = VALUES(district),
-            poi_count = VALUES(poi_count),
+
             update_time = sysdate()
     </insert>
 
@@ -149,12 +148,12 @@
         INSERT INTO jw_grid_meta (
             grid_code, longitude, latitude,
             west_longitude, east_longitude, north_latitude, south_latitude,
-            province, city, district, poi_count,
+            province, city, district,
             create_time, update_time
         ) VALUES (
             #{gridCode}, #{longitude}, #{latitude},
             #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
-            #{province}, #{city}, #{district}, #{poiCount},
+            #{province}, #{city}, #{district},
             sysdate(), sysdate()
         )
         ON DUPLICATE KEY UPDATE
@@ -167,7 +166,7 @@
             province = VALUES(province),
             city = VALUES(city),
             district = VALUES(district),
-            poi_count = VALUES(poi_count),
+
             update_time = sysdate()
     </insert>
 

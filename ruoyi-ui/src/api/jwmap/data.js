@@ -11,63 +11,63 @@ export function getBranchStatus(city) {
   return request({ url: '/jwmap/compute/branchStatus/' + city, method: 'get' })
 }
 
-// ===== 数据导入 =====
+// ===== 数据导入（超时10分钟，大数据量） =====
 export function importPoi(data) {
-  return request({ url: '/jwmap/import/poi', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data' } })
+  return request({ url: '/jwmap/import/poi', method: 'post', data: data, timeout: 600000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
 export function importPopulationHeat(data) {
-  return request({ url: '/jwmap/import/populationHeat', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data' } })
+  return request({ url: '/jwmap/import/populationHeat', method: 'post', data: data, timeout: 600000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
 export function importExternalWeight(data) {
-  return request({ url: '/jwmap/import/externalWeight', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data' } })
+  return request({ url: '/jwmap/import/externalWeight', method: 'post', data: data, timeout: 300000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
 export function importBranchEfficiencyWeight(data) {
-  return request({ url: '/jwmap/import/branchEfficiencyWeight', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data' } })
+  return request({ url: '/jwmap/import/branchEfficiencyWeight', method: 'post', data: data, timeout: 300000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
 export function importBranchInfo(data) {
-  return request({ url: '/jwmap/import/branchInfo', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data' } })
+  return request({ url: '/jwmap/import/branchInfo', method: 'post', data: data, timeout: 600000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
 export function importExistingBranch(data) {
-  return request({ url: '/jwmap/import/existingBranch', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data' } })
+  return request({ url: '/jwmap/import/existingBranch', method: 'post', data: data, timeout: 600000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
 
-// ===== 计算（超时5分钟，数据量大） =====
+// ===== 计算（超时10分钟，数据量大） =====
 export function computeGridData(city) {
-  return request({ url: '/jwmap/compute/grid/' + city, method: 'post', timeout: 300000 })
+  return request({ url: '/jwmap/compute/grid/' + city, method: 'post', timeout: 600000 })
 }
 export function computeBranchData(city, year) {
-  return request({ url: '/jwmap/compute/branch/' + city + '/' + year, method: 'post', timeout: 300000 })
+  return request({ url: '/jwmap/compute/branch/' + city + '/' + year, method: 'post', timeout: 600000 })
 }
 export function assignGridToBranch(city) {
-  return request({ url: '/jwmap/compute/branch/assignGrid/' + city, method: 'post', timeout: 300000 })
+  return request({ url: '/jwmap/compute/branch/assignGrid/' + city, method: 'post', timeout: 600000 })
 }
 export function computeGridScore(city) {
-  return request({ url: '/jwmap/compute/grid/score/' + city, method: 'post', timeout: 300000 })
+  return request({ url: '/jwmap/compute/grid/score/' + city, method: 'post', timeout: 600000 })
 }
 
-// ===== 导出（组合式，一个文件多个Sheet） =====
+// ===== 导出（超时10分钟，大文件下载） =====
 export function exportGridCombined(city) {
-  return request({ url: '/jwmap/export/grid/' + city, method: 'get', responseType: 'blob' })
+  return request({ url: '/jwmap/export/grid/' + city, method: 'get', responseType: 'blob', timeout: 600000 })
 }
 export function exportBranchCombined(city, year) {
-  return request({ url: '/jwmap/export/branch/' + city + '/' + year, method: 'get', responseType: 'blob' })
+  return request({ url: '/jwmap/export/branch/' + city + '/' + year, method: 'get', responseType: 'blob', timeout: 600000 })
 }
 
 // ===== 导出（单sheet，向后兼容） =====
 export function exportGridRaw(city) {
-  return request({ url: '/jwmap/export/gridRaw/' + city, method: 'get', responseType: 'blob' })
+  return request({ url: '/jwmap/export/gridRaw/' + city, method: 'get', responseType: 'blob', timeout: 600000 })
 }
 export function exportGridNormalized(city) {
-  return request({ url: '/jwmap/export/gridNormalized/' + city, method: 'get', responseType: 'blob' })
+  return request({ url: '/jwmap/export/gridNormalized/' + city, method: 'get', responseType: 'blob', timeout: 600000 })
 }
 export function exportBranchBase(city) {
-  return request({ url: '/jwmap/export/branchBase/' + city, method: 'get', responseType: 'blob' })
+  return request({ url: '/jwmap/export/branchBase/' + city, method: 'get', responseType: 'blob', timeout: 600000 })
 }
 export function exportBranchCalc(city, year) {
-  return request({ url: '/jwmap/export/branchCalc/' + city + '/' + year, method: 'get', responseType: 'blob' })
+  return request({ url: '/jwmap/export/branchCalc/' + city + '/' + year, method: 'get', responseType: 'blob', timeout: 600000 })
 }
 export function exportBranchNormalized(city, year) {
-  return request({ url: '/jwmap/export/branchNormalized/' + city + '/' + year, method: 'get', responseType: 'blob' })
+  return request({ url: '/jwmap/export/branchNormalized/' + city + '/' + year, method: 'get', responseType: 'blob', timeout: 600000 })
 }
 
 // ===== 数据查看 =====
@@ -94,4 +94,27 @@ export function getExternalWeightList() {
 }
 export function getBranchEfficiencyWeightList() {
   return request({ url: '/jwmap/data/weight/branchEfficiency', method: 'get' })
+}
+
+// ===== 地图可视化 =====
+export function getGridScoreByCity(city) {
+  return request({ url: '/jwmap/data/grid/score/byCity/' + city, method: 'get' })
+}
+export function getGridIndicators(gridCode) {
+  return request({ url: '/jwmap/data/grid/indicators/' + gridCode, method: 'get' })
+}
+export function getBranchScoreDetail(branchId, year) {
+  return request({ url: '/jwmap/data/branch/score/detail/' + branchId + '/' + year, method: 'get' })
+}
+export function getGridRanking(city, pageNum, pageSize) {
+  return request({ url: '/jwmap/data/grid/ranking/' + city, method: 'get', params: { pageNum, pageSize } })
+}
+export function getBranchRanking(city, year, pageNum, pageSize) {
+  return request({ url: '/jwmap/data/branch/ranking/' + city + '/' + year, method: 'get', params: { pageNum, pageSize } })
+}
+export function getGridBranches(gridCode) {
+  return request({ url: '/jwmap/data/grid/branches/' + gridCode, method: 'get' })
+}
+export function getBranchIndicators(branchId, year) {
+  return request({ url: '/jwmap/data/branch/indicators/' + branchId + '/' + year, method: 'get' })
 }

@@ -46,8 +46,7 @@ public class ExcelImportService {
         BRANCH_INDICATOR_MAP.put("总量（单位：户）", "inclusive_cust_total");
         BRANCH_INDICATOR_MAP.put("柜台日均交易笔数", "counter_txn");
         BRANCH_INDICATOR_MAP.put("自助终端日均交易笔数", "terminal_txn");
-        BRANCH_INDICATOR_MAP.put("附行式、网点自助ATM日均交易笔数", "atm_txn");
-        BRANCH_INDICATOR_MAP.put("附行式、网点自助ATM日均交易笔试", "atm_txn");
+        BRANCH_INDICATOR_MAP.put("附行式网点自助ATM日均交易笔数", "atm_txn");
     }
 
     @Autowired
@@ -92,15 +91,16 @@ public class ExcelImportService {
                 poi.setCity(city);
                 poi.setCreateBy(username);
 
-                // 读取各列（根据实际Excel列顺序调整）
+                // 读取各列: A=机构编码 B=POI名称 C=经度 D=纬度 E=省 F=市 G=区县 H=地址 I=POI类型
                 poi.setOrgCode(getCellStringValue(row.getCell(0), formatter));
                 poi.setPoiName(getCellStringValue(row.getCell(1), formatter));
                 poi.setLongitude(getCellDoubleValue(row.getCell(2)));
                 poi.setLatitude(getCellDoubleValue(row.getCell(3)));
                 poi.setProvince(getCellStringValue(row.getCell(4), formatter));
-                poi.setDistrict(getCellStringValue(row.getCell(5), formatter));
-                poi.setAddress(getCellStringValue(row.getCell(6), formatter));
-                poi.setPoiType(getCellStringValue(row.getCell(7), formatter));
+                poi.setCity(getCellStringValue(row.getCell(5), formatter));
+                poi.setDistrict(getCellStringValue(row.getCell(6), formatter));
+                poi.setAddress(getCellStringValue(row.getCell(7), formatter));
+                poi.setPoiType(getCellStringValue(row.getCell(8), formatter));
 
                 poiInfoMapper.upsertPoiInfo(poi);
                 count++;
@@ -698,47 +698,15 @@ public class ExcelImportService {
     // ========== 辅助方法 ==========
 
     /**
-     * 确保 poi_count 指标在 indicator_config 中存在
-     * 该指标由 computeGridRawData 写入，但必须注册为加权指标才能参与 TOPSIS 计算
-     */
-    private void ensurePoiCountIndicator() {
-        JwIndicatorConfig existing = indicatorConfigMapper.selectByCode("poi_count");
-        if (existing == null) {
-            JwIndicatorConfig config = new JwIndicatorConfig();
-            config.setIndicatorCode("poi_count");
-            config.setIndicatorName("POI数量");
-            config.setSourceTables("网格数据");
-            config.setIsWeighted("1");
-            config.setIsActive("1");
-            config.setDataType("int");
-            indicatorConfigMapper.insertIndicatorConfig(config);
-            log.info("自动注册指标: poi_count -> POI数量");
-        } else if (!"1".equals(existing.getIsWeighted()) || !"1".equals(existing.getIsActive())) {
-            // 已存在但未标记为加权或非活跃时修正
-            existing.setIsWeighted("1");
-            existing.setIsActive("1");
-            indicatorConfigMapper.updateJwIndicatorConfig(existing);
-            log.info("修正 poi_count 指标为加权/活跃状态");
-        }
-    }
-
-    /**
      * 根据三级指标名称模糊匹配 indicator_code
      * 匹配策略（按优先级）：
-     * 1. POI数量 → poi_count（固定映射）
-     * 2. 在 indicator_config 中精确匹配指标名
-     * 3. 去除"人口"后缀后做后缀匹配（h1_h2 格式的指标名以 _h2 结尾）
-     * 4. 归一化特殊字符后匹配
-     * 5. 包含关系匹配
+     * 1. 在 indicator_config 中精确匹配指标名
+     * 2. 去除"人口"后缀后做后缀匹配（h1_h2 格式的指标名以 _h2 结尾）
+     * 3. 归一化特殊字符后匹配
+     * 4. 包含关系匹配
      */
     private String matchIndicatorCode(String level3Name) {
         if (level3Name == null || level3Name.isEmpty()) return null;
-
-        // 固定映射 + 自动注册 poi_count 指标（确保能被 selectActiveWeighted 返回）
-        if ("POI数量".equals(level3Name)) {
-            ensurePoiCountIndicator();
-            return "poi_count";
-        }
 
         // 加载所有指标
         List<JwIndicatorConfig> allIndicators = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
@@ -837,7 +805,9 @@ public class ExcelImportService {
      * 判断列名是否为年份列
      */
     private boolean isYearColumn(String colName) {
-        return colName.contains("2024") || colName.contains("2023") || colName.contains("2022");
+        // 必须以 2022/2023/2024 开头，且不能是日期范围如 "2023-2025年本网点历任行长"
+        return (colName.startsWith("2022") || colName.startsWith("2023") || colName.startsWith("2024"))
+            && !colName.matches("^20[0-9]{2}-20[0-9]{2}.*");
     }
 
     /**
@@ -945,6 +915,7 @@ public class ExcelImportService {
         mapping.put("在岗任职年限", "managerTenure");
         mapping.put("完整履历信息（人力资源系统内格式）", "managerResume");
         mapping.put("负责人简历", "managerResume");
+        mapping.put("本网点历任行长", "managerHistory");
         mapping.put("2023-2025年本网点历任行长", "managerHistory");
         mapping.put("负责人历史", "managerHistory");
         // 面积
@@ -1055,17 +1026,15 @@ public class ExcelImportService {
             if (!cleanFull.isEmpty() && (cleanFull.contains(mapKeyNorm) || mapKeyNorm.contains(cleanFull))) {
                 return entry.getValue();
             }
-            if (!cleanShort.isEmpty() && (cleanShort.contains(mapKeyNorm) || mapKeyNorm.contains(cleanShort))) {
-                return entry.getValue();
-            }
         }
 
-        // 3. 滑动窗口子串匹配：将 mapKey 切分为所有长度 >=4 的连续子串，
+        // 3. 滑动窗口子串匹配：将 mapKey 切分为所有长度 >=5 的连续子串，
         //    检查 cleanFull 是否包含其中任意一个
+        //    注: minLen=5 避免 4字通用子串（如"客户数""日均交易"）的跨指标误匹配
         if (!cleanFull.isEmpty()) {
             for (Map.Entry<String, String> entry : BRANCH_INDICATOR_MAP.entrySet()) {
                 String mapKeyNorm = entry.getKey().replaceAll("[（()）]", "").replaceAll("\\s+", "");
-                if (containsSharedSubstring(cleanFull, mapKeyNorm, 4)) {
+                if (containsSharedSubstring(cleanFull, mapKeyNorm, 6)) {
                     return entry.getValue();
                 }
             }

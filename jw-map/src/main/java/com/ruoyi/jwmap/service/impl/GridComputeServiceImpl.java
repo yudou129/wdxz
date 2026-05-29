@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 网格数据计算服务实现
@@ -23,6 +25,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class GridComputeServiceImpl implements IGridComputeService {
+
+    private static final Logger log = LoggerFactory.getLogger(GridComputeServiceImpl.class);
 
     @Autowired
     private JwGridMetaMapper gridMetaMapper;
@@ -72,9 +76,6 @@ public class GridComputeServiceImpl implements IGridComputeService {
         Map<String, JwGridMeta> metaMap = cityMetas.stream()
             .collect(Collectors.toMap(JwGridMeta::getGridCode, m -> m, (a, b) -> a));
 
-        // 获取该市所有POI
-        List<JwPoiInfo> poiList = poiInfoMapper.selectByCity(city);
-
         List<JwGridMeta> metaList = new ArrayList<>();
         for (String gridCode : allGridCodes) {
             JwGridMeta existingMeta = metaMap.get(gridCode);
@@ -93,18 +94,6 @@ public class GridComputeServiceImpl implements IGridComputeService {
             existingMeta.setNorthLatitude(lat + latOffset);
             existingMeta.setSouthLatitude(lat - latOffset);
 
-            // 统计网格内POI数量
-            int poiCount = 0;
-            for (JwPoiInfo poi : poiList) {
-                if (poi.getLongitude() != null && poi.getLatitude() != null
-                    && poi.getLongitude() >= existingMeta.getWestLongitude()
-                    && poi.getLongitude() <= existingMeta.getEastLongitude()
-                    && poi.getLatitude() >= existingMeta.getSouthLatitude()
-                    && poi.getLatitude() <= existingMeta.getNorthLatitude()) {
-                    poiCount++;
-                }
-            }
-            existingMeta.setPoiCount(poiCount);
             metaList.add(existingMeta);
         }
 
@@ -117,26 +106,36 @@ public class GridComputeServiceImpl implements IGridComputeService {
     }
 
     private void computeGridRawData(String city) {
-        // 从人口热力复制指标数据到网格原始数据表
         // 先清理该市旧数据
         gridDataRawMapper.deleteByCity(city);
 
-        // 查询该市所有网格
+        // 查询该市所有网格和POI
         List<JwGridMeta> metas = gridMetaMapper.selectByCity(city);
         if (metas.isEmpty()) return;
+        List<JwPoiInfo> poiList = poiInfoMapper.selectByCity(city);
+
+        // 预计算每个网格的POI类型计数（一次遍历所有POI）
+        // gridCode -> poiType -> count
+        Map<String, Map<String, Integer>> gridPoiTypeCount = new LinkedHashMap<>();
+        for (JwPoiInfo poi : poiList) {
+            if (poi.getPoiType() == null || poi.getPoiType().isEmpty()) continue;
+            String poiType = poi.getPoiType().trim();
+            for (JwGridMeta meta : metas) {
+                if (meta.getWestLongitude() == null || meta.getEastLongitude() == null) continue;
+                if (poi.getLongitude() != null && poi.getLatitude() != null
+                    && poi.getLongitude() >= meta.getWestLongitude()
+                    && poi.getLongitude() <= meta.getEastLongitude()
+                    && poi.getLatitude() >= meta.getSouthLatitude()
+                    && poi.getLatitude() <= meta.getNorthLatitude()) {
+                    gridPoiTypeCount.computeIfAbsent(meta.getGridCode(), k -> new LinkedHashMap<>())
+                        .merge(poiType, 1, Integer::sum);
+                }
+            }
+        }
 
         for (JwGridMeta meta : metas) {
-            // 查询该网格的人口热力数据
-            List<JwPopulationHeat> heatData = populationHeatMapper.selectByGridCode(meta.getGridCode());
-
-            // 写入POI数量
-            JwGridDataRaw poiRow = new JwGridDataRaw();
-            poiRow.setGridCode(meta.getGridCode());
-            poiRow.setIndicatorCode("poi_count");
-            poiRow.setIndicatorValue((double) meta.getPoiCount());
-            gridDataRawMapper.upsertGridData(poiRow);
-
             // 写入人口热力指标
+            List<JwPopulationHeat> heatData = populationHeatMapper.selectByGridCode(meta.getGridCode());
             for (JwPopulationHeat heat : heatData) {
                 JwGridDataRaw raw = new JwGridDataRaw();
                 raw.setGridCode(meta.getGridCode());
@@ -144,6 +143,45 @@ public class GridComputeServiceImpl implements IGridComputeService {
                 raw.setIndicatorValue(heat.getIndicatorValue());
                 gridDataRawMapper.upsertGridData(raw);
             }
+
+            // 写入POI类型指标（按类型独立指标，每类有独立权重）
+            Map<String, Integer> typeCounts = gridPoiTypeCount.get(meta.getGridCode());
+            if (typeCounts != null) {
+                for (Map.Entry<String, Integer> entry : typeCounts.entrySet()) {
+                    String poiType = entry.getKey();
+                    String indicatorCode = "poi_type_" + poiType.replaceAll("[\\s()（）、,，/]", "_");
+                    // 确保指标配置存在
+                    ensurePoiTypeIndicator(indicatorCode, poiType);
+                    JwGridDataRaw poiRaw = new JwGridDataRaw();
+                    poiRaw.setGridCode(meta.getGridCode());
+                    poiRaw.setIndicatorCode(indicatorCode);
+                    poiRaw.setIndicatorValue(entry.getValue().doubleValue());
+                    gridDataRawMapper.upsertGridData(poiRaw);
+                }
+            }
+        }
+    }
+
+    /** 确保POI类型指标已在jw_indicator_config中注册 */
+    private void ensurePoiTypeIndicator(String indicatorCode, String poiTypeName) {
+        JwIndicatorConfig existing = indicatorConfigMapper.selectByCode(indicatorCode);
+        if (existing == null) {
+            JwIndicatorConfig config = new JwIndicatorConfig();
+            config.setIndicatorCode(indicatorCode);
+            config.setIndicatorName("POI-" + poiTypeName);
+            config.setCategoryLevel1("poi");
+            config.setCategoryLevel2("poi_type");
+            config.setDataType("INT");
+            config.setSortOrder(0);
+            config.setSourceTables("网格数据");
+            config.setIsWeighted("1");
+            config.setIsActive("1");
+            indicatorConfigMapper.insertIndicatorConfig(config);
+            log.info("自动注册POI类型指标: {} -> POI-{}", indicatorCode, poiTypeName);
+        } else if (!"1".equals(existing.getIsWeighted()) || !"1".equals(existing.getIsActive())) {
+            existing.setIsWeighted("1");
+            existing.setIsActive("1");
+            indicatorConfigMapper.updateJwIndicatorConfig(existing);
         }
     }
 
@@ -268,6 +306,7 @@ public class GridComputeServiceImpl implements IGridComputeService {
 
             JwGridScore score = new JwGridScore();
             score.setGridCode(meta.getGridCode());
+            score.setCity(city);
             score.setPositiveDistance(result[0]);
             score.setNegativeDistance(result[1]);
             score.setSiteScore(result[2]);

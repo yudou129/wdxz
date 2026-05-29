@@ -31,10 +31,10 @@ export class BoundaryManager {
 
   // ---- 初始化 ----
 
-  async init() {
+  async init(options = {}) {
     await this._loadProvince()
     this._createCityLayer()
-    this._createControl()
+    if (options.createControl !== false) this._createControl()
     this.showAllCities()
   }
 
@@ -109,13 +109,17 @@ export class BoundaryManager {
   }
 
   async _loadDistrictOptions(adcode) {
-    const old = this.selectEl.querySelectorAll('optgroup.district-group')
-    old.forEach(g => g.remove())
+    if (this.selectEl) {
+      const old = this.selectEl.querySelectorAll('optgroup.district-group')
+      old.forEach(g => g.remove())
+    }
 
     if (this.districtCache[adcode]) return
 
     const res = await fetch(`/data/map_data/${adcode}_full.json`)
     this.districtCache[adcode] = (await res.json()).features
+
+    if (!this.selectEl) return  // No native dropdown, only caching needed
 
     const city = this.cities.find(c => c.properties.adcode === adcode)
     if (!city || !this.districtCache[adcode].length) return
@@ -131,13 +135,13 @@ export class BoundaryManager {
     if (cg) cg.insertAdjacentHTML('afterend', g)
   }
 
-  _onSelect(e) {
+  async _onSelect(e) {
     const v = e.target.value
     if (v === 'all') { this.showAllCities(); return }
     const [type, code] = v.split('_')
     const adcode = +code
     if (type === 'c') {
-      this._loadDistrictOptions(adcode)
+      await this._loadDistrictOptions(adcode)
       this.showCity(adcode)
     } else if (type === 'd') {
       this.showDistrict(adcode)
@@ -153,13 +157,18 @@ export class BoundaryManager {
     this.map.setView([26.5807, 106.7238], 10)
   }
 
-  showCity(adcode) {
+  async showCity(adcode) {
     this._clearHL()
     this._removeDL()
     if (!this.map.hasLayer(this.cityLayer)) this.cityLayer.addTo(this.map)
 
     const feature = this.cities.find(c => c.properties.adcode === adcode)
     if (!feature) return
+
+    // Auto-load districts if not cached yet (supports TopToolbar path)
+    if (!this.districtCache[adcode]) {
+      await this._loadDistrictOptions(adcode)
+    }
 
     this.highlightLayer = this._makeHighlightLayer(feature).addTo(this.map)
 

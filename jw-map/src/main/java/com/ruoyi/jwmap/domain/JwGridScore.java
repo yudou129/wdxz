@@ -8,6 +8,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
  */
 public class JwGridScore {
     private String gridCode;
+    private String city;
     private Double positiveDistance;
     private Double negativeDistance;
     private Double siteScore;
@@ -15,6 +16,8 @@ public class JwGridScore {
 
     public String getGridCode() { return gridCode; }
     public void setGridCode(String gridCode) { this.gridCode = gridCode; }
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
     public Double getPositiveDistance() { return positiveDistance; }
     public void setPositiveDistance(Double positiveDistance) { this.positiveDistance = positiveDistance; }
     public Double getNegativeDistance() { return negativeDistance; }

@@ -22,6 +22,8 @@ public interface JwIndicatorConfigMapper {
 
     JwIndicatorConfig selectByCode(@Param("indicatorCode") String code);
 
+    List<JwIndicatorConfig> selectByCodes(@Param("list") List<String> codes);
+
     JwIndicatorConfig selectByIndicatorName(@Param("indicatorName") String name);
 
     int insertJwIndicatorConfig(JwIndicatorConfig config);

@@ -66,6 +66,15 @@
         ORDER BY sort_order
     </select>
 
+    <select id="selectByCodes" resultMap="JwIndicatorConfigResult">
+        <include refid="selectJwIndicatorConfigVo"/>
+        WHERE indicator_code IN
+        <foreach item="code" collection="list" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+        ORDER BY sort_order
+    </select>
+
     <select id="selectByCode" resultMap="JwIndicatorConfigResult">
         <include refid="selectJwIndicatorConfigVo"/>
         WHERE indicator_code = #{indicatorCode}

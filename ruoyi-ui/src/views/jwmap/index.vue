@@ -166,7 +166,7 @@
                 <el-table-column prop="gridCode" label="网格编号" width="120" />
                 <el-table-column prop="longitude" label="经度" width="100" />
                 <el-table-column prop="latitude" label="纬度" width="100" />
-                <el-table-column prop="poiCount" label="POI数" width="80" />
+                <!-- poiCount已移除，POI按类型独立指标存jw_grid_data_raw，前端通过API查询各类型POI数 -->
                 <el-table-column prop="siteScore" label="选址得分" width="100">
                   <template slot-scope="scope">{{ scope.row.siteScore !== null && scope.row.siteScore !== undefined ? scope.row.siteScore.toFixed(6) : '-' }}</template>
                 </el-table-column>

@@ -20,7 +20,6 @@ public class JwGridMeta extends BaseEntity {
     private String province;
     private String city;
     private String district;
-    private Integer poiCount;
 
     public String getGridCode() { return gridCode; }
     public void setGridCode(String gridCode) { this.gridCode = gridCode; }
@@ -42,15 +41,12 @@ public class JwGridMeta extends BaseEntity {
     public void setCity(String city) { this.city = city; }
     public String getDistrict() { return district; }
     public void setDistrict(String district) { this.district = district; }
-    public Integer getPoiCount() { return poiCount; }
-    public void setPoiCount(Integer poiCount) { this.poiCount = poiCount; }
 
     @Override
     public String toString() {
         return new ToStringBuilder(this, ToStringStyle.MULTI_LINE_STYLE)
             .append("gridCode", getGridCode())
             .append("city", getCity())
-            .append("poiCount", getPoiCount())
             .toString();
     }
 }

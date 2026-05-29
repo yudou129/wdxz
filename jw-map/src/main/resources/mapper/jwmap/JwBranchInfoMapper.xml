@@ -97,6 +97,12 @@
         ORDER BY branch_id
     </select>
 
+    <select id="selectByGridCode" parameterType="String" resultMap="JwBranchInfoResult">
+        <include refid="selectJwBranchInfoVo"/>
+        WHERE grid_code = #{gridCode} AND (del_flag IS NULL OR del_flag = '0')
+        ORDER BY branch_id
+    </select>
+
     <select id="selectDistinctCities" resultType="String">
         SELECT DISTINCT city FROM jw_branch_info
         WHERE (del_flag IS NULL OR del_flag = '0')
