@@ -28,6 +28,7 @@
     <RankingList
       :visible="ranking.visible"
       :title="ranking.title"
+      :type="ranking.type"
       :items="ranking.items"
       :page="ranking.page"
       :hasMore="ranking.hasMore"
@@ -249,7 +250,7 @@ export default {
         }))
         this.ranking.items = this.ranking.page === 1 ? mapped : [...this.ranking.items, ...mapped]
         this.ranking.hasMore = rows.length >= pageSize
-        this.ranking.title = isBranch ? '🏦 网点效能排名' : '🏆 网格选址排名'
+        this.ranking.title = isBranch ? '网点效能排名' : '网格选址排名'
       } catch (e) { if (this.ranking.page === 1) this.ranking.items = [] }
       this.ranking.loading = false
     },

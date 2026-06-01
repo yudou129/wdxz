@@ -30,6 +30,9 @@ export function importBranchInfo(data) {
 export function importExistingBranch(data) {
   return request({ url: '/jwmap/import/existingBranch', method: 'post', data: data, timeout: 600000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
+export function importPeerBank(data) {
+  return request({ url: '/jwmap/import/peerBank', method: 'post', data: data, timeout: 600000, headers: { 'Content-Type': 'multipart/form-data' } })
+}
 
 // ===== 计算（超时10分钟，数据量大） =====
 export function computeGridData(city) {
@@ -94,6 +97,9 @@ export function getExternalWeightList() {
 }
 export function getBranchEfficiencyWeightList() {
   return request({ url: '/jwmap/data/weight/branchEfficiency', method: 'get' })
+}
+export function getPeerBankList(city) {
+  return request({ url: '/jwmap/data/peerBank/list', method: 'get', params: { city } })
 }
 
 // ===== 地图可视化 =====

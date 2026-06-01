@@ -28,6 +28,7 @@ public class JwDataController extends BaseController {
     @Autowired private JwBranchSummaryMapper branchSummaryMapper;
     @Autowired private JwGridDataRawMapper gridDataRawMapper;
     @Autowired private JwBranchIndicatorMapper branchIndicatorMapper;
+    @Autowired private JwPeerBankInfoMapper peerBankInfoMapper;
 
     // ===== POI =====
     @GetMapping("/poi/list")
@@ -188,6 +189,16 @@ public class JwDataController extends BaseController {
     public AjaxResult branchSummary(@PathVariable String city, @PathVariable Integer year) {
         List<JwBranchSummary> summaries = branchSummaryMapper.selectByCityAndYear(city, year);
         return success(summaries);
+    }
+
+    // ===== 同业银行 =====
+    @GetMapping("/peerBank/list")
+    public AjaxResult peerBankList(@RequestParam(required = false) String city) {
+        if (city == null || city.isEmpty()) {
+            return success(new ArrayList<>());
+        }
+        List<JwPeerBankInfo> list = peerBankInfoMapper.selectByCity(city);
+        return success(list);
     }
 
     @GetMapping("/branch/indicators/{branchId}/{year}")

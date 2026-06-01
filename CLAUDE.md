@@ -209,3 +209,6 @@ npm run dev
 1. **用Python openpyxl**（不要用Java POI写程序），因为openpyxl可以直接在REPL中交互式探索
 2. **Windows注意**：`python3` 是Windows Store哑存根（返回exit code 49），用 `python` 命令
 
+
+## 排错流程
+应该先检查代码。而不是去验证用户提出的问题是否存在。

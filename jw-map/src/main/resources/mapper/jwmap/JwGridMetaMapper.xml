@@ -170,4 +170,13 @@
             update_time = sysdate()
     </insert>
 
+    <select id="selectByPoint" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        WHERE west_longitude &lt;= #{longitude}
+          AND east_longitude &gt;= #{longitude}
+          AND south_latitude &lt;= #{latitude}
+          AND north_latitude &gt;= #{latitude}
+        LIMIT 1
+    </select>
+
 </mapper>

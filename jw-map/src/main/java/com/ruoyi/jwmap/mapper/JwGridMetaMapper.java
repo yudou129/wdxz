@@ -37,4 +37,6 @@ public interface JwGridMetaMapper {
     int upsertJwGridMeta(JwGridMeta meta);
 
     int upsertGridMeta(JwGridMeta meta);
+
+    JwGridMeta selectByPoint(@Param("longitude") Double longitude, @Param("latitude") Double latitude);
 }

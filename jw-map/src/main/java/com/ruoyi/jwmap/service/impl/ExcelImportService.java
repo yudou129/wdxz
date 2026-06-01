@@ -73,6 +73,9 @@ public class ExcelImportService {
     @Autowired
     private JwBranchIndicatorMapper branchIndicatorMapper;
 
+    @Autowired
+    private JwPeerBankInfoMapper peerBankInfoMapper;
+
     /**
      * 导入POI信息
      */
@@ -695,7 +698,54 @@ public class ExcelImportService {
         return count;
     }
 
-    // ========== 辅助方法 ==========
+    /**
+     * 导入同业银行信息
+     * <p>
+     * Excel列格式: A=机构编码 B=机构名称 C=机构地址 D=经度 E=纬度
+     *              F=银行名称 G=省 H=市 I=区县 J=乡镇/街道
+     * <p>
+     * 导入时自动根据经纬度判断所属网格（空间关联 jw_grid_meta）
+     */
+    @Transactional
+    public int importPeerBank(InputStream inputStream, String city) throws IOException {
+        int count = 0;
+        try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            DataFormatter formatter = new DataFormatter();
+
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+
+                JwPeerBankInfo peer = new JwPeerBankInfo();
+                peer.setOrgCode(getCellStringValue(row.getCell(0), formatter));
+                peer.setOrgName(getCellStringValue(row.getCell(1), formatter));
+                peer.setOrgAddress(getCellStringValue(row.getCell(2), formatter));
+                peer.setLongitude(getCellDoubleValue(row.getCell(3)));
+                peer.setLatitude(getCellDoubleValue(row.getCell(4)));
+                peer.setBankName(getCellStringValue(row.getCell(5), formatter));
+                peer.setProvince(getCellStringValue(row.getCell(6), formatter));
+                peer.setCity(city);
+                peer.setDistrict(getCellStringValue(row.getCell(8), formatter));
+                peer.setTown(getCellStringValue(row.getCell(9), formatter));
+
+                if (peer.getOrgCode() == null || peer.getOrgCode().isEmpty()) continue;
+
+                // ★ 自动判断所属网格：根据经纬度查找包含该点的网格
+                if (peer.getLongitude() != null && peer.getLatitude() != null) {
+                    JwGridMeta grid = gridMetaMapper.selectByPoint(peer.getLongitude(), peer.getLatitude());
+                    if (grid != null) {
+                        peer.setGridCode(grid.getGridCode());
+                    }
+                }
+
+                peerBankInfoMapper.upsertJwPeerBankInfo(peer);
+                count++;
+            }
+        }
+        log.info("导入同业银行数据完成，共{}条", count);
+        return count;
+    }
 
     /**
      * 根据三级指标名称模糊匹配 indicator_code

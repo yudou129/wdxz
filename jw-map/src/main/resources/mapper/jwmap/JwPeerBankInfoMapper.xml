@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwPeerBankInfoMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwPeerBankInfo" id="JwPeerBankInfoResult">
+        <id property="peerBankId" column="peer_bank_id"/>
+        <result property="orgCode" column="org_code"/>
+        <result property="orgName" column="org_name"/>
+        <result property="orgAddress" column="org_address"/>
+        <result property="longitude" column="longitude"/>
+        <result property="latitude" column="latitude"/>
+        <result property="bankName" column="bank_name"/>
+        <result property="province" column="province"/>
+        <result property="city" column="city"/>
+        <result property="district" column="district"/>
+        <result property="town" column="town"/>
+        <result property="gridCode" column="grid_code"/>
+        <result property="delFlag" column="del_flag"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectJwPeerBankInfoVo">
+        SELECT peer_bank_id, org_code, org_name, org_address,
+               longitude, latitude, bank_name,
+               province, city, district, town, grid_code,
+               del_flag, create_time, update_time
+        FROM jw_peer_bank_info
+    </sql>
+
+    <select id="selectJwPeerBankInfoList" parameterType="com.ruoyi.jwmap.domain.JwPeerBankInfo" resultMap="JwPeerBankInfoResult">
+        <include refid="selectJwPeerBankInfoVo"/>
+        <where>
+            <if test="orgCode != null and orgCode != ''">
+                AND org_code LIKE CONCAT('%', #{orgCode}, '%')
+            </if>
+            <if test="bankName != null and bankName != ''">
+                AND bank_name LIKE CONCAT('%', #{bankName}, '%')
+            </if>
+            <if test="city != null and city != ''">
+                AND city = #{city}
+            </if>
+            <if test="district != null and district != ''">
+                AND district = #{district}
+            </if>
+            <if test="gridCode != null and gridCode != ''">
+                AND grid_code = #{gridCode}
+            </if>
+            <if test="delFlag != null and delFlag != ''">
+                AND del_flag = #{delFlag}
+            </if>
+        </where>
+        ORDER BY peer_bank_id
+    </select>
+
+    <select id="selectJwPeerBankInfoById" parameterType="Long" resultMap="JwPeerBankInfoResult">
+        <include refid="selectJwPeerBankInfoVo"/>
+        WHERE peer_bank_id = #{peerBankId}
+    </select>
+
+    <select id="selectByCity" parameterType="String" resultMap="JwPeerBankInfoResult">
+        <include refid="selectJwPeerBankInfoVo"/>
+        WHERE city = #{city} AND (del_flag IS NULL OR del_flag = '0')
+        ORDER BY peer_bank_id
+    </select>
+
+    <insert id="insertJwPeerBankInfo" parameterType="com.ruoyi.jwmap.domain.JwPeerBankInfo" useGeneratedKeys="true" keyProperty="peerBankId">
+        INSERT INTO jw_peer_bank_info (
+            org_code, org_name, org_address, longitude, latitude,
+            bank_name, province, city, district, town, grid_code,
+            del_flag, create_time, update_time
+        ) VALUES (
+            #{orgCode}, #{orgName}, #{orgAddress}, #{longitude}, #{latitude},
+            #{bankName}, #{province}, #{city}, #{district}, #{town}, #{gridCode},
+            #{delFlag}, sysdate(), sysdate()
+        )
+    </insert>
+
+    <insert id="upsertJwPeerBankInfo" parameterType="com.ruoyi.jwmap.domain.JwPeerBankInfo">
+        INSERT INTO jw_peer_bank_info (
+            org_code, org_name, org_address, longitude, latitude,
+            bank_name, province, city, district, town, grid_code,
+            del_flag, create_time, update_time
+        ) VALUES (
+            #{orgCode}, #{orgName}, #{orgAddress}, #{longitude}, #{latitude},
+            #{bankName}, #{province}, #{city}, #{district}, #{town}, #{gridCode},
+            #{delFlag}, sysdate(), sysdate()
+        )
+        ON DUPLICATE KEY UPDATE
+            org_name = VALUES(org_name),
+            org_address = VALUES(org_address),
+            longitude = VALUES(longitude),
+            latitude = VALUES(latitude),
+            bank_name = VALUES(bank_name),
+            province = VALUES(province),
+            city = VALUES(city),
+            district = VALUES(district),
+            town = VALUES(town),
+            grid_code = VALUES(grid_code),
+            update_time = sysdate()
+    </insert>
+
+    <delete id="deleteJwPeerBankInfoById" parameterType="Long">
+        DELETE FROM jw_peer_bank_info WHERE peer_bank_id = #{peerBankId}
+    </delete>
+
+</mapper>

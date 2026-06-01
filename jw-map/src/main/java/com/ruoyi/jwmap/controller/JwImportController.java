@@ -109,4 +109,20 @@ public class JwImportController extends BaseController {
             return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
+
+    /**
+     * 导入同业银行信息
+     */
+    @PostMapping("/peerBank")
+    public AjaxResult importPeerBank(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("city") String city) {
+        try {
+            int count = excelImportService.importPeerBank(file.getInputStream(), city);
+            return success("成功导入 " + count + " 条同业银行数据");
+        } catch (Exception e) {
+            logger.error("导入同业银行异常", e);
+            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+        }
+    }
 }

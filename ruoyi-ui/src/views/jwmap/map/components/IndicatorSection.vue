@@ -47,12 +47,54 @@ export default {
 }
 </script>
 <style scoped>
-.indicator-title { font-size: 13px; font-weight: 600; color: #555; margin: 12px 0 8px; }
-.category-group { margin-bottom: 4px; }
-.category-title-l1 { font-size: 12px; font-weight: 600; color: #666; margin: 10px 0 4px; padding-left: 2px; border-left: 3px solid #409eff; padding-left: 6px; }
-.category-title-l2 { font-size: 11px; color: #999; display: block; margin: 6px 0 2px 6px; }
-.indicator-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
-.indicator-row.compact { font-size: 12px; padding: 2px 0; }
-.indicator-name { color: #666; }
-.indicator-value { color: #333; font-weight: 500; }
+.indicator-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #454e6b;
+  margin: 12px 0 8px;
+  letter-spacing: 0.1px;
+}
+.category-group {
+  margin-bottom: 2px;
+}
+.category-title-l1 {
+  font-size: 12px;
+  font-weight: 600;
+  color: #556;
+  margin: 10px 0 4px;
+  padding-left: 8px;
+  border-left: 3px solid #4f6ef6;
+  line-height: 1.3;
+}
+.category-title-l2 {
+  font-size: 11px;
+  color: #8c95a8;
+  display: block;
+  margin: 6px 0 2px 8px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.indicator-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.indicator-row.compact {
+  font-size: 12px;
+  padding: 3px 0;
+}
+.indicator-name {
+  color: #556;
+  flex: 1;
+  padding-right: 8px;
+}
+.indicator-value {
+  color: #303651;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
 </style>

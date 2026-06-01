@@ -74,10 +74,10 @@
               </ImportPanel>
             </el-collapse-item>
 
-            <!-- 存量网点导入 -->
-            <el-collapse-item title="存量网点导入" name="existBranch">
-              <ImportPanel label="存量网点基本信息表" :city.sync="importCity" :cityList="cityList" @import="handleImport('existBranch', $event)">
-                <template #tips>与网点信息基本结构一致，导入后 data_source 标记为"存量网点"。</template>
+            <!-- 同业银行导入 -->
+            <el-collapse-item title="同业银行导入" name="peerBank">
+              <ImportPanel label="同业银行数据" :city.sync="importCity" :cityList="cityList" @import="handleImport('peerBank', $event)">
+                <template #tips>Excel列：机构编码, 机构名称, 机构地址, 经度, 纬度, 银行名称, 省, 市, 区县, 乡镇。自动跳过"其他银行"和"工商银行"数据，并根据经纬度自动计算所属网格。</template>
               </ImportPanel>
             </el-collapse-item>
           </el-collapse>
@@ -210,6 +210,22 @@
                 </el-table-column>
               </el-table>
             </el-tab-pane>
+            <el-tab-pane label="同业银行" name="peerBankView">
+              <el-select v-model="viewCity" placeholder="选择城市" @change="loadPeerBankList" style="width:160px;margin-bottom:12px">
+                <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
+              </el-select>
+              <el-table :data="peerBankList" border stripe max-height="400" v-loading="peerBankLoading">
+                <el-table-column prop="orgCode" label="机构编码" width="160" />
+                <el-table-column prop="orgName" label="机构名称" min-width="200" show-overflow-tooltip />
+                <el-table-column prop="bankName" label="银行名称" width="100" />
+                <el-table-column prop="longitude" label="经度" width="100" />
+                <el-table-column prop="latitude" label="纬度" width="100" />
+                <el-table-column prop="district" label="区县" width="80" />
+                <el-table-column prop="town" label="乡镇" width="100" />
+                <el-table-column prop="gridCode" label="所属网格" width="120" />
+                <el-table-column prop="orgAddress" label="机构地址" min-width="200" show-overflow-tooltip />
+              </el-table>
+            </el-tab-pane>
           </el-tabs>
         </el-tab-pane>
       </el-tabs>
@@ -229,8 +245,9 @@ import {
   getGridCities, getGridList, getBranchList, getBranchScore
 } from '@/api/jwmap/data'
 import { importPoi, importPopulationHeat, importExternalWeight, importBranchEfficiencyWeight,
-  importBranchInfo, importExistingBranch } from '@/api/jwmap/data'
+  importBranchInfo, importPeerBank } from '@/api/jwmap/data'
 import { exportGridCombined, exportBranchCombined } from '@/api/jwmap/data'
+import { getPeerBankList } from '@/api/jwmap/data'
 import ImportPanel from './components/ImportPanel'
 
 export default {
@@ -261,7 +278,8 @@ export default {
       scoreYear: 2024,
       gridList: [], gridLoading: false,
       branchList: [], branchLoading: false,
-      scoreList: [], scoreLoading: false
+      scoreList: [], scoreLoading: false,
+      peerBankList: [], peerBankLoading: false
     }
   },
   created() {
@@ -294,7 +312,7 @@ export default {
         const apiMap = {
           poi: importPoi, pop: importPopulationHeat,
           extWeight: importExternalWeight, branchWeight: importBranchEfficiencyWeight,
-          branch: importBranchInfo, existBranch: importExistingBranch
+          branch: importBranchInfo, peerBank: importPeerBank
         }
         result = await apiMap[type](fd)
         this.$message.success(result.msg || '导入成功')
@@ -397,6 +415,12 @@ export default {
       try { const res = await getBranchScore(this.viewCity, this.scoreYear); this.scoreList = res.data || [] }
       catch (e) { this.scoreList = [] } finally { this.scoreLoading = false }
     },
+    async loadPeerBankList() {
+      if (!this.viewCity) return
+      this.peerBankLoading = true
+      try { const res = await getPeerBankList(this.viewCity); this.peerBankList = res.data || [] }
+      catch (e) { this.peerBankList = [] } finally { this.peerBankLoading = false }
+    },
     categoryLabel(cat) {
       const map = { revenue: '营收', indicator: '指标', customer: '客户', operation: '运营', overall: '总分' }
       return map[cat] || cat
@@ -406,14 +430,54 @@ export default {
 </script>
 
 <style scoped>
-.jwmap-container { padding: 16px; }
-.page-header { margin-bottom: 8px; }
-.page-header h2 { margin: 0; font-size: 20px; }
-.subtitle { color: #909399; font-size: 13px; margin: 4px 0 0 0; }
-.section-card { margin-bottom: 16px; }
-.status-card { text-align: center; font-size: 13px; }
-.status-card.ready { border-left: 3px solid #67c23a; }
-.status-card.incomplete { border-left: 3px solid #e6a23c; }
+.jwmap-container {
+  padding: 20px 24px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.page-header {
+  margin-bottom: 16px;
+}
+.page-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #232845;
+  letter-spacing: -0.3px;
+}
+.subtitle {
+  color: #8c95a8;
+  font-size: 13px;
+  margin: 4px 0 0 0;
+}
+.section-card {
+  margin-bottom: 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(79, 110, 246, 0.08);
+  box-shadow: 0 2px 12px rgba(79, 110, 246, 0.05);
+  transition: box-shadow 0.25s ease;
+}
+.section-card:hover {
+  box-shadow: 0 4px 20px rgba(79, 110, 246, 0.1);
+}
+.status-card {
+  text-align: center;
+  font-size: 13px;
+  border-radius: 8px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.status-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(79, 110, 246, 0.1);
+}
+.status-card.ready {
+  border-left: 3px solid #4f6ef6;
+  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+}
+.status-card.incomplete {
+  border-left: 3px solid #f0a050;
+  background: linear-gradient(135deg, #fffaf5 0%, #fff7ed 100%);
+}
 .status-badge { margin-top: 8px; }
-.step-title { color: #909399; font-size: 13px; }
+.step-title { color: #8c95a8; font-size: 13px; }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div style="padding:8px 0">
+  <div class="import-panel">
     <el-form inline size="small">
       <el-form-item v-if="!hideCity" label="城市">
         <el-select v-model="innerCity" placeholder="选择城市" style="width:140px" filterable allow-create :no-data-text="cityList.length ? '无匹配城市' : '暂无数据，请输入城市名'">
@@ -21,8 +21,8 @@
         <el-button type="primary" size="small" @click="handleSubmit" icon="el-icon-upload">开始导入</el-button>
       </el-form-item>
     </el-form>
-    <div style="color:#909399;font-size:12px">
-      <slot name="tips"></slot>
+    <div class="tips-text">
+      <i class="el-icon-info" /> <slot name="tips"></slot>
     </div>
   </div>
 </template>
@@ -61,3 +61,20 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.import-panel {
+  padding: 8px 0;
+}
+.tips-text {
+  color: #8c95a8;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tips-text i {
+  font-size: 13px;
+  color: #4f6ef6;
+}
+</style>
