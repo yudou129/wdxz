@@ -8,6 +8,8 @@
       @select-city="onSelectCity"
       @select-district="onSelectDistrict"
       @toggle-heatmap="onToggleHeatmap"
+      @toggle-quadrant="loadQuadrant"
+      @toggle-dim-stats="loadDimStats"
       @filter-branch="onFilterBranch" />
 
     <SidebarPanel
@@ -16,13 +18,21 @@
       :width="sidebar.width"
       :gridData="sidebar.gridData"
       :gridRank="sidebar.gridRank"
+      :gridRankMeta="sidebar.gridRankMeta"
       :gridIndicators="sidebar.gridIndicators"
       :branchData="sidebar.branchData"
       :branchScores="sidebar.branchScores"
+      :branchRankMeta="sidebar.branchRankMeta"
+      :branchQuadrant="sidebar.branchQuadrant"
+      :pillar="sidebar.pillar"
+      :peerBanks="peerBanks"
+      :nearbyBranches="nearbyBranches"
+      :pillarGap="sidebar.pillarGap"
       :years="availableYears"
       :year="selectedYear"
       @close="closeSidebar"
       @view-detail="showDetailDialog"
+      @zoom-branch="zoomToBranch"
       @year-change="onYearChange" />
 
     <RankingList
@@ -33,16 +43,33 @@
       :page="ranking.page"
       :hasMore="ranking.hasMore"
       :loading="ranking.loading"
+      :showTypeSwitch="true"
+      :showFocusTabs="false"
       @item-click="onRankingItemClick"
       @load-more="loadMoreRanking"
+      @type-change="onRankingTypeChange"
+      @focus-change="onFocusChange"
       @close="ranking.visible = false" />
 
-    <el-dialog title="详细指标数据表" :visible.sync="detailDialog.visible" width="70%" top="5vh">
-      <el-table :data="detailDialog.data" border size="small" max-height="60vh" style="width:100%">
-        <el-table-column prop="name" label="指标名称" min-width="160" />
-        <el-table-column prop="value" label="数值" width="120" />
-      </el-table>
-    </el-dialog>
+    <QuadrantChart
+      :visible="quadrant.visible"
+      :data="quadrant.data"
+      @close="quadrant.visible = false"
+      @item-click="onQuadrantItemClick"
+      @filter-quadrant="onFilterQuadrant" />
+
+    <DimensionStats
+      :visible="dimStats.visible"
+      :data="dimStats.data"
+      @close="dimStats.visible = false"
+      @dim-change="loadDimStats" />
+
+    <DetailPanel
+      :visible="detailPanel.visible"
+      :data="detailPanel.data"
+      :mode="detailPanel.mode"
+      :leftPos="detailPanel.left"
+      @close="detailPanel.visible = false" />
   </div>
 </template>
 
@@ -55,15 +82,23 @@ import { MeasureTool } from './utils/measureTool.js'
 import TopToolbar from './components/TopToolbar'
 import SidebarPanel from './components/SidebarPanel'
 import RankingList from './components/RankingList'
+import DetailPanel from './components/DetailPanel'
+import QuadrantChart from './components/QuadrantChart'
+import DimensionStats from './components/DimensionStats'
+import PeerBankSection from './components/PeerBankSection'
 import { HeatmapLayer } from './utils/heatmapLayer'
 import { getGridIndicators, getBranchScoreDetail, getGridBranches,
          getGridRanking, getBranchRanking, getBranchList, getIndicatorList,
-         getBranchIndicators } from '@/api/jwmap/data'
+         getBranchIndicators, getQuadrantData,
+         getBranchInternalRanking, getGridDistrictRanking,
+         getGridPillarScores, getDimensionStats,
+         getPeerBankDistance, getNearbyBranches, getThreeFocusRanking, getPillarGap,
+         getGridScoreByCity } from '@/api/jwmap/data'
 import '@/views/jwmap/map/assets/branch-icon.css'
 
 export default {
   name: 'JwMapTianditu',
-  components: { TopToolbar, SidebarPanel, RankingList },
+  components: { TopToolbar, SidebarPanel, RankingList, QuadrantChart, DetailPanel, DimensionStats, PeerBankSection },
   data() {
     return {
       map: null, boundaryMgr: null, measureTool: null,
@@ -74,11 +109,21 @@ export default {
       sidebar: {
         visible: false, mode: 'grid-only', width: 380,
         gridData: {}, gridRank: null, gridIndicators: [],
-        branchData: {}, branchScores: []
+        gridRankMeta: { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 },
+        branchData: {}, branchScores: [],
+        branchRankMeta: { branchRank: 0, branchTotal: 0, cityRank: 0, cityTotal: 0 },
+        branchQuadrant: '',
+        pillar: { population: { score: 0, count: 0 }, enterprise: { score: 0, count: 0 }, business: { score: 0, count: 0 } },
+        pillarGap: { population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }
       },
       ranking: { visible: false, title: '', items: [], page: 1, hasMore: false, loading: false, type: 'grid' },
+      quadrant: { visible: false, data: null },
+      dimStats: { visible: false, data: [], dimension: 'district' },
+      peerBanks: [],
+      nearbyBranches: [],
+      gridDataCache: null,
       currentCity: null, currentFilter: null, currentAdcode: null,
-      detailDialog: { visible: false, data: [] }
+      detailPanel: { visible: false, data: [], mode: 'branch', left: 400 }
     }
   },
   computed: {
@@ -137,6 +182,7 @@ export default {
       this.closeSidebar()
       if (this.heatmapVisible) { this.heatmapLayer.hide(); this.heatmapVisible = false }
       if (this.boundaryMgr) this.boundaryMgr.showCity(this.currentAdcode)
+      await this.loadGridDataCache()
       await this.loadBranches()
       this.loadRanking('grid')
     },
@@ -189,12 +235,46 @@ export default {
     async onBranchClick(branch) {
       this.sidebar.mode = 'branch-only'; this.sidebar.width = 380
       this.sidebar.branchData = branch
-      await this.loadBranchScores(branch.branchId)
+      await Promise.all([
+        this.loadBranchScores(branch.branchId),
+        this.loadBranchRankMeta(branch.branchId),
+        this.loadBranchQuadrant(branch),
+        this.loadPeerAndNearby(branch.branchId),
+        this.loadPillarGap(branch.gridCode)
+      ])
       this.sidebar.visible = true
     },
+    async loadPillarGap(gridCode) {
+      if (!gridCode) { this.sidebar.pillarGap = { population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }; return }
+      try {
+        const res = await getPillarGap(gridCode)
+        this.sidebar.pillarGap = res.data || { population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }
+      } catch (e) { this.sidebar.pillarGap = { population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } } }
+    },
     async loadBranchScores(branchId) {
-      const res = await getBranchScoreDetail(branchId, this.selectedYear)
-      this.sidebar.branchScores = res.data || []
+      try {
+        const res = await getBranchScoreDetail(branchId, this.selectedYear)
+        this.sidebar.branchScores = res.data || []
+      } catch (e) { this.sidebar.branchScores = [] }
+    },
+    async loadBranchRankMeta(branchId) {
+      try {
+        const res = await getBranchInternalRanking(branchId, this.selectedYear)
+        this.sidebar.branchRankMeta = res.data || { branchRank: 0, branchTotal: 0, cityRank: 0, cityTotal: 0 }
+      } catch (e) { this.sidebar.branchRankMeta = { branchRank: 0, branchTotal: 0, cityRank: 0, cityTotal: 0 } }
+    },
+    async loadBranchQuadrant(branch) {
+      try {
+        if (!this.quadrant.data || !this.quadrant.data.allData) {
+          // 尝试加载象限数据
+          const res = await getQuadrantData(branch.city || this.currentCity, this.selectedYear)
+          this.quadrant.data = res.data || null
+        }
+        if (this.quadrant.data && this.quadrant.data.allData) {
+          const found = this.quadrant.data.allData.find(d => d.branchId === branch.branchId)
+          this.sidebar.branchQuadrant = found ? found.quadrant : ''
+        }
+      } catch (e) { this.sidebar.branchQuadrant = '' }
     },
 
     // ==== 网格点击 ====
@@ -205,7 +285,12 @@ export default {
         const idx = hd.findIndex(d => d.gridCode === gridCode)
         this.sidebar.gridRank = idx >= 0 ? idx + 1 : null
       }
-      const indRes = await getGridIndicators(gridCode)
+      // 并行加载指标、排名、三聚集
+      const [indRes, rankRes, pillarRes] = await Promise.all([
+        getGridIndicators(gridCode),
+        getGridDistrictRanking(gridCode),
+        getGridPillarScores(gridCode)
+      ])
       this.sidebar.gridIndicators = (indRes.data || []).map(d => ({
         code: d.indicatorCode,
         name: this.indicatorNameMap[d.indicatorCode] || d.indicatorCode,
@@ -213,16 +298,65 @@ export default {
         categoryLevel1: d.categoryLevel1,
         categoryLevel2: d.categoryLevel2
       }))
+      this.sidebar.gridRankMeta = rankRes.data || { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 }
+      this.sidebar.pillar = pillarRes.data || { population: { score: 0, count: 0 }, enterprise: { score: 0, count: 0 }, business: { score: 0, count: 0 } }
+      this.loadPillarGap(gridCode)
+
       const brRes = await getGridBranches(gridCode)
       const branches = brRes.data || []
       if (branches.length > 0) {
         this.sidebar.mode = 'split'; this.sidebar.width = 600
         this.sidebar.branchData = branches[0]
-        await this.loadBranchScores(branches[0].branchId)
+        await Promise.all([
+          this.loadBranchScores(branches[0].branchId),
+          this.loadBranchRankMeta(branches[0].branchId),
+          this.loadBranchQuadrant(branches[0])
+        ])
       } else {
         this.sidebar.mode = 'grid-only'; this.sidebar.width = 380
       }
       this.sidebar.visible = true
+    },
+
+    zoomToBranch() {
+      const b = this.sidebar.branchData
+      if (b && b.latitude != null && b.longitude != null) {
+        this.map.flyTo([b.latitude, b.longitude], 15)
+      }
+    },
+
+    async loadGridDataCache() {
+      try {
+        const res = await getGridScoreByCity(this.currentCity)
+        this.gridDataCache = res.data || []
+      } catch (e) { this.gridDataCache = [] }
+    },
+
+    // ==== 维度统计 ====
+    async loadDimStats(dimension) {
+      if (!this.currentCity) return
+      const dim = dimension || this.dimStats.dimension
+      this.dimStats.dimension = dim
+      try {
+        const res = await getDimensionStats(this.currentCity, this.selectedYear, dim)
+        this.dimStats.data = res.data || []
+        this.dimStats.visible = true
+      } catch (e) { this.$message.error('加载统计数据失败') }
+    },
+
+    // ==== 同业 + 周围网点 ====
+    async loadPeerAndNearby(branchId) {
+      try {
+        const [peerRes, nearbyRes] = await Promise.all([
+          getPeerBankDistance(branchId, 1),
+          getNearbyBranches(branchId, 1)
+        ])
+        this.peerBanks = peerRes.data || []
+        this.nearbyBranches = nearbyRes.data || []
+      } catch (e) {
+        this.peerBanks = []
+        this.nearbyBranches = []
+      }
     },
 
     // ==== 排名 ====
@@ -258,10 +392,39 @@ export default {
       this.ranking.page++
       this.fetchRanking()
     },
+    onRankingTypeChange(type) {
+      this.loadRanking(type)
+    },
+    onFocusChange(category) {
+      // 加载三聚焦排名数据
+      this.ranking.type = 'focus'
+      this.ranking.page = 1
+      this.ranking.hasMore = false
+      this.ranking.visible = true
+      this.fetchFocusRanking(category)
+    },
+    async fetchFocusRanking(category) {
+      if (!this.currentCity) return
+      this.ranking.loading = true
+      try {
+        const res = await getThreeFocusRanking(this.currentCity, this.selectedYear)
+        const data = res.data || {}
+        const list = data[category] || []
+        this.ranking.items = list.map((r, i) => ({
+          id: r.gridCode || ('f' + i),
+          name: r.branchName || r.gridCode || '',
+          score: r.score || 0,
+          type: 'grid'
+        }))
+        this.ranking.loading = false
+      } catch (e) {
+        this.ranking.items = []
+        this.ranking.loading = false
+      }
+    },
     onRankingItemClick(item) {
       if (!item.id) return
       if (item.type === 'branch') {
-        // 网点排名: 在 branchLayer 中查找并定位
         this.branchLayer.eachLayer(layer => {
           if (layer.branchData && layer.branchData.branchId === item.id) {
             this.map.flyTo([layer.branchData.latitude, layer.branchData.longitude], 14)
@@ -269,54 +432,117 @@ export default {
           }
         })
       } else {
-        // 网格排名: 在 heatmap 数据中查找
-        if (!this.heatmapLayer) return
-        const hd = this.heatmapLayer.getData()
-        if (!hd) return
-        const found = hd.find(d => d.gridCode === item.id)
-        if (found) { this.map.flyTo([found.latitude, found.longitude], 14); this.onGridClick(found.gridCode, found) }
+        this.navigateToGrid(item.id)
       }
     },
-    closeSidebar() { this.sidebar.visible = false },
+    async navigateToGrid(gridCode) {
+      if (!this.currentCity) return
+      try {
+        const res = await getGridScoreByCity(this.currentCity)
+        const list = res.data || []
+        if (!Array.isArray(list)) return
+        const found = list.find(d => d.gridCode === gridCode)
+        if (found && found.latitude != null && found.longitude != null) {
+          this.gridDataCache = list
+          this.map.flyTo([found.latitude, found.longitude], 14)
+          this.onGridClick(found.gridCode, found)
+        }
+      } catch (e) { /* ignore */ }
+    },
+    closeSidebar() { this.sidebar.visible = false; this.detailPanel.visible = false },
+
+    // ==== 四象限 ====
+    async loadQuadrant() {
+      if (!this.currentCity) return
+      try {
+        const res = await getQuadrantData(this.currentCity, this.selectedYear)
+        this.quadrant.data = res.data || null
+        this.quadrant.visible = true
+      } catch (e) { this.$message.error('加载象限数据失败') }
+    },
+    onQuadrantItemClick(item) {
+      // 点击散点 -> 定位到网点
+      this.branchLayer.eachLayer(layer => {
+        if (layer.branchData && layer.branchData.branchId === item.branchId) {
+          this.map.flyTo([layer.branchData.latitude, layer.branchData.longitude], 14)
+          this.onBranchClick(layer.branchData)
+        }
+      })
+    },
+    onFilterQuadrant(quadrantCode) {
+      if (!this.quadrant.data || !this.quadrant.data.quadrants) return
+      const branches = this.quadrant.data.quadrants[quadrantCode] || []
+      const branchIds = new Set(branches.map(b => b.branchId))
+      this.branchLayer.eachLayer(layer => {
+        if (layer.branchData) {
+          const match = branchIds.has(layer.branchData.branchId)
+          if (match) { this.map.addLayer(layer) } else { this.map.removeLayer(layer) }
+        }
+      })
+      this.$message.success(`已筛选 ${quadrantCode}: ${branchIds.size} 个网点`)
+    },
     async showDetailDialog(type) {
-      let data = []
+      const sidebarLeft = 12 // SidebarPanel left position
+      const sidebarWidth = this.sidebar.width
+      this.detailPanel.left = sidebarLeft + sidebarWidth + 8
+      this.detailPanel.data = []
+
       if (type === 'grid' || type === 'all') {
-        data = data.concat(this.sidebar.gridIndicators.map(i => ({ name: i.name, value: i.value })))
+        // 网格指标：计算百分比
+        const indicators = this.sidebar.gridIndicators
+        const maxVal = indicators.reduce((m, i) => {
+          const v = parseFloat(i.value); return !isNaN(v) && v > m ? v : m
+        }, 0)
+        this.detailPanel.data = indicators.map(i => ({
+          code: i.code, name: i.name, value: i.value,
+          categoryLevel1: i.categoryLevel1, categoryLevel2: i.categoryLevel2,
+          pct: maxVal > 0 ? Math.round(parseFloat(i.value) / maxVal * 100) : 0
+        }))
+        this.detailPanel.mode = 'grid'
+        this.detailPanel.visible = true
       }
+
       if (type === 'branch' || type === 'all') {
+        this.detailPanel.data = []
         const branchId = this.sidebar.branchData.branchId
         if (branchId) {
           try {
             const res = await getBranchIndicators(branchId, this.selectedYear)
-            const indicators = res.data || []
-            data = data.concat(indicators.map(i => ({
+            const list = res.data || res || []
+            this.detailPanel.data = (Array.isArray(list) ? list : []).map(i => ({
               name: this.indicatorNameMap[i.indicatorCode] || i.indicatorCode,
-              value: i.indicatorValue
-            })))
-          } catch (e) { /* 衍生指标加载失败 */ }
+              value: i.indicatorValue,
+              categoryLevel1: this.getIndicatorCategory(i.indicatorCode)
+            }))
+          } catch (e) {
+            this.$message.error('加载网点指标数据失败')
+          }
         }
-        // 也包含分项得分
-        data = data.concat(this.sidebar.branchScores.map(s => ({
-          name: s.scoreCategory + '得分',
-          value: s.categoryScore.toFixed(4)
-        })))
+        this.detailPanel.mode = 'branch'
+        this.detailPanel.visible = true
       }
-      this.detailDialog.data = data; this.detailDialog.visible = true
+    },
+
+    getIndicatorCategory(code) {
+      if (!code) return '其他'
+      if (code.includes('rev')) return '营收'
+      if (code.includes('asset') || code.includes('saving') || code.includes('dep') || code.includes('loan')) return '业绩'
+      if (code.includes('cust')) return '客户'
+      if (code.includes('counter') || code.includes('terminal') || code.includes('atm')) return '运营'
+      return '其他'
     },
 
     // ==== 指标名称映射 ====
     async loadIndicatorNames() {
       try {
-        const [gridRes, branchRes] = await Promise.all([
-          getIndicatorList('jw_grid_data_raw'),
-          getIndicatorList('jw_branch_indicator')
-        ])
+        const res = await getIndicatorList(null)
         const map = {}
-        for (const item of [...(gridRes.data || []), ...(branchRes.data || [])]) {
+        const list = res.data || []
+        for (const item of list) {
           if (item.indicatorCode) map[item.indicatorCode] = item.indicatorName || item.indicatorCode
         }
         this.indicatorNameMap = map
-      } catch (e) { /* 名称映射加载失败，回退显示编码 */ }
+      } catch (e) { /* ignore */ }
     }
   }
 }

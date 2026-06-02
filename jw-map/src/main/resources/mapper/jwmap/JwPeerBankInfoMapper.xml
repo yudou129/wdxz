@@ -61,6 +61,7 @@
     <select id="selectByCity" parameterType="String" resultMap="JwPeerBankInfoResult">
         <include refid="selectJwPeerBankInfoVo"/>
         WHERE city = #{city} AND (del_flag IS NULL OR del_flag = '0')
+          AND bank_name NOT IN ('其他银行', '工商银行')
         ORDER BY peer_bank_id
     </select>
 

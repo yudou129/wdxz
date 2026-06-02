@@ -13,12 +13,24 @@
         <result property="categoryScore" column="category_score"/>
         <result property="rankNum" column="rank_num"/>
         <result property="createTime" column="create_time"/>
+        <result property="secondaryBranch" column="secondary_branch"/>
+        <result property="primaryBranch" column="primary_branch"/>
+        <result property="gridCode" column="grid_code"/>
     </resultMap>
 
     <sql id="selectJwBranchScoreVo">
         SELECT score_id, branch_id, data_year, city, score_category,
                positive_distance, negative_distance, category_score, rank_num, create_time
         FROM jw_branch_score
+    </sql>
+
+    <!-- 带网点名称的查询（LEFT JOIN jw_branch_info） -->
+    <sql id="selectJwBranchScoreWithNameVo">
+        SELECT s.score_id, s.branch_id, s.data_year, s.city, s.score_category,
+               s.positive_distance, s.negative_distance, s.category_score, s.rank_num, s.create_time,
+               bi.secondary_branch, bi.primary_branch, bi.grid_code
+        FROM jw_branch_score s
+        LEFT JOIN jw_branch_info bi ON s.branch_id = bi.branch_id
     </sql>
 
     <select id="selectJwBranchScoreList" parameterType="com.ruoyi.jwmap.domain.JwBranchScore" resultMap="JwBranchScoreResult">
@@ -50,9 +62,9 @@
     </select>
 
     <select id="selectByCityAndYearAndCategory" resultMap="JwBranchScoreResult">
-        <include refid="selectJwBranchScoreVo"/>
-        WHERE city = #{city} AND data_year = #{dataYear} AND score_category = #{category}
-        ORDER BY rank_num
+        <include refid="selectJwBranchScoreWithNameVo"/>
+        WHERE s.city = #{city} AND s.data_year = #{dataYear} AND s.score_category = #{category}
+        ORDER BY s.rank_num
     </select>
 
     <insert id="insertJwBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore" useGeneratedKeys="true" keyProperty="scoreId">
@@ -110,21 +122,6 @@
             (#{item.branchId}, #{item.dataYear}, #{item.city}, #{item.scoreCategory},
              #{item.positiveDistance}, #{item.negativeDistance}, #{item.categoryScore}, #{item.rankNum}, sysdate())
         </foreach>
-    </insert>
-
-    <insert id="upsertJwBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
-        INSERT INTO jw_branch_score (
-            branch_id, data_year, city, score_category,
-            positive_distance, negative_distance, category_score, rank_num, create_time
-        ) VALUES (
-            #{branchId}, #{dataYear}, #{city}, #{scoreCategory},
-            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, sysdate()
-        )
-        ON DUPLICATE KEY UPDATE
-            positive_distance = VALUES(positive_distance),
-            negative_distance = VALUES(negative_distance),
-            category_score = VALUES(category_score),
-            rank_num = VALUES(rank_num)
     </insert>
 
     <insert id="upsertBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">

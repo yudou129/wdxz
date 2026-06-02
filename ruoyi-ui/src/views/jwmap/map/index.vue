@@ -70,36 +70,11 @@ export default {
       // 边界管理器
       this.boundaryMgr = new BoundaryManager(this.map)
       this.boundaryMgr.init()
-        .then(() => {
-          // 调试网格 1（红色）
-          const G1 = { lng1: 106.617339, lng2: 106.627389, lat1: 26.639653, lat2: 26.648637 }
-          L.rectangle([[G1.lat1, G1.lng1], [G1.lat2, G1.lng2]], {
-            color: '#ff0000', weight: 3, fillColor: '#ff0000', fillOpacity: 0.1
-          }).addTo(this.map)
-            .bindTooltip(`网格1<br>${G1.lat1}~${G1.lat2}<br>${G1.lng1}~${G1.lng2}`, {
-              permanent: true, direction: 'top', className: 'grid-label'
-            })
-
-          // 调试网格 2（蓝色）
-          const G2 = { lng1: 106.778747, lng2: 106.788789, lat1: 26.549563, lat2: 26.558547 }
-          L.rectangle([[G2.lat1, G2.lng1], [G2.lat2, G2.lng2]], {
-            color: '#0000ff', weight: 3, fillColor: '#0000ff', fillOpacity: 0.1
-          }).addTo(this.map)
-            .bindTooltip(`网格2<br>${G2.lat1}~${G2.lat2}<br>${G2.lng1}~${G2.lng2}`, {
-              permanent: true, direction: 'top', className: 'grid-label'
-            })
-
-          this.map.setView([(G2.lat1 + G2.lat2) / 2, (G2.lng1 + G2.lng2) / 2], 14)
-        })
         .catch(err => console.error('[jwmap] 边界加载失败:', err))
 
       // 测量工具
       this.measureTool = new MeasureTool(this.map)
       this.measureTool.init()
-
-      // 暴露调试接口
-      window.__jwmap = this.map
-      window.__boundaryMgr = this.boundaryMgr
     }
   }
 }
@@ -188,16 +163,5 @@ export default {
 .measure-label.total span {
   background: rgba(41,128,185,0.9);
   font-weight: bold;
-}
-
-/* 网格标签 */
-.grid-label {
-  background: rgba(255,0,0,0.08) !important;
-  border: none !important;
-  box-shadow: none !important;
-  font-size: 11px;
-  font-family: monospace;
-  color: #c00;
-  white-space: nowrap;
 }
 </style>

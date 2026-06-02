@@ -21,6 +21,12 @@
     </el-select>
 
     <div class="toolbar-right">
+      <el-button size="small" @click="$emit('toggle-quadrant')">
+        <i class="el-icon-s-data" /> 四象限
+      </el-button>
+      <el-button size="small" @click="$emit('toggle-dim-stats')">
+        <i class="el-icon-pie-chart" /> 统计
+      </el-button>
       <el-button size="small" :type="heatmapActive ? 'danger' : 'default'"
                  :class="{ 'heatmap-on': heatmapActive }"
                  @click="$emit('toggle-heatmap')">

@@ -26,8 +26,6 @@ public interface JwIndicatorConfigMapper {
 
     JwIndicatorConfig selectByIndicatorName(@Param("indicatorName") String name);
 
-    int insertJwIndicatorConfig(JwIndicatorConfig config);
-
     int insertIndicatorConfig(JwIndicatorConfig config);
 
     int updateJwIndicatorConfig(JwIndicatorConfig config);

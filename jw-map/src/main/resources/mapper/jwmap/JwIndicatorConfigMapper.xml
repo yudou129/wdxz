@@ -85,18 +85,6 @@
         WHERE indicator_name = #{indicatorName}
     </select>
 
-    <insert id="insertJwIndicatorConfig" parameterType="com.ruoyi.jwmap.domain.JwIndicatorConfig" useGeneratedKeys="true" keyProperty="indicatorId">
-        INSERT INTO jw_indicator_config (
-            indicator_code, indicator_name, category_level1, category_level2,
-            data_type, sort_order, source_tables, is_weighted, is_active,
-            create_time, update_time
-        ) VALUES (
-            #{indicatorCode}, #{indicatorName}, #{categoryLevel1}, #{categoryLevel2},
-            #{dataType}, #{sortOrder}, #{sourceTables}, #{isWeighted}, #{isActive},
-            sysdate(), sysdate()
-        )
-    </insert>
-
     <insert id="insertIndicatorConfig" parameterType="com.ruoyi.jwmap.domain.JwIndicatorConfig" useGeneratedKeys="true" keyProperty="indicatorId">
         INSERT INTO jw_indicator_config (
             indicator_code, indicator_name, category_level1, category_level2,

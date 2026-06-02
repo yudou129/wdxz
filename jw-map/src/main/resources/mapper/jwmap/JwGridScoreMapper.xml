@@ -87,19 +87,6 @@
         </foreach>
     </insert>
 
-    <insert id="upsertJwGridScore" parameterType="com.ruoyi.jwmap.domain.JwGridScore">
-        INSERT INTO jw_grid_score (
-            grid_code, city, positive_distance, negative_distance, site_score, create_time
-        ) VALUES (
-            #{gridCode}, #{city}, #{positiveDistance}, #{negativeDistance}, #{siteScore}, sysdate()
-        )
-        ON DUPLICATE KEY UPDATE
-            city = VALUES(city),
-            positive_distance = VALUES(positive_distance),
-            negative_distance = VALUES(negative_distance),
-            site_score = VALUES(site_score)
-    </insert>
-
     <insert id="upsertGridScore" parameterType="com.ruoyi.jwmap.domain.JwGridScore">
         INSERT INTO jw_grid_score (
             grid_code, city, positive_distance, negative_distance, site_score, create_time

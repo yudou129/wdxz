@@ -37,7 +37,8 @@ public interface JwGridDataRawMapper {
 
     int batchInsert(List<JwGridDataRaw> list);
 
-    int upsertJwGridDataRaw(JwGridDataRaw data);
-
     int upsertGridData(JwGridDataRaw data);
+
+    /** 批量查询多个网格的原始指标数据 */
+    List<JwGridDataRaw> selectByGridCodes(@Param("gridCodes") List<String> gridCodes);
 }

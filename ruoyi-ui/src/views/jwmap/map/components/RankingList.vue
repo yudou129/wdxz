@@ -5,7 +5,20 @@
         <span class="ranking-title">
           <i :class="titleIcon" /> {{ title }}
         </span>
-        <el-button type="text" icon="el-icon-close" size="mini" class="close-btn" @click="$emit('close')" />
+        <div class="header-right">
+          <!-- 三聚焦分类标签 -->
+          <el-radio-group v-if="showFocusTabs" v-model="focusTab" size="mini" @change="$emit('focus-change', focusTab)">
+            <el-radio-button label="population">人口</el-radio-button>
+            <el-radio-button label="enterprise">企业</el-radio-button>
+            <el-radio-button label="business">商圈</el-radio-button>
+          </el-radio-group>
+          <!-- 网格/网点切换 -->
+          <el-radio-group v-if="showTypeSwitch" v-model="localType" size="mini" @change="$emit('type-change', localType)">
+            <el-radio-button label="grid">网格</el-radio-button>
+            <el-radio-button label="branch">网点</el-radio-button>
+          </el-radio-group>
+          <el-button type="text" icon="el-icon-close" size="mini" class="close-btn" @click="$emit('close')" />
+        </div>
       </div>
       <div class="ranking-body">
         <div v-for="(item, i) in items" :key="item.id"
@@ -34,17 +47,24 @@ export default {
     pageSize: { type: Number, default: 20 },
     hasMore: { type: Boolean, default: false },
     loading: { type: Boolean, default: false },
-    type: { type: String, default: 'grid' }
+    type: { type: String, default: 'grid' },
+    showFocusTabs: { type: Boolean, default: false },
+    showTypeSwitch: { type: Boolean, default: false }
+  },
+  data() {
+    return { focusTab: 'population', localType: this.type }
+  },
+  watch: {
+    type(v) { this.localType = v }
   },
   computed: {
     titleIcon() {
+      if (this.showFocusTabs) return 'el-icon-data-line'
       return this.type === 'branch' ? 'el-icon-medal' : 'el-icon-trophy'
     }
   },
   methods: {
-    padRank(n) {
-      return n <= 9 ? '0' + n : String(n)
-    }
+    padRank(n) { return n <= 9 ? '0' + n : String(n) }
   }
 }
 </script>
@@ -55,7 +75,7 @@ export default {
   right: 12px;
   bottom: 12px;
   width: 272px;
-  max-height: 380px;
+  max-height: 400px;
   isolation: isolate;
   overflow: hidden;
   border-radius: 10px;
@@ -76,125 +96,43 @@ export default {
 }
 .ranking-panel::before {
   content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.48), transparent 34%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.16), transparent 42%, rgba(255, 255, 255, 0.12));
+  position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+  background: radial-gradient(circle at 20% 0%, rgba(255,255,255,0.48), transparent 34%),
+    linear-gradient(90deg, rgba(255,255,255,0.16), transparent 42%, rgba(255,255,255,0.12));
   pointer-events: none;
 }
 .ranking-panel::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  pointer-events: none;
+  content: ''; position: absolute; inset: 1px; border-radius: 9px;
+  border: 1px solid rgba(255,255,255,0.12); pointer-events: none;
 }
 @media (prefers-reduced-transparency: reduce) {
-  .ranking-panel {
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
+  .ranking-panel { background: rgba(255,255,255,0.94); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 .ranking-header {
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(79, 110, 246, 0.08);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
+  padding: 10px 14px; border-bottom: 1px solid rgba(79,110,246,0.08);
+  display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
 }
-.ranking-title {
-  font-weight: 700;
-  font-size: 13px;
-  color: #232845;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.ranking-title i {
-  color: #4f6ef6;
-}
-.close-btn {
-  color: #8c95a8;
-  padding: 2px 4px;
-}
-.close-btn:hover {
-  color: #4f6ef6;
-}
-.ranking-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 0;
-}
-.ranking-body::-webkit-scrollbar {
-  width: 4px;
-}
-.ranking-body::-webkit-scrollbar-thumb {
-  background: rgba(79, 110, 246, 0.15);
-  border-radius: 4px;
-}
+.ranking-title { font-weight: 700; font-size: 13px; color: #232845; display: flex; align-items: center; gap: 6px; }
+.ranking-title i { color: #4f6ef6; }
+.header-right { display: flex; align-items: center; gap: 6px; }
+.close-btn { color: #8c95a8; padding: 2px 4px; }
+.close-btn:hover { color: #4f6ef6; }
+.ranking-body { flex: 1; overflow-y: auto; padding: 4px 0; }
+.ranking-body::-webkit-scrollbar { width: 4px; }
+.ranking-body::-webkit-scrollbar-thumb { background: rgba(79,110,246,0.15); border-radius: 4px; }
 .ranking-item {
-  display: flex;
-  align-items: center;
-  padding: 8px 14px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.18s ease, padding-left 0.2s ease;
-  border-left: 3px solid transparent;
+  display: flex; align-items: center; padding: 8px 14px; cursor: pointer; font-size: 13px;
+  transition: background 0.18s ease, padding-left 0.2s ease; border-left: 3px solid transparent;
 }
-.ranking-item:hover {
-  background: rgba(79, 110, 246, 0.04);
-  border-left-color: #4f6ef6;
-}
-.rank-num {
-  width: 28px;
-  color: #a0a8ba;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  font-size: 12px;
-}
-.rank-num.rank-top {
-  color: #4f6ef6;
-  font-weight: 700;
-}
-.rank-name {
-  flex: 1;
-  color: #303651;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rank-score {
-  width: 50px;
-  text-align: right;
-  color: #4f6ef6;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-}
-.load-more {
-  width: 100%;
-  text-align: center;
-  font-size: 12px;
-  color: #4f6ef6;
-  padding: 8px;
-}
-.empty-hint {
-  text-align: center;
-  color: #a0a8ba;
-  font-size: 13px;
-  padding: 24px 0;
-}
+.ranking-item:hover { background: rgba(79,110,246,0.04); border-left-color: #4f6ef6; }
+.rank-num { width: 28px; color: #a0a8ba; font-variant-numeric: tabular-nums; font-weight: 500; font-size: 12px; }
+.rank-num.rank-top { color: #4f6ef6; font-weight: 700; }
+.rank-name { flex: 1; color: #303651; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-score { width: 50px; text-align: right; color: #4f6ef6; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 13px; }
+.load-more { width: 100%; text-align: center; font-size: 12px; color: #4f6ef6; padding: 8px; }
+.empty-hint { text-align: center; color: #a0a8ba; font-size: 13px; padding: 24px 0; }
 .rank-slide-enter-active, .rank-slide-leave-active {
-  transition: transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s ease;
+  transition: transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.2s ease;
 }
-.rank-slide-enter, .rank-slide-leave-to {
-  transform: translateY(12px);
-  opacity: 0;
-}
+.rank-slide-enter, .rank-slide-leave-to { transform: translateY(12px); opacity: 0; }
 </style>

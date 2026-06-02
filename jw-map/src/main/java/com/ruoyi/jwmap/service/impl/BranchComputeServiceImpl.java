@@ -30,46 +30,27 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
     @Autowired private JwIndicatorConfigMapper indicatorConfigMapper;
     @Autowired private JwBranchEffWeightMapper branchEffWeightMapper;
     @Autowired private JwGridMetaMapper gridMetaMapper;
+    @Autowired private JwScoreCategoryConfigMapper categoryConfigMapper;
 
-    // ===== TOPSIS 五类指标分组（硬编码）=====
+    // ===== TOPSIS 类别指标分组（DB驱动，动态加载）=====
 
-    private static final List<String> REVENUE_INDICATORS = Arrays.asList(
-        "branch_rev_per_capita", "branch_rev_per_area"
-    );
-
-    private static final List<String> INDICATOR_INDICATORS = Arrays.asList(
-        "branch_asset_avg_balance", "branch_asset_avg_growth",
-        "branch_saving_avg_balance", "branch_saving_avg_growth",
-        "branch_corp_dep_avg_balance", "branch_corp_dep_avg_growth",
-        "branch_inst_dep_avg_balance", "branch_inst_dep_avg_growth",
-        "branch_incloan_per_capita", "branch_perloan_per_capita"
-    );
-
-    private static final List<String> CUSTOMER_INDICATORS = Arrays.asList(
-        "branch_pcust_t1_per_capita", "branch_pcust_t2_per_capita", "branch_pcust_t3_per_capita",
-        "branch_ccust_h_per_capita", "branch_ccust_l_per_capita",
-        "branch_icust_h_per_capita", "branch_icust_l_per_capita"
-    );
-
-    private static final List<String> OPERATION_INDICATORS = Arrays.asList(
-        "branch_counter_per_area", "branch_terminal_per_area", "branch_atm_per_area"
-    );
-
-    private static final Map<String, List<String>> CATEGORY_MAP = new LinkedHashMap<>();
-    static {
-        CATEGORY_MAP.put("revenue", REVENUE_INDICATORS);
-        CATEGORY_MAP.put("indicator", INDICATOR_INDICATORS);
-        CATEGORY_MAP.put("customer", CUSTOMER_INDICATORS);
-        CATEGORY_MAP.put("operation", OPERATION_INDICATORS);
+    /** 从 DB 获取所有活跃分类编码（保持 LinkedHashMap 顺序） */
+    private Map<String, List<String>> loadCategoryMap() {
+        Map<String, List<String>> map = new LinkedHashMap<>();
+        List<JwScoreCategoryConfig> configs = categoryConfigMapper.selectAllActive();
+        for (JwScoreCategoryConfig c : configs) {
+            map.computeIfAbsent(c.getCategoryCode(), k -> new ArrayList<>())
+                .add(c.getIndicatorCode());
+        }
+        return map;
     }
 
-    private List<String> getAllBranchIndicators() {
-        List<String> all = new ArrayList<>();
-        all.addAll(REVENUE_INDICATORS);
-        all.addAll(INDICATOR_INDICATORS);
-        all.addAll(CUSTOMER_INDICATORS);
-        all.addAll(OPERATION_INDICATORS);
-        return all;
+    /** 从 DB 获取所有参与计算的指标编码 */
+    private List<String> loadAllBranchIndicators() {
+        return categoryConfigMapper.selectAllActive().stream()
+            .map(JwScoreCategoryConfig::getIndicatorCode)
+            .distinct()
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -270,7 +251,7 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
             .collect(Collectors.toMap(JwWeightConfig::getIndicatorCode, JwWeightConfig::getTotalWeight, (a, b) -> a));
 
         List<JwBranchInfo> branches = branchInfoMapper.selectByCity(city);
-        List<String> allIndicators = getAllBranchIndicators();
+        List<String> allIndicators = loadAllBranchIndicators();
 
         for (String code : allIndicators) {
             List<Double> values = new ArrayList<>();
@@ -358,13 +339,13 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
         int count = 0;
         for (JwBranchInfo branch : branches) {
             // 对每个类别和总分做TOPSIS
-            for (Map.Entry<String, List<String>> catEntry : CATEGORY_MAP.entrySet()) {
+            for (Map.Entry<String, List<String>> catEntry : loadCategoryMap().entrySet()) {
                 String category = catEntry.getKey();
                 List<String> indicatorCodes = catEntry.getValue();
                 computeCategoryScore(branch, dataYear, city, category, indicatorCodes, summaryMap);
             }
             // 总分
-            List<String> allCodes = getAllBranchIndicators();
+            List<String> allCodes = loadAllBranchIndicators();
             computeCategoryScore(branch, dataYear, city, "overall", allCodes, summaryMap);
             count++;
         }
@@ -411,7 +392,7 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
     }
 
     private void computeRankings(String city, Integer dataYear) {
-        for (String category : CATEGORY_MAP.keySet()) {
+        for (String category : loadCategoryMap().keySet()) {
             List<JwBranchScore> scores = branchScoreMapper.selectByCityAndYearAndCategory(city, dataYear, category);
             scores.sort((a, b) -> Double.compare(
                 b.getCategoryScore() != null ? b.getCategoryScore() : 0,

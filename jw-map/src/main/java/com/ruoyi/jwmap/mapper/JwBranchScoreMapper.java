@@ -40,7 +40,5 @@ public interface JwBranchScoreMapper {
 
     int batchInsert(List<JwBranchScore> list);
 
-    int upsertJwBranchScore(JwBranchScore s);
-
     int upsertBranchScore(JwBranchScore s);
 }

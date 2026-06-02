@@ -16,8 +16,6 @@ public interface JwBranchEffWeightMapper {
 
     JwWeightConfig selectByIndicatorCode(@Param("indicatorCode") String code);
 
-    int insertJwWeightConfig(JwWeightConfig config);
-
     int insertWeightConfig(JwWeightConfig config);
 
     int updateJwWeightConfig(JwWeightConfig config);

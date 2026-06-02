@@ -34,7 +34,5 @@ public interface JwGridScoreMapper {
 
     int batchInsert(List<JwGridScore> list);
 
-    int upsertJwGridScore(JwGridScore s);
-
     int upsertGridScore(JwGridScore s);
 }

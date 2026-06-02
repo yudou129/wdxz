@@ -100,16 +100,6 @@
         </foreach>
     </insert>
 
-    <insert id="upsertJwGridDataRaw" parameterType="com.ruoyi.jwmap.domain.JwGridDataRaw">
-        INSERT INTO jw_grid_data_raw (
-            grid_code, indicator_code, indicator_value, create_time
-        ) VALUES (
-            #{gridCode}, #{indicatorCode}, #{indicatorValue}, sysdate()
-        )
-        ON DUPLICATE KEY UPDATE
-            indicator_value = VALUES(indicator_value)
-    </insert>
-
     <insert id="upsertGridData" parameterType="com.ruoyi.jwmap.domain.JwGridDataRaw">
         INSERT INTO jw_grid_data_raw (
             grid_code, indicator_code, indicator_value, create_time
@@ -119,5 +109,13 @@
         ON DUPLICATE KEY UPDATE
             indicator_value = VALUES(indicator_value)
     </insert>
+
+    <select id="selectByGridCodes" resultMap="JwGridDataRawResult">
+        SELECT * FROM jw_grid_data_raw
+        WHERE grid_code IN
+        <foreach item="code" collection="gridCodes" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
 
 </mapper>

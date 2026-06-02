@@ -90,7 +90,8 @@ export function getBranchScore(city, year) {
   return request({ url: '/jwmap/data/branch/score/' + city + '/' + year, method: 'get' })
 }
 export function getIndicatorList(sourceTable) {
-  return request({ url: '/jwmap/data/indicator/list', method: 'get', params: { sourceTable } })
+  const params = sourceTable ? { sourceTable } : {}
+  return request({ url: '/jwmap/data/indicator/list', method: 'get', params })
 }
 export function getExternalWeightList() {
   return request({ url: '/jwmap/data/weight/external', method: 'get' })
@@ -123,4 +124,34 @@ export function getGridBranches(gridCode) {
 }
 export function getBranchIndicators(branchId, year) {
   return request({ url: '/jwmap/data/branch/indicators/' + branchId + '/' + year, method: 'get' })
+}
+export function getQuadrantData(city, year) {
+  return request({ url: '/jwmap/data/quadrant/' + city + '/' + year, method: 'get' })
+}
+export function getBranchInternalRanking(branchId, year) {
+  return request({ url: '/jwmap/data/branch/ranking/internal/' + branchId + '/' + year, method: 'get' })
+}
+export function getGridDistrictRanking(gridCode) {
+  return request({ url: '/jwmap/data/grid/ranking/district/' + gridCode, method: 'get' })
+}
+export function getGridPillarScores(gridCode) {
+  return request({ url: '/jwmap/data/grid/pillar/' + gridCode, method: 'get' })
+}
+export function getGridTopScore(city) {
+  return request({ url: '/jwmap/data/grid/topScore/' + city, method: 'get' })
+}
+export function getDimensionStats(city, year, dimension) {
+  return request({ url: '/jwmap/data/dimension/stats/' + city + '/' + year, method: 'get', params: { dimension } })
+}
+export function getThreeFocusRanking(city, year) {
+  return request({ url: '/jwmap/data/ranking/threeFocus/' + city + '/' + year, method: 'get' })
+}
+export function getPeerBankDistance(branchId, radius) {
+  return request({ url: '/jwmap/data/peerBank/distance/' + branchId, method: 'get', params: { radius: radius || 1 } })
+}
+export function getNearbyBranches(branchId, radius) {
+  return request({ url: '/jwmap/data/branch/nearby/' + branchId, method: 'get', params: { radius: radius || 1 } })
+}
+export function getPillarGap(gridCode) {
+  return request({ url: '/jwmap/data/grid/pillar/gap/' + gridCode, method: 'get' })
 }

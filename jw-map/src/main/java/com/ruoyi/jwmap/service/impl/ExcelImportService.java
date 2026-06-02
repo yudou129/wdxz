@@ -731,6 +731,12 @@ public class ExcelImportService {
 
                 if (peer.getOrgCode() == null || peer.getOrgCode().isEmpty()) continue;
 
+                // 过滤不需要的同业银行
+                String bankName = peer.getBankName();
+                if (bankName != null && ("其他银行".equals(bankName.trim()) || "工商银行".equals(bankName.trim()))) {
+                    continue;
+                }
+
                 // ★ 自动判断所属网格：根据经纬度查找包含该点的网格
                 if (peer.getLongitude() != null && peer.getLatitude() != null) {
                     JwGridMeta grid = gridMetaMapper.selectByPoint(peer.getLongitude(), peer.getLatitude());

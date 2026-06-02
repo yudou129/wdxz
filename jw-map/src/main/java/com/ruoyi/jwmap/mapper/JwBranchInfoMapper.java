@@ -22,11 +22,7 @@ public interface JwBranchInfoMapper {
 
     List<String> selectDistinctCities();
 
-    int insertJwBranchInfo(JwBranchInfo branch);
-
     int insertBranchInfo(JwBranchInfo branch);
-
-    int updateJwBranchInfo(JwBranchInfo branch);
 
     int updateBranchInfo(JwBranchInfo branch);
 
@@ -41,4 +37,8 @@ public interface JwBranchInfoMapper {
     int upsertJwBranchInfo(JwBranchInfo branch);
 
     List<JwBranchInfo> selectByGridCode(@Param("gridCode") String gridCode);
+
+    /** 四象限分析：JOIN grid_score + branch_score 获取选址得分和网点得分 */
+    List<java.util.Map<String, Object>> selectQuadrantData(@Param("city") String city,
+                                                            @Param("year") Integer year);
 }

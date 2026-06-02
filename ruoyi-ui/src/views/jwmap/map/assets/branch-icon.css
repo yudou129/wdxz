@@ -2,7 +2,7 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4f6ef6 0%, #3b54d4 100%);
+  background: #d40000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11,11 +11,11 @@
   font-weight: 700;
   font-family: 'PingFang SC', 'Microsoft YaHei', 'SimHei', sans-serif;
   border: 2px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2px 6px rgba(59, 84, 212, 0.35);
+  box-shadow: 0 2px 6px rgba(212, 0, 0, 0.35);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .branch-icon:hover {
   transform: scale(1.15);
-  box-shadow: 0 3px 10px rgba(59, 84, 212, 0.45);
+  box-shadow: 0 3px 10px rgba(212, 0, 0, 0.45);
 }

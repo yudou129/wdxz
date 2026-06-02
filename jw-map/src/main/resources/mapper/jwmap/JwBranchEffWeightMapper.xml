@@ -33,18 +33,6 @@
         WHERE indicator_code = #{indicatorCode}
     </select>
 
-    <insert id="insertJwWeightConfig" parameterType="com.ruoyi.jwmap.domain.JwWeightConfig" useGeneratedKeys="true" keyProperty="weightId">
-        INSERT INTO jw_branch_efficiency_weight (
-            level1_name, level1_ratio, level2_name, level2_ratio,
-            level3_name, level3_ratio, total_weight, indicator_code,
-            create_time, update_time
-        ) VALUES (
-            #{level1Name}, #{level1Ratio}, #{level2Name}, #{level2Ratio},
-            #{level3Name}, #{level3Ratio}, #{totalWeight}, #{indicatorCode},
-            sysdate(), sysdate()
-        )
-    </insert>
-
     <insert id="insertWeightConfig" parameterType="com.ruoyi.jwmap.domain.JwWeightConfig" useGeneratedKeys="true" keyProperty="weightId">
         INSERT INTO jw_branch_efficiency_weight (
             level1_name, level1_ratio, level2_name, level2_ratio,

@@ -118,32 +118,6 @@
         </foreach>
     </insert>
 
-    <insert id="upsertJwGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
-        INSERT INTO jw_grid_meta (
-            grid_code, longitude, latitude,
-            west_longitude, east_longitude, north_latitude, south_latitude,
-            province, city, district,
-            create_time, update_time
-        ) VALUES (
-            #{gridCode}, #{longitude}, #{latitude},
-            #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
-            #{province}, #{city}, #{district},
-            sysdate(), sysdate()
-        )
-        ON DUPLICATE KEY UPDATE
-            longitude = VALUES(longitude),
-            latitude = VALUES(latitude),
-            west_longitude = VALUES(west_longitude),
-            east_longitude = VALUES(east_longitude),
-            north_latitude = VALUES(north_latitude),
-            south_latitude = VALUES(south_latitude),
-            province = VALUES(province),
-            city = VALUES(city),
-            district = VALUES(district),
-
-            update_time = sysdate()
-    </insert>
-
     <insert id="upsertGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
         INSERT INTO jw_grid_meta (
             grid_code, longitude, latitude,

@@ -17,6 +17,10 @@ public class JwBranchScore {
     private Double categoryScore;
     private Integer rankNum;
     private java.util.Date createTime;
+    /** 以下为 JOIN jw_branch_info 获取的扩展字段 */
+    private String secondaryBranch;
+    private String primaryBranch;
+    private String gridCode;
 
     public Long getScoreId() { return scoreId; }
     public void setScoreId(Long scoreId) { this.scoreId = scoreId; }
@@ -38,6 +42,12 @@ public class JwBranchScore {
     public void setRankNum(Integer rankNum) { this.rankNum = rankNum; }
     public java.util.Date getCreateTime() { return createTime; }
     public void setCreateTime(java.util.Date createTime) { this.createTime = createTime; }
+    public String getSecondaryBranch() { return secondaryBranch; }
+    public void setSecondaryBranch(String secondaryBranch) { this.secondaryBranch = secondaryBranch; }
+    public String getPrimaryBranch() { return primaryBranch; }
+    public void setPrimaryBranch(String primaryBranch) { this.primaryBranch = primaryBranch; }
+    public String getGridCode() { return gridCode; }
+    public void setGridCode(String gridCode) { this.gridCode = gridCode; }
 
     @Override
     public String toString() {
