@@ -41,12 +41,12 @@ public class JwDataController extends BaseController {
 
     // ===== 指标配置 =====
     @GetMapping("/indicator/list")
-    public AjaxResult indicatorList(@RequestParam(required = false) String sourceTable) {
+    public AjaxResult indicatorList(@RequestParam(required = false) String indicatorType) {
         List<JwIndicatorConfig> list;
-        if (sourceTable != null && !sourceTable.isEmpty()) {
-            list = indicatorConfigMapper.selectBySourceTable(sourceTable);
+        if (indicatorType != null && !indicatorType.isEmpty()) {
+            list = indicatorConfigMapper.selectByType(indicatorType);
         } else {
-            list = indicatorConfigMapper.selectActiveWeighted();
+            list = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
         }
         return success(list);
     }
@@ -70,6 +70,7 @@ public class JwDataController extends BaseController {
             item.put("longitude", meta.getLongitude());
             item.put("latitude", meta.getLatitude());
             item.put("city", meta.getCity());
+            item.put("district", meta.getDistrict());
             item.put("siteScore", scoreMap.get(meta.getGridCode()));
             result.add(item);
         }
@@ -122,12 +123,9 @@ public class JwDataController extends BaseController {
             return success(Collections.emptyList());
         }
 
-        // Batch load indicator configs for category info
-        List<String> codes = rawList.stream()
-            .map(JwGridDataRaw::getIndicatorCode)
-            .collect(Collectors.toList());
-        List<JwIndicatorConfig> configs = indicatorConfigMapper.selectByCodes(codes);
-        Map<String, JwIndicatorConfig> configMap = configs.stream()
+        // 加载全部指标配置（含中间节点），确保父链可完整追溯
+        List<JwIndicatorConfig> allConfigs = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
+        Map<String, JwIndicatorConfig> configMap = allConfigs.stream()
             .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
 
         List<Map<String, Object>> result = new ArrayList<>();
@@ -136,8 +134,20 @@ public class JwDataController extends BaseController {
             item.put("indicatorCode", raw.getIndicatorCode());
             item.put("indicatorValue", raw.getIndicatorValue());
             JwIndicatorConfig cfg = configMap.get(raw.getIndicatorCode());
-            item.put("categoryLevel1", cfg != null ? cfg.getCategoryLevel1() : null);
-            item.put("categoryLevel2", cfg != null ? cfg.getCategoryLevel2() : null);
+            item.put("indicatorName", cfg != null ? cfg.getIndicatorName() : null);
+            item.put("indicatorType", cfg != null ? cfg.getIndicatorType() : null);
+            item.put("parentCode", cfg != null ? cfg.getParentCode() : null);
+
+            // 一级根节点信息（用于前端三级树展示）
+            String level1Code = cfg != null ? findLevel1Code(raw.getIndicatorCode(), configMap) : null;
+            item.put("level1Code", level1Code);
+            if (level1Code != null) {
+                JwIndicatorConfig root = configMap.get(level1Code);
+                item.put("level1Name", root != null ? root.getIndicatorName() : level1Code);
+            } else {
+                item.put("level1Name", null);
+            }
+
             result.add(item);
         }
         return success(result);
@@ -203,22 +213,39 @@ public class JwDataController extends BaseController {
 
     @GetMapping("/branch/indicators/{branchId}/{year}")
     public AjaxResult branchIndicators(@PathVariable Long branchId, @PathVariable Integer year) {
-        List<JwBranchIndicator> list = branchIndicatorMapper.selectByBranchAndYear(branchId, year, "数据计算表");
-        return success(list);
-    }
+        List<JwBranchIndicator> rawList = branchIndicatorMapper.selectByBranchAndYear(branchId, year, "数据计算表");
+        if (rawList.isEmpty()) {
+            return success(Collections.emptyList());
+        }
 
-    // ===== 权重 =====
-    @Autowired private JwExternalResWeightMapper externalWeightMapper;
-    @Autowired private JwBranchEffWeightMapper branchEffWeightMapper;
+        // 加载全部指标配置，确保父链可完整追溯
+        List<JwIndicatorConfig> allConfigs = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
+        Map<String, JwIndicatorConfig> configMap = allConfigs.stream()
+            .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
 
-    @GetMapping("/weight/external")
-    public AjaxResult externalWeightList() {
-        return success(externalWeightMapper.selectAll());
-    }
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (JwBranchIndicator raw : rawList) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("indicatorCode", raw.getIndicatorCode());
+            item.put("indicatorValue", raw.getIndicatorValue());
+            JwIndicatorConfig cfg = configMap.get(raw.getIndicatorCode());
+            item.put("indicatorName", cfg != null ? cfg.getIndicatorName() : null);
+            item.put("indicatorType", cfg != null ? cfg.getIndicatorType() : null);
+            item.put("parentCode", cfg != null ? cfg.getParentCode() : null);
 
-    @GetMapping("/weight/branchEfficiency")
-    public AjaxResult branchEfficiencyWeightList() {
-        return success(branchEffWeightMapper.selectAll());
+            // 一级根节点信息（用于前端三级树展示）
+            String level1Code = cfg != null ? findLevel1Code(raw.getIndicatorCode(), configMap) : null;
+            item.put("level1Code", level1Code);
+            if (level1Code != null) {
+                JwIndicatorConfig root = configMap.get(level1Code);
+                item.put("level1Name", root != null ? root.getIndicatorName() : level1Code);
+            } else {
+                item.put("level1Name", null);
+            }
+
+            result.add(item);
+        }
+        return success(result);
     }
 
     // ===== 四象限分析 =====
@@ -403,42 +430,32 @@ public class JwDataController extends BaseController {
         return success(result);
     }
 
-    /** 三聚集指标得分（人口/企业/商圈） */
+    /** 三聚焦根节点 TOPSIS 得分（只取 type=grid 的三聚焦根，不含 auto_import） */
     @GetMapping("/grid/pillar/{gridCode}")
     public AjaxResult getGridPillarScores(@PathVariable String gridCode) {
-        List<JwGridDataRaw> rawData = gridDataRawMapper.selectByGridCode(gridCode);
-        double popScore = 0, enterpriseScore = 0, bizScore = 0;
-        int popCount = 0, enterpriseCount = 0, bizCount = 0;
+        // 加载 type=grid 的三聚焦根节点
+        List<JwIndicatorConfig> threeFocusRoots = indicatorConfigMapper.selectByType("grid").stream()
+            .filter(c -> c.getParentCode() == null || c.getParentCode().isEmpty())
+            .collect(Collectors.toList());
 
-        for (JwGridDataRaw d : rawData) {
-            String code = d.getIndicatorCode();
-            if (code == null) continue;
-            double val = d.getIndicatorValue() != null ? d.getIndicatorValue().doubleValue() : 0;
-            // 人口聚集：pop_*, age_*, income_*, 等
-            if (code.startsWith("pop_") || code.startsWith("age_") || code.startsWith("income_")
-                || code.startsWith("consume_") || code.startsWith("education_")) {
-                popScore += val; popCount++;
-            }
-            // 企业聚集：poi_type_公司, poi_type_写字楼
-            else if (code.contains("公司") || code.contains("写字楼") || code.contains("企业")) {
-                enterpriseScore += val; enterpriseCount++;
-            }
-            // 商圈聚集：poi_type_商圈, poi_type_购物, poi_type_商业
-            else if (code.contains("商圈") || code.contains("购物") || code.contains("商业街")) {
-                bizScore += val; bizCount++;
+        // 查询该网格的各分类 TOPSIS 得分
+        List<JwGridScore> categoryScores = gridScoreMapper.selectScoresByGridCode(gridCode);
+        Map<String, Double> topsisMap = new HashMap<>();
+        for (JwGridScore s : categoryScores) {
+            if (s.getScoreCategory() != null && s.getSiteScore() != null) {
+                topsisMap.put(s.getScoreCategory(), s.getSiteScore());
             }
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
-        Map<String, Object> popMap = new HashMap<>();
-        popMap.put("score", popScore); popMap.put("count", popCount);
-        result.put("population", popMap);
-        Map<String, Object> entMap = new HashMap<>();
-        entMap.put("score", enterpriseScore); entMap.put("count", enterpriseCount);
-        result.put("enterprise", entMap);
-        Map<String, Object> bizMap = new HashMap<>();
-        bizMap.put("score", bizScore); bizMap.put("count", bizCount);
-        result.put("business", bizMap);
+        for (JwIndicatorConfig root : threeFocusRoots) {
+            Double score = topsisMap.get(root.getIndicatorCode());
+            Map<String, Object> m = new HashMap<>();
+            m.put("score", score != null ? score : 0.0);
+            m.put("name", root.getIndicatorName());
+            m.put("code", root.getIndicatorCode());
+            result.put(root.getIndicatorCode(), m);
+        }
         return success(result);
     }
 
@@ -451,55 +468,64 @@ public class JwDataController extends BaseController {
         return success(new HashMap<String, Object>() {{ put("topScore", topScore); }});
     }
 
-    /** 网格三聚集指标与全市最高值的差距 */
+    /** 网格三聚焦 TOPSIS 得分与全市最高值的差距 */
     @GetMapping("/grid/pillar/gap/{gridCode}")
     public AjaxResult getPillarGap(@PathVariable String gridCode) {
         JwGridMeta grid = gridMetaMapper.selectByGridCode(gridCode);
         if (grid == null) return error("网格不存在");
 
-        // 获取当前网格的三聚集得分
-        Map<String, Object> myPillar = (Map<String, Object>)
-            ((Map<String, Object>) getGridPillarScores(gridCode).get("data"));
-        if (myPillar == null) return error("无数据");
+        // 三聚焦根节点（type=grid）
+        List<JwIndicatorConfig> roots = indicatorConfigMapper.selectByType("grid").stream()
+            .filter(c -> c.getParentCode() == null || c.getParentCode().isEmpty())
+            .collect(Collectors.toList());
+        Set<String> rootCodes = roots.stream().map(JwIndicatorConfig::getIndicatorCode).collect(Collectors.toSet());
 
-        // 计算全市所有网格的三聚集得分，找到最大值
-        List<JwGridMeta> allGrids = gridMetaMapper.selectByCity(grid.getCity());
-        List<String> allCodes = allGrids.stream().map(JwGridMeta::getGridCode).collect(Collectors.toList());
-        List<JwGridDataRaw> allData = allCodes.isEmpty() ? new ArrayList<>()
-            : gridDataRawMapper.selectByGridCodes(allCodes);
+        // 当前网格的各分类 TOPSIS 得分
+        Map<String, Double> myTopsis = new HashMap<>();
+        for (JwGridScore s : gridScoreMapper.selectScoresByGridCode(gridCode)) {
+            if (s.getSiteScore() != null) myTopsis.put(s.getScoreCategory(), s.getSiteScore());
+        }
 
-        double maxPop = 0, maxEnt = 0, maxBiz = 0;
-        Map<String, Double> gridPopScores = new HashMap<>();
-        Map<String, Double> gridEntScores = new HashMap<>();
-        Map<String, Double> gridBizScores = new HashMap<>();
-        for (JwGridDataRaw d : allData) {
-            String code = d.getIndicatorCode();
-            if (code == null) continue;
-            double val = d.getIndicatorValue() != null ? d.getIndicatorValue().doubleValue() : 0;
-            String gc = d.getGridCode();
-            if (code.startsWith("pop_") || code.startsWith("age_") || code.startsWith("income_")
-                || code.startsWith("consume_") || code.startsWith("education_")) {
-                double s = gridPopScores.merge(gc, val, Double::sum);
-                if (s > maxPop) maxPop = s;
-            } else if (code.contains("公司") || code.contains("写字楼") || code.contains("企业")) {
-                double s = gridEntScores.merge(gc, val, Double::sum);
-                if (s > maxEnt) maxEnt = s;
-            } else if (code.contains("商圈") || code.contains("购物") || code.contains("商业街")) {
-                double s = gridBizScores.merge(gc, val, Double::sum);
-                if (s > maxBiz) maxBiz = s;
+        // 计算全市各分类 TOPSIS 最大值
+        Map<String, Double> rootMaxes = new HashMap<>();
+        for (String rc : rootCodes) rootMaxes.put(rc, 0.0);
+        for (JwGridMeta gm : gridMetaMapper.selectByCity(grid.getCity())) {
+            for (JwGridScore s : gridScoreMapper.selectScoresByGridCode(gm.getGridCode())) {
+                if (rootCodes.contains(s.getScoreCategory()) && s.getSiteScore() != null) {
+                    double val = s.getSiteScore();
+                    if (val > rootMaxes.get(s.getScoreCategory())) rootMaxes.put(s.getScoreCategory(), val);
+                }
             }
         }
 
-        double myPop = toDouble(((Map<String, Object>) myPillar.get("population")).get("score"));
-        double myEnt = toDouble(((Map<String, Object>) myPillar.get("enterprise")).get("score"));
-        double myBiz = toDouble(((Map<String, Object>) myPillar.get("business")).get("score"));
-
         Map<String, Object> result = new LinkedHashMap<>();
-        Map<String, Object> pop = new LinkedHashMap<>(); pop.put("my", myPop); pop.put("max", maxPop); pop.put("gap", maxPop - myPop);
-        Map<String, Object> ent = new LinkedHashMap<>(); ent.put("my", myEnt); ent.put("max", maxEnt); ent.put("gap", maxEnt - myEnt);
-        Map<String, Object> biz = new LinkedHashMap<>(); biz.put("my", myBiz); biz.put("max", maxBiz); biz.put("gap", maxBiz - myBiz);
-        result.put("population", pop); result.put("enterprise", ent); result.put("business", biz);
+        for (JwIndicatorConfig root : roots) {
+            double my = myTopsis.getOrDefault(root.getIndicatorCode(), 0.0);
+            double max = rootMaxes.getOrDefault(root.getIndicatorCode(), 0.0);
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("my", my);
+            entry.put("max", max);
+            entry.put("gap", max - my);
+            entry.put("name", root.getIndicatorName());
+            result.put(root.getIndicatorCode(), entry);
+        }
         return success(result);
+    }
+
+    /**
+     * 沿 parentCode 链追溯指标所属的一级根节点 code
+     */
+    private String findLevel1Code(String indicatorCode, Map<String, JwIndicatorConfig> configMap) {
+        JwIndicatorConfig config = configMap.get(indicatorCode);
+        if (config == null) return null;
+        String code = indicatorCode;
+        String parentCode = config.getParentCode();
+        while (parentCode != null && !parentCode.isEmpty()) {
+            code = parentCode;
+            JwIndicatorConfig parent = configMap.get(parentCode);
+            parentCode = parent != null ? parent.getParentCode() : null;
+        }
+        return code;
     }
 
     private double toDouble(Object obj) {

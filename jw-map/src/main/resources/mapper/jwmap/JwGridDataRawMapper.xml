@@ -118,4 +118,7 @@
         </foreach>
     </select>
 
+    <delete id="deleteByIndicatorCode">DELETE FROM jw_grid_data_raw WHERE indicator_code = #{indicatorCode}</delete>
+    <update id="updateIndicatorCode">UPDATE jw_grid_data_raw SET indicator_code = #{newCode} WHERE indicator_code = #{oldCode}</update>
+
 </mapper>

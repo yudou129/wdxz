@@ -41,4 +41,7 @@ public interface JwGridDataRawMapper {
 
     /** 批量查询多个网格的原始指标数据 */
     List<JwGridDataRaw> selectByGridCodes(@Param("gridCodes") List<String> gridCodes);
+
+    int deleteByIndicatorCode(@Param("indicatorCode") String indicatorCode);
+    int updateIndicatorCode(@Param("oldCode") String oldCode, @Param("newCode") String newCode);
 }

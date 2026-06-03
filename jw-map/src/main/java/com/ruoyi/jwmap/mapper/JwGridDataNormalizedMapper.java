@@ -40,4 +40,7 @@ public interface JwGridDataNormalizedMapper {
     int upsertJwGridDataNormalized(JwGridDataNormalized data);
 
     int upsertGridData(JwGridDataNormalized data);
+
+    int deleteByIndicatorCode(@Param("indicatorCode") String indicatorCode);
+    int updateIndicatorCode(@Param("oldCode") String oldCode, @Param("newCode") String newCode);
 }

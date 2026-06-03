@@ -41,42 +41,28 @@
           <el-collapse v-model="importCollapse">
             <!-- POI导入 -->
             <el-collapse-item title="POI信息导入" name="poi">
-              <ImportPanel label="POI信息（不同地市）" :city.sync="importCity" :cityList="cityList" @import="handleImport('poi', $event)">
+              <ImportPanel label="POI信息（不同地市）" :city.sync="importCity" :cityList="cityList" :loading="importingPoi" @import="handleImport('poi', $event)">
                 <template #tips>Excel列：所属机构编码, POI名称, 经度, 维度, 省, 市, 区县, 地址, POI类型</template>
               </ImportPanel>
             </el-collapse-item>
 
             <!-- 人口热力导入 -->
             <el-collapse-item title="人口热力导入" name="pop">
-              <ImportPanel label="人口热力（不同地市）" :city.sync="importCity" :cityList="cityList" @import="handleImport('pop', $event)">
+              <ImportPanel label="人口热力（不同地市）" :city.sync="importCity" :cityList="cityList" :loading="importingPop" @import="handleImport('pop', $event)">
                 <template #tips>Excel包含75列人口统计数据。系统自动识别指标列并映射到指标编码。新指标自动注册。</template>
-              </ImportPanel>
-            </el-collapse-item>
-
-            <!-- 外部资源权重 -->
-            <el-collapse-item title="外部资源权重导入" name="extWeight">
-              <ImportPanel label="外部资源权重表" :hideCity="true" @import="handleImport('extWeight', $event)">
-                <template #tips>三级指标名称需与指标配置表匹配。导入后自动清除旧数据重新写入。</template>
-              </ImportPanel>
-            </el-collapse-item>
-
-            <!-- 网点效能权重 -->
-            <el-collapse-item title="网点效能权重导入" name="branchWeight">
-              <ImportPanel label="网点效能权重表" :hideCity="true" @import="handleImport('branchWeight', $event)">
-                <template #tips>用于网点TOPSIS五类得分计算。三级指标名称需与网点指标编码匹配。</template>
               </ImportPanel>
             </el-collapse-item>
 
             <!-- 网点信息导入 -->
             <el-collapse-item title="网点信息导入" name="branch">
-              <ImportPanel label="网点信息表（基础数据Sheet）" :city.sync="importCity" :cityList="cityList" :showDataSource="true" :dataSource.sync="importDataSource" @import="handleImport('branch', $event)">
+              <ImportPanel label="网点信息表（基础数据Sheet）" :city.sync="importCity" :cityList="cityList" :showDataSource="true" :dataSource.sync="importDataSource" :loading="importingBranch" @import="handleImport('branch', $event)">
                 <template #tips>导入基础数据Sheet。系统会自动解析每年份的业务指标列，存入垂直指标表。</template>
               </ImportPanel>
             </el-collapse-item>
 
             <!-- 同业银行导入 -->
             <el-collapse-item title="同业银行导入" name="peerBank">
-              <ImportPanel label="同业银行数据" :city.sync="importCity" :cityList="cityList" @import="handleImport('peerBank', $event)">
+              <ImportPanel label="同业银行数据" :city.sync="importCity" :cityList="cityList" :loading="importingPeerBank" @import="handleImport('peerBank', $event)">
                 <template #tips>Excel列：机构编码, 机构名称, 机构地址, 经度, 纬度, 银行名称, 省, 市, 区县, 乡镇。自动跳过"其他银行"和"工商银行"数据，并根据经纬度自动计算所属网格。</template>
               </ImportPanel>
             </el-collapse-item>
@@ -159,56 +145,27 @@
         <el-tab-pane label="数据查看" name="view">
           <el-tabs v-model="viewTab" type="card">
             <el-tab-pane label="网格数据" name="gridView">
-              <el-select v-model="viewCity" placeholder="选择城市" @change="loadGridList" style="width:160px;margin-bottom:12px">
+              <el-select v-model="viewCity" placeholder="选择城市" style="width:160px;margin-bottom:12px">
                 <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
               </el-select>
-              <el-table :data="gridList" border stripe max-height="400" v-loading="gridLoading">
-                <el-table-column prop="gridCode" label="网格编号" width="120" />
-                <el-table-column prop="longitude" label="经度" width="100" />
-                <el-table-column prop="latitude" label="纬度" width="100" />
-                <!-- poiCount已移除，POI按类型独立指标存jw_grid_data_raw，前端通过API查询各类型POI数 -->
-                <el-table-column prop="siteScore" label="选址得分" width="100">
-                  <template slot-scope="scope">{{ scope.row.siteScore !== null && scope.row.siteScore !== undefined ? scope.row.siteScore.toFixed(6) : '-' }}</template>
-                </el-table-column>
-              </el-table>
+              <div style="height:calc(100vh - 380px);min-height:400px">
+                <GridDetailView :city="viewCity" />
+              </div>
             </el-tab-pane>
             <el-tab-pane label="网点数据" name="branchView">
-              <el-select v-model="viewCity" placeholder="选择城市" @change="loadBranchList" style="width:160px;margin-right:8px;margin-bottom:12px">
-                <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
-              </el-select>
-              <el-table :data="branchList" border stripe max-height="400" v-loading="branchLoading">
-                <el-table-column prop="primaryBranch" label="一级支行" width="100" />
-                <el-table-column prop="secondaryBranch" label="二级支行" width="120" />
-                <el-table-column prop="branchCode" label="网点号" width="80" />
-                <el-table-column prop="districtName" label="行政区" width="80" />
-                <el-table-column prop="gridCode" label="所属网格" width="120" />
-                <el-table-column prop="totalStaff" label="总人数" width="70" />
-                <el-table-column prop="totalArea" label="面积" width="80" />
-                <el-table-column prop="dataSource" label="数据来源" width="80" />
-              </el-table>
-            </el-tab-pane>
-            <el-tab-pane label="网点得分" name="scoreView">
-              <el-select v-model="viewCity" placeholder="选择城市" style="width:160px;margin-right:8px;margin-bottom:12px">
-                <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
-              </el-select>
-              <el-select v-model="scoreYear" placeholder="选择年份" style="width:100px;margin-right:8px;margin-bottom:12px" @change="loadBranchScore">
-                <el-option label="2023" :value="2023" /><el-option label="2024" :value="2024" /><el-option label="2025" :value="2025" />
-              </el-select>
-              <el-table :data="scoreList" border stripe max-height="400" v-loading="scoreLoading">
-                <el-table-column prop="scoreCategory" label="类别" width="100">
-                  <template slot-scope="scope">{{ categoryLabel(scope.row.scoreCategory) }}</template>
-                </el-table-column>
-                <el-table-column prop="categoryScore" label="得分" width="100">
-                  <template slot-scope="scope">{{ scope.row.categoryScore ? scope.row.categoryScore.toFixed(6) : '-' }}</template>
-                </el-table-column>
-                <el-table-column prop="rankNum" label="排名" width="80" />
-                <el-table-column prop="positiveDistance" label="D+" width="100">
-                  <template slot-scope="scope">{{ scope.row.positiveDistance ? scope.row.positiveDistance.toFixed(6) : '-' }}</template>
-                </el-table-column>
-                <el-table-column prop="negativeDistance" label="D-" width="100">
-                  <template slot-scope="scope">{{ scope.row.negativeDistance ? scope.row.negativeDistance.toFixed(6) : '-' }}</template>
-                </el-table-column>
-              </el-table>
+              <div style="margin-bottom:12px">
+                <el-select v-model="viewCity" placeholder="选择城市" style="width:160px;margin-right:8px">
+                  <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
+                </el-select>
+                <el-select v-model="branchViewYear" placeholder="选择年份" style="width:100px">
+                  <el-option label="2023" :value="2023" />
+                  <el-option label="2024" :value="2024" />
+                  <el-option label="2025" :value="2025" />
+                </el-select>
+              </div>
+              <div style="height:calc(100vh - 380px);min-height:400px">
+                <BranchDetailView :city="viewCity" :year="branchViewYear" />
+              </div>
             </el-tab-pane>
             <el-tab-pane label="同业银行" name="peerBankView">
               <el-select v-model="viewCity" placeholder="选择城市" @change="loadPeerBankList" style="width:160px;margin-bottom:12px">
@@ -228,6 +185,11 @@
             </el-tab-pane>
           </el-tabs>
         </el-tab-pane>
+
+        <!-- ========== 指标配置 Tab ========== -->
+        <el-tab-pane label="指标配置" name="config">
+          <IndicatorConfig />
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
@@ -242,17 +204,20 @@ const GUIZHOU_CITIES = [
 
 import {
   getAllCityStatus, computeGridData, computeGridScore, computeBranchData, assignGridToBranch,
-  getGridCities, getGridList, getBranchList, getBranchScore
+  getGridCities, getBranchList
 } from '@/api/jwmap/data'
-import { importPoi, importPopulationHeat, importExternalWeight, importBranchEfficiencyWeight,
+import { importPoi, importPopulationHeat,
   importBranchInfo, importPeerBank } from '@/api/jwmap/data'
 import { exportGridCombined, exportBranchCombined } from '@/api/jwmap/data'
 import { getPeerBankList } from '@/api/jwmap/data'
 import ImportPanel from './components/ImportPanel'
+import IndicatorConfig from './config/indicator'
+import GridDetailView from './components/GridDetailView'
+import BranchDetailView from './components/BranchDetailView'
 
 export default {
   name: 'JwmapIndex',
-  components: { ImportPanel },
+  components: { ImportPanel, IndicatorConfig, GridDetailView, BranchDetailView },
   data() {
     return {
       activeTab: 'import',
@@ -264,6 +229,10 @@ export default {
       // 导入
       importCity: '',
       importDataSource: '网点信息',
+      importingPoi: false,
+      importingPop: false,
+      importingBranch: false,
+      importingPeerBank: false,
       // 计算
       computeGridCity: '',
       computeBranchCity: '',
@@ -275,10 +244,8 @@ export default {
       exportYear: 2024,
       // 查看
       viewCity: '',
-      scoreYear: 2024,
-      gridList: [], gridLoading: false,
+      branchViewYear: 2024,
       branchList: [], branchLoading: false,
-      scoreList: [], scoreLoading: false,
       peerBankList: [], peerBankLoading: false
     }
   },
@@ -298,6 +265,8 @@ export default {
       } catch (e) { /* ignore */ }
     },
     async handleImport(type, eventData) {
+      const loadingKey = 'importing' + type.charAt(0).toUpperCase() + type.slice(1)
+      this[loadingKey] = true
       try {
         const file = eventData?.file
         const city = eventData?.city
@@ -311,7 +280,6 @@ export default {
 
         const apiMap = {
           poi: importPoi, pop: importPopulationHeat,
-          extWeight: importExternalWeight, branchWeight: importBranchEfficiencyWeight,
           branch: importBranchInfo, peerBank: importPeerBank
         }
         result = await apiMap[type](fd)
@@ -319,6 +287,8 @@ export default {
         this.refreshCityStatus()
       } catch (e) {
         this.$message.error('导入失败：' + (e.message || '未知错误'))
+      } finally {
+        this[loadingKey] = false
       }
     },
     async handleGridCompute() {
@@ -397,23 +367,11 @@ export default {
         this.$message.success('导出成功')
       } catch (e) { this.$message.error('导出失败：' + (e.message || '未知错误')) }
     },
-    async loadGridList() {
-      if (!this.viewCity) return
-      this.gridLoading = true
-      try { const res = await getGridList(this.viewCity); this.gridList = res.data || [] }
-      catch (e) { this.gridList = [] } finally { this.gridLoading = false }
-    },
     async loadBranchList() {
       if (!this.viewCity) return
       this.branchLoading = true
       try { const res = await getBranchList(this.viewCity); this.branchList = res.data || [] }
       catch (e) { this.branchList = [] } finally { this.branchLoading = false }
-    },
-    async loadBranchScore() {
-      if (!this.viewCity) return
-      this.scoreLoading = true
-      try { const res = await getBranchScore(this.viewCity, this.scoreYear); this.scoreList = res.data || [] }
-      catch (e) { this.scoreList = [] } finally { this.scoreLoading = false }
     },
     async loadPeerBankList() {
       if (!this.viewCity) return
@@ -421,10 +379,6 @@ export default {
       try { const res = await getPeerBankList(this.viewCity); this.peerBankList = res.data || [] }
       catch (e) { this.peerBankList = [] } finally { this.peerBankLoading = false }
     },
-    categoryLabel(cat) {
-      const map = { revenue: '营收', indicator: '指标', customer: '客户', operation: '运营', overall: '总分' }
-      return map[cat] || cat
-    }
   }
 }
 </script>

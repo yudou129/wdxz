@@ -18,6 +18,8 @@ public interface JwGridScoreMapper {
 
     JwGridScore selectByGridCode(@Param("gridCode") String gridCode);
 
+    List<JwGridScore> selectScoresByGridCode(@Param("gridCode") String gridCode);
+
     List<JwGridScore> selectByCity(@Param("city") String city);
 
     int countByCity(@Param("city") String city);

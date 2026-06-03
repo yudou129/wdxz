@@ -29,4 +29,7 @@ public interface JwScoreCategoryConfigMapper {
 
     /** 按分类删除 */
     int deleteByCategory(@Param("categoryCode") String categoryCode);
+
+    int deleteByIndicatorCode(@Param("indicatorCode") String indicatorCode);
+    int updateIndicatorCode(@Param("oldCode") String oldCode, @Param("newCode") String newCode);
 }

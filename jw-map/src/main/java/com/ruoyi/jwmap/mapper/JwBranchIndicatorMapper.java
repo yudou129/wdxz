@@ -56,4 +56,7 @@ public interface JwBranchIndicatorMapper {
     int upsertJwBranchIndicator(JwBranchIndicator ind);
 
     int upsertBranchIndicator(JwBranchIndicator ind);
+
+    int deleteByIndicatorCode(@Param("indicatorCode") String indicatorCode);
+    int updateIndicatorCode(@Param("oldCode") String oldCode, @Param("newCode") String newCode);
 }

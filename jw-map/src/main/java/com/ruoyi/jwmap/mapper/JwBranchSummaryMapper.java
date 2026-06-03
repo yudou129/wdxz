@@ -36,4 +36,7 @@ public interface JwBranchSummaryMapper {
     int batchInsert(List<JwBranchSummary> list);
 
     int upsertJwBranchSummary(JwBranchSummary s);
+
+    int deleteByIndicatorCode(@Param("indicatorCode") String indicatorCode);
+    int updateIndicatorCode(@Param("oldCode") String oldCode, @Param("newCode") String newCode);
 }

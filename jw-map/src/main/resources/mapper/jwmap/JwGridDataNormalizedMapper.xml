@@ -120,4 +120,7 @@
             normalized_value = VALUES(normalized_value)
     </insert>
 
+    <delete id="deleteByIndicatorCode">DELETE FROM jw_grid_data_normalized WHERE indicator_code = #{indicatorCode}</delete>
+    <update id="updateIndicatorCode">UPDATE jw_grid_data_normalized SET indicator_code = #{newCode} WHERE indicator_code = #{oldCode}</update>
+
 </mapper>

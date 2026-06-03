@@ -22,32 +22,7 @@ public class ExcelImportService {
 
     private static final Logger log = LoggerFactory.getLogger(ExcelImportService.class);
 
-    private static final Map<String, String> BRANCH_INDICATOR_MAP = new LinkedHashMap<>();
-    static {
-        BRANCH_INDICATOR_MAP.put("利息净收入(万元)", "interest_income");
-        BRANCH_INDICATOR_MAP.put("手续费净收入(万元)", "fee_income");
-        BRANCH_INDICATOR_MAP.put("全量个人金融资产 日均余额(万元)", "total_asset_balance");
-        BRANCH_INDICATOR_MAP.put("全量个人金融资产 日均增量(万元)", "total_asset_growth");
-        BRANCH_INDICATOR_MAP.put("储蓄存款 日均余额(万元)", "saving_balance");
-        BRANCH_INDICATOR_MAP.put("储蓄存款 日均增量(万元)", "saving_growth");
-        BRANCH_INDICATOR_MAP.put("公司客户存款 日均余额(万元)", "corp_dep_balance");
-        BRANCH_INDICATOR_MAP.put("公司客户存款 日均增量(万元)", "corp_dep_growth");
-        BRANCH_INDICATOR_MAP.put("机构客户存款 日均余额(万元)", "inst_dep_balance");
-        BRANCH_INDICATOR_MAP.put("机构客户存款 日均增量(万元)", "inst_dep_growth");
-        BRANCH_INDICATOR_MAP.put("普惠贷款 营销额(万元)", "inclusive_loan_amount");
-        BRANCH_INDICATOR_MAP.put("个人贷款 发放额(万元)", "personal_loan_amount");
-        BRANCH_INDICATOR_MAP.put("日均0元（不含）-20万元（不含客户数）(单位：户)", "pcust_t1");
-        BRANCH_INDICATOR_MAP.put("日均20万元（含）-600万元（不含客户数）(单位：户)", "pcust_t2");
-        BRANCH_INDICATOR_MAP.put("日均大于等于600万（含）客户数(单位：户)", "pcust_t3");
-        BRANCH_INDICATOR_MAP.put("头部、中部对公客户数 日均资产50万元（含）以上（单位：户）", "ccust_h");
-        BRANCH_INDICATOR_MAP.put("底尾部部对公客户数 日均资产50万元（不含）以下（单位：户）", "ccust_l");
-        BRANCH_INDICATOR_MAP.put("日均资产1万元（不含）以上机构客户数（单位：户）", "icust_h");
-        BRANCH_INDICATOR_MAP.put("日均资产1万元（含）以下机构客户数（单位：户）", "icust_l");
-        BRANCH_INDICATOR_MAP.put("总量（单位：户）", "inclusive_cust_total");
-        BRANCH_INDICATOR_MAP.put("柜台日均交易笔数", "counter_txn");
-        BRANCH_INDICATOR_MAP.put("自助终端日均交易笔数", "terminal_txn");
-        BRANCH_INDICATOR_MAP.put("附行式网点自助ATM日均交易笔数", "atm_txn");
-    }
+    // BRANCH_INDICATOR_MAP 已移除，所有指标通过 indicator_name 匹配 jw_indicator_config 表
 
     @Autowired
     private JwPoiInfoMapper poiInfoMapper;
@@ -60,12 +35,6 @@ public class ExcelImportService {
 
     @Autowired
     private JwIndicatorConfigMapper indicatorConfigMapper;
-
-    @Autowired
-    private JwExternalResWeightMapper externalResWeightMapper;
-
-    @Autowired
-    private JwBranchEffWeightMapper branchEffWeightMapper;
 
     @Autowired
     private JwBranchInfoMapper branchInfoMapper;
@@ -142,7 +111,7 @@ public class ExcelImportService {
             // Row 1: h2 二级指标行
             Row h2Row = sheet.getRow(1);
 
-            // 逐列构建指标映射：对合并单元格做填充，组合 h1_h2 为指标名
+            // 逐列构建指标映射：h1=父分类, h2=子指标，分层匹配 indicator_config 树
             Map<Integer, String> colIndicatorMap = new LinkedHashMap<>();
             String currentH1 = null;
             int maxCol = Math.max(
@@ -160,32 +129,22 @@ public class ExcelImportService {
                 // 读取 h2（不存在时表示该列为单层表头）
                 String h2 = getCellStringValue(h2Row != null ? h2Row.getCell(c) : null, formatter);
 
-                // 确定指标名
-                String indicatorName;
+                String indicatorCode;
                 if (h2 != null) {
-                    indicatorName = currentH1 + "_" + h2;
+                    // 双层表头：h1=父分类, h2=子指标 → 先规范化匹配，失败则创建
+                    String parentCode = ensureIndicator(currentH1, "grid_auto", null);
+                    indicatorCode = matchIndicatorCodeFromNorm(h2, parentCode);
                 } else if (h1 != null) {
-                    indicatorName = h1;
+                    // 单层表头：h1 直接作为指标
+                    indicatorCode = ensureIndicator(h1, "grid_auto", null);
                 } else {
                     // h1、h2 均为空 → 无意义的列，跳过
                     continue;
                 }
 
-                // 查找或自动注册指标
-                JwIndicatorConfig config = indicatorConfigMapper.selectByIndicatorName(indicatorName);
-                if (config == null) {
-                    String code = "pop_" + indicatorName.replaceAll("[\\s()（）、]", "_");
-                    config = new JwIndicatorConfig();
-                    config.setIndicatorCode(code);
-                    config.setIndicatorName(indicatorName);
-                    config.setSourceTables("人口热力");
-                    config.setIsWeighted("1");
-                    config.setIsActive("1");
-                    config.setDataType("decimal");
-                    indicatorConfigMapper.insertIndicatorConfig(config);
-                    log.info("自动注册新指标: {} -> {}", indicatorName, code);
+                if (indicatorCode != null) {
+                    colIndicatorMap.put(c, indicatorCode);
                 }
-                colIndicatorMap.put(c, config.getIndicatorCode());
             }
 
             // 读取数据行（从第3行开始，跳过第2行空行/单位行）
@@ -227,98 +186,6 @@ public class ExcelImportService {
             }
         }
         log.info("导入人口热力数据完成，共{}条指标数据", count);
-        return count;
-    }
-
-    /**
-     * 导入外部资源权重表（替换策略：先清空再全量插入）
-     * Excel结构：一级指标(0) / 一级权重(1) / 二级指标(2) / 二级权重(3) /
-     *           三级指标(4) / 三级权重(5) / 总权重(6) / indicator_code(7, 可选)
-     * 当第8列(indicator_code)缺失或为空时，自动根据三级指标名称模糊匹配 indicator_config
-     */
-    @Transactional
-    public int importExternalWeight(InputStream inputStream) throws IOException {
-        externalResWeightMapper.deleteAll();
-        int count = 0;
-        try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
-            Sheet sheet = workbook.getSheetAt(0);
-            DataFormatter formatter = new DataFormatter();
-
-            List<JwWeightConfig> list = new ArrayList<>();
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
-
-                JwWeightConfig config = new JwWeightConfig();
-                config.setLevel1Name(getCellStringValue(row.getCell(0), formatter));
-                config.setLevel1Ratio(getCellDoubleValue(row.getCell(1)));
-                config.setLevel2Name(getCellStringValue(row.getCell(2), formatter));
-                config.setLevel2Ratio(getCellDoubleValue(row.getCell(3)));
-                config.setLevel3Name(getCellStringValue(row.getCell(4), formatter));
-                config.setLevel3Ratio(getCellDoubleValue(row.getCell(5)));
-                config.setTotalWeight(getCellDoubleValue(row.getCell(6)));
-
-                // 读取第8列(indicator_code)，为空时自动从三级指标名称匹配
-                String indicatorCode = getCellStringValue(row.getCell(7), formatter);
-                if (indicatorCode == null || indicatorCode.isEmpty()) {
-                    indicatorCode = matchIndicatorCode(config.getLevel3Name());
-                }
-                config.setIndicatorCode(indicatorCode);
-
-                list.add(config);
-            }
-
-            if (!list.isEmpty()) {
-                externalResWeightMapper.batchInsert(list);
-                count = list.size();
-            }
-        }
-        log.info("导入外部资源权重完成，共{}条", count);
-        return count;
-    }
-
-    /**
-     * 导入网点效能权重表（替换策略：先清空再全量插入）
-     * 同外部资源权重表，第8列(indicator_code)可选，缺失时自动匹配
-     */
-    @Transactional
-    public int importBranchEfficiencyWeight(InputStream inputStream) throws IOException {
-        branchEffWeightMapper.deleteAll();
-        int count = 0;
-        try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
-            Sheet sheet = workbook.getSheetAt(0);
-            DataFormatter formatter = new DataFormatter();
-
-            List<JwWeightConfig> list = new ArrayList<>();
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
-
-                JwWeightConfig config = new JwWeightConfig();
-                config.setLevel1Name(getCellStringValue(row.getCell(0), formatter));
-                config.setLevel1Ratio(getCellDoubleValue(row.getCell(1)));
-                config.setLevel2Name(getCellStringValue(row.getCell(2), formatter));
-                config.setLevel2Ratio(getCellDoubleValue(row.getCell(3)));
-                config.setLevel3Name(getCellStringValue(row.getCell(4), formatter));
-                config.setLevel3Ratio(getCellDoubleValue(row.getCell(5)));
-                config.setTotalWeight(getCellDoubleValue(row.getCell(6)));
-
-                // 第8列缺失时自动匹配
-                String indicatorCode = getCellStringValue(row.getCell(7), formatter);
-                if (indicatorCode == null || indicatorCode.isEmpty()) {
-                    indicatorCode = matchIndicatorCode(config.getLevel3Name());
-                }
-                config.setIndicatorCode(indicatorCode);
-
-                list.add(config);
-            }
-
-            if (!list.isEmpty()) {
-                branchEffWeightMapper.batchInsert(list);
-                count = list.size();
-            }
-        }
-        log.info("导入网点效能权重完成，共{}条", count);
         return count;
     }
 
@@ -760,6 +627,7 @@ public class ExcelImportService {
      * 2. 去除"人口"后缀后做后缀匹配（h1_h2 格式的指标名以 _h2 结尾）
      * 3. 归一化特殊字符后匹配
      * 4. 包含关系匹配
+     * 5. 动态创建新指标（权重0）
      */
     private String matchIndicatorCode(String level3Name) {
         if (level3Name == null || level3Name.isEmpty()) return null;
@@ -811,7 +679,18 @@ public class ExcelImportService {
             }
         }
 
-        // 5. 包含匹配（处理"IT通信电子"→"IT"这类复合名称）
+        // 5. 完整规范化：去所有特殊字符（括号、引号、破折号等），仅保留中文和数字
+        String fullNorm = normalizeName(trimmedName);
+        if (!fullNorm.isEmpty() && !fullNorm.equals(norm)) {
+            for (String name : allNames) {
+                String nameFullNorm = normalizeName(name);
+                if (nameFullNorm.equals(fullNorm)) {
+                    return nameToCode.get(name);
+                }
+            }
+        }
+
+        // 6. 包含匹配（处理"IT通信电子"→"IT"这类复合名称）
         for (String name : allNames) {
             // 取 h1_h2 格式中的 h2 部分
             String h2part = name.substring(name.lastIndexOf('_') + 1);
@@ -826,8 +705,23 @@ public class ExcelImportService {
             }
         }
 
-        log.warn("无法自动匹配权重指标: {}，请在Excel第8列手动指定indicator_code", level3Name);
-        return null;
+        // 6. 未匹配到 → 动态创建 grid 类型指标（权重默认为 0）
+        log.info("未匹配到人口热力指标，动态创建: {}", level3Name);
+        return ensureIndicator(level3Name, "grid");
+    }
+
+    /**
+     * 规范化匹配人口热力指标名，失败则用原始名创建（挂在指定父节点下）
+     */
+    private String matchIndicatorCodeFromNorm(String name, String parentCode) {
+        if (name == null || name.isEmpty()) return null;
+        Map<String, JwIndicatorConfig> normMap = buildNormalizedMap();
+        String norm = normalizeName(name);
+        if (!norm.isEmpty()) {
+            JwIndicatorConfig cfg = normMap.get(norm);
+            if (cfg != null) return cfg.getIndicatorCode();
+        }
+        return ensureIndicator(name, "grid_auto", parentCode);
     }
 
     private String getCellStringValue(Cell cell, DataFormatter formatter) {
@@ -904,105 +798,55 @@ public class ExcelImportService {
     private String extractIndicatorCode(String colName) {
         // Strip year prefix: "2024年利息净收入(万元)" -> "利息净收入(万元)"
         String nameWithoutYear = colName.replaceAll("^[0-9]{4}年?", "").trim();
-        // Look up in hardcoded map
-        String code = BRANCH_INDICATOR_MAP.get(nameWithoutYear);
-        if (code != null) return code;
-        // Try fuzzy match (remove spaces and brackets)
-        for (Map.Entry<String, String> entry : BRANCH_INDICATOR_MAP.entrySet()) {
-            String keyStripped = entry.getKey().replaceAll("[\\s()（）、]", "");
-            String compareKey = keyStripped.substring(0, Math.min(6, keyStripped.length()));
-            if (nameWithoutYear.contains(compareKey)) {
-                return entry.getValue();
-            }
+        // 规范化匹配（去特殊符号）
+        Map<String, JwIndicatorConfig> normMap = buildNormalizedMap();
+        String norm = normalizeName(nameWithoutYear);
+        if (!norm.isEmpty()) {
+            JwIndicatorConfig cfg = normMap.get(norm);
+            if (cfg != null) return cfg.getIndicatorCode();
         }
-        // Fallback: generate code from name
-        return nameWithoutYear.replaceAll("[\\s()（）、]", "_");
+        // 未匹配 → 动态创建
+        return ensureIndicator(nameWithoutYear, "branch_auto");
     }
 
     /**
      * 将Excel列名映射到JwBranchInfo字段名
      */
     private String mapColumnToField(String colName) {
-        // Check if this is an indicator column (with or without year prefix)
-        String nameWithoutYear = colName.replaceAll("^[0-9]{4}年?", "").trim();
-        if (BRANCH_INDICATOR_MAP.containsKey(nameWithoutYear)) {
-            return null; // This is an indicator, not a field
-        }
-
         Map<String, String> mapping = new LinkedHashMap<>();
-        mapping.put("所属分行", "primaryBranch");
+        // 网点名称（Row3）
         mapping.put("一级支行", "primaryBranch");
-        mapping.put("所属支行", "secondaryBranch");
         mapping.put("二级支行", "secondaryBranch");
-        mapping.put("网点名称", "branchCode");
-        mapping.put("机构号", "branchCode");
         mapping.put("网点号", "branchCode");
-        mapping.put("所属行政区", "districtName");
+        // 地理位置（Row3）
         mapping.put("行政区", "districtName");
-        mapping.put("所属街道", "street");
         mapping.put("街道", "street");
-        mapping.put("地址", "address");
-        mapping.put("详细地址", "address");
         mapping.put("具体地址", "address");
         mapping.put("经度", "longitude");
         mapping.put("纬度", "latitude");
-        // 人员信息
+        // 人员信息 - 整体情况（Row4）
         mapping.put("总人数", "totalStaff");
-        mapping.put("在岗人数", "totalStaff");
         mapping.put("个人客户经理人数", "personalManager");
-        mapping.put("个人客户经理", "personalManager");
-        mapping.put("个人客户经理数", "personalManager");
         mapping.put("对公客户经理人数（专职）", "corporateManager");
-        mapping.put("对公客户经理", "corporateManager");
-        mapping.put("公司客户经理", "corporateManager");
         mapping.put("客服经理（柜面）人数", "counterStaff");
-        mapping.put("客服经理（柜面）", "counterStaff");
-        mapping.put("柜员", "counterStaff");
-        mapping.put("客服人员", "counterStaff");
         mapping.put("客服经理（厅堂）人数", "lobbyStaff");
-        mapping.put("客服经理（厅堂）", "lobbyStaff");
-        mapping.put("大堂经理", "lobbyStaff");
-        // 行长信息
+        // 人员信息 - 网点行长任职情况（Row4）
         mapping.put("网点行长姓名", "branchManager");
-        mapping.put("网点负责人", "branchManager");
-        mapping.put("网点行长", "branchManager");
         mapping.put("在本网点任职时间", "managerTenure");
-        mapping.put("负责人年限", "managerTenure");
-        mapping.put("在岗任职年限", "managerTenure");
         mapping.put("完整履历信息（人力资源系统内格式）", "managerResume");
-        mapping.put("负责人简历", "managerResume");
         mapping.put("本网点历任行长", "managerHistory");
-        mapping.put("2023-2025年本网点历任行长", "managerHistory");
-        mapping.put("负责人历史", "managerHistory");
-        // 面积
+        // 面积及功能分区（Row3 + Row4）
         mapping.put("总面积", "totalArea");
-        mapping.put("营业面积", "totalArea");
         mapping.put("其中：若为多层，请填写除首层以外面积", "otherFloorArea");
-        mapping.put("其他楼层面积", "otherFloorArea");
-        // 柜台
         mapping.put("现金柜台个数", "cashCounter");
-        mapping.put("现金柜台", "cashCounter");
-        mapping.put("现金柜台数量", "cashCounter");
         mapping.put("非现金柜台个数", "nonCashCounter");
-        mapping.put("非现金柜台", "nonCashCounter");
-        mapping.put("非现金柜台数量", "nonCashCounter");
         mapping.put("个人客户经理工位个数", "managerSeat");
-        mapping.put("管户席位", "managerSeat");
-        mapping.put("个人客户经理管户", "managerSeat");
-        // 产权/其他
+        // 其他（Row3 + Row4）
         mapping.put("自有/租赁", "propertyRight");
-        mapping.put("产权性质", "propertyRight");
-        mapping.put("产权状态", "propertyRight");
         mapping.put("租赁到期时间", "leaseExpire");
-        mapping.put("租赁到期日", "leaseExpire");
         mapping.put("最近一次装修时间", "lastRenovation");
-        mapping.put("最近装修", "lastRenovation");
         mapping.put("网点业态分类", "branchType");
-        mapping.put("网点业态类型", "branchType");
-        mapping.put("网点类型", "branchType");
         mapping.put("迁并情况", "relocation");
-        mapping.put("是否拟迁址", "relocation");
-        mapping.put("迁址标识", "relocation");
 
         return mapping.getOrDefault(colName, null);
     }
@@ -1049,109 +893,169 @@ public class ExcelImportService {
     }
 
     /**
-     * 将基础数据格式的指标列名（含子分类前缀）匹配到 BRANCH_INDICATOR_MAP 编码
+     * 去除特殊符号，仅保留中文和数字
+     */
+    private String normalizeName(String name) {
+        if (name == null) return null;
+        return name.replaceAll("[^\\u4e00-\\u9fff0-9]", "");
+    }
+
+    /** 规范化名称到指标编码的缓存 */
+    private Map<String, JwIndicatorConfig> normalizedNameCache = null;
+
+    /**
+     * 构建规范化名称到指标编码的映射（缓存，只构建一次）
+     */
+    private Map<String, JwIndicatorConfig> buildNormalizedMap() {
+        if (normalizedNameCache != null) return normalizedNameCache;
+
+        List<JwIndicatorConfig> all = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
+        Map<String, JwIndicatorConfig> map = new LinkedHashMap<>();
+        for (JwIndicatorConfig cfg : all) {
+            if (cfg.getIndicatorName() != null) {
+                String norm = normalizeName(cfg.getIndicatorName());
+                if (!norm.isEmpty() && !map.containsKey(norm)) {
+                    map.put(norm, cfg);
+                }
+            }
+        }
+        normalizedNameCache = map;
+        return map;
+    }
+
+    /**
+     * 将基础数据格式的指标列名匹配到 indicator_code
      * <p>
      * 策略：
-     * 1. 标准化列名（去前缀、统一标点、去空格）
-     * 2. 在 BRANCH_INDICATOR_MAP 中精确匹配
-     * 3. 包含匹配
-     * 4. 关键词匹配（提取 mapKey 中 >=4 个字符的连续中文关键词）
+     * 1. 规范化名称后匹配（先 fullName，再 shortName）
+     * 2. 未匹配 → 动态创建 branch_auto 指标（权重默认 0）
      *
      * @param fullName  子分类 + 列名组合（如 "全量个人金融资产 日均余额 (万元)"）
      * @param shortName 仅列名（如 "日均余额 (万元)"）
-     * @return indicatorCode，匹配不到返回 null
+     * @return indicatorCode
      */
     private String matchBranchIndicator(String fullName, String shortName) {
         if (fullName == null && shortName == null) return null;
 
-        String cleanFull = fullName != null ? normalizeIndicatorName(fullName) : "";
-        String cleanShort = shortName != null ? normalizeIndicatorName(shortName) : "";
+        // 1. 规范化名称匹配（去特殊符号，仅保留中文+数字）
+        Map<String, JwIndicatorConfig> normMap = buildNormalizedMap();
 
-        for (Map.Entry<String, String> entry : BRANCH_INDICATOR_MAP.entrySet()) {
-            String mapKeyNorm = entry.getKey().replaceAll("[（()）]", "").replaceAll("\\s+", "");
-
-            // 1. 精确匹配
-            if (!cleanFull.isEmpty() && cleanFull.equals(mapKeyNorm)) {
-                return entry.getValue();
+        if (fullName != null) {
+            String normFull = normalizeName(fullName);
+            if (!normFull.isEmpty()) {
+                JwIndicatorConfig cfg = normMap.get(normFull);
+                if (cfg != null) return cfg.getIndicatorCode();
             }
-            if (!cleanShort.isEmpty() && cleanShort.equals(mapKeyNorm)) {
-                return entry.getValue();
-            }
-
-            // 2. 包含匹配
-            if (!cleanFull.isEmpty() && (cleanFull.contains(mapKeyNorm) || mapKeyNorm.contains(cleanFull))) {
-                return entry.getValue();
+        }
+        if (shortName != null) {
+            String normShort = normalizeName(shortName);
+            if (!normShort.isEmpty()) {
+                JwIndicatorConfig cfg = normMap.get(normShort);
+                if (cfg != null) return cfg.getIndicatorCode();
             }
         }
 
-        // 3. 滑动窗口子串匹配：将 mapKey 切分为所有长度 >=5 的连续子串，
-        //    检查 cleanFull 是否包含其中任意一个
-        //    注: minLen=5 避免 4字通用子串（如"客户数""日均交易"）的跨指标误匹配
-        if (!cleanFull.isEmpty()) {
-            for (Map.Entry<String, String> entry : BRANCH_INDICATOR_MAP.entrySet()) {
-                String mapKeyNorm = entry.getKey().replaceAll("[（()）]", "").replaceAll("\\s+", "");
-                if (containsSharedSubstring(cleanFull, mapKeyNorm, 6)) {
-                    return entry.getValue();
-                }
+        // 2. 未匹配 → 动态创建 branch_auto 指标（权重默认 0）
+        String nameToUse = fullName != null ? fullName : shortName;
+        log.info("未匹配到网点指标，动态创建: {}", nameToUse);
+        return ensureIndicator(nameToUse, "branch_auto");
+    }
+
+    // ========== 动态指标创建 ==========
+
+    /** 自动导入指标的父节点编码（branch_auto 类型） */
+    private static final String AUTO_PARENT_BRANCH = "auto_import_branch";
+    /** 自动导入指标的父节点编码（grid_auto 类型） */
+    private static final String AUTO_PARENT_GRID = "auto_import_grid";
+
+    /**
+     * 确保指标在 jw_indicator_config 中存在，不存在则创建
+     * 自动创建的指标统一挂在专用父节点或指定父节点下
+     * @param parentCode 指定父节点编码，null 表示挂在自动导入根节点下
+     * @return indicator_code
+     */
+    private String ensureIndicator(String indicatorName, String indicatorType, String parentCode) {
+        if (indicatorName == null || indicatorName.isEmpty()) return null;
+
+        // 已存在则直接返回
+        JwIndicatorConfig existing = indicatorConfigMapper.selectByIndicatorName(indicatorName);
+        if (existing != null) {
+            // 如果已有记录但 parentCode 为空而调用方指定了父节点，则更新父节点
+            if (parentCode != null && (existing.getParentCode() == null || existing.getParentCode().isEmpty())) {
+                existing.setParentCode(parentCode);
+                indicatorConfigMapper.updateJwIndicatorConfig(existing);
             }
+            return existing.getIndicatorCode();
         }
 
-        // 4. 关键词匹配：从 mapKey 提取连续中文关键词（>=4 字）
-        if (!cleanFull.isEmpty()) {
-            for (Map.Entry<String, String> entry : BRANCH_INDICATOR_MAP.entrySet()) {
-                String mapKeyNorm = entry.getKey().replaceAll("\\s+", "");
-                String[] keywords = mapKeyNorm.split("[^\\u4e00-\\u9fff]+");
-                for (String kw : keywords) {
-                    if (kw.length() >= 4 && cleanFull.contains(kw)) {
-                        return entry.getValue();
-                    }
-                }
-            }
+        // 生成编码（去重）
+        String baseCode = generateCodeFromName(indicatorName);
+        String code = baseCode;
+        int suffix = 0;
+        while (indicatorConfigMapper.selectByCode(code) != null) {
+            suffix++;
+            code = baseCode + "_" + suffix;
         }
 
-        log.debug("未匹配到指标编码: full={} short={}", cleanFull, cleanShort);
-        return null;
+        JwIndicatorConfig config = new JwIndicatorConfig();
+        config.setIndicatorCode(code);
+        config.setIndicatorName(indicatorName);
+        config.setIndicatorType(indicatorType);
+        config.setIsDerived("0");
+        config.setCalculationWeight(0.0);
+        config.setSortOrder(0);
+        config.setParentCode(parentCode != null ? parentCode : ensureAutoImportParent(indicatorType));
+        indicatorConfigMapper.insertIndicatorConfig(config);
+        log.info("动态创建指标: name={}, code={}, type={}, parent={}", indicatorName, code, indicatorType, config.getParentCode());
+        return code;
     }
 
     /**
-     * 标准化指标名称：去前缀、统一标点、去空格
+     * 确保指标存在，自动挂在对应类型的自动导入根节点下
      */
-    private String normalizeIndicatorName(String name) {
-        if (name == null) return "";
-        String s = name;
-        // 去除 Excel 单元格内换行
-        s = s.replace('\n', ' ').replace('\r', ' ');
-        // 去除前缀 "人均管辖"（含子分类后的空间）
-        s = s.replaceAll("\\s*人均管辖\\s*", "");
-        // 去除多余的 "人均"（在 "人均营销额"、"人均放贷额" 等中出现）
-        s = s.replaceAll("\\s*人均\\s*", "");
-        // 去除 "每单位面积" 前缀
-        s = s.replaceAll("\\s*每单位面积\\s*", "");
-        // 统一中文括号/标点
-        s = s.replaceAll("[（()）]", "");
-        s = s.replaceAll("[、，]", "");
-        // 统一全角空格等
-        s = s.replaceAll("[　]", " ");
-        // 去除所有空格
-        s = s.replaceAll("\\s+", "");
-        return s;
+    private String ensureIndicator(String indicatorName, String indicatorType) {
+        return ensureIndicator(indicatorName, indicatorType, null);
     }
 
     /**
-     * 检查 two 中是否存在长度 >= minLen 的子串也出现在 one 中
+     * 确保自动导入分类父节点存在
      */
-    private boolean containsSharedSubstring(String one, String two, int minLen) {
-        if (one == null || two == null || one.length() < minLen || two.length() < minLen) return false;
-        // 从 two 中提取所有长度 >= minLen 的子串，检查是否在 one 中出现
-        for (int start = 0; start <= two.length() - minLen; start++) {
-            for (int end = start + minLen; end <= two.length() && end - start <= 12; end++) {
-                String sub = two.substring(start, end);
-                if (one.contains(sub)) {
-                    return true;
-                }
-            }
+    private String ensureAutoImportParent(String indicatorType) {
+        String parentCode, parentName;
+        if ("grid_auto".equals(indicatorType)) {
+            parentCode = AUTO_PARENT_GRID;
+            parentName = "自动导入(网格)";
+        } else {
+            parentCode = AUTO_PARENT_BRANCH;
+            parentName = "自动导入(网点)";
         }
-        return false;
+        JwIndicatorConfig existing = indicatorConfigMapper.selectByCode(parentCode);
+        if (existing != null) return parentCode;
+
+        JwIndicatorConfig parent = new JwIndicatorConfig();
+        parent.setIndicatorCode(parentCode);
+        parent.setIndicatorName(parentName);
+        parent.setIndicatorType(indicatorType);
+        parent.setIsDerived("0");
+        parent.setCalculationWeight(0.0);
+        parent.setSortOrder(-1);
+        indicatorConfigMapper.insertIndicatorConfig(parent);
+        log.info("创建自动导入分类: {} ({})", parentName, parentCode);
+        return parentCode;
+    }
+
+    /**
+     * 从名称生成 ASCII 编码（移除中文字符和特殊符号）
+     */
+    private String generateCodeFromName(String name) {
+        String code = name.replaceAll("[^a-zA-Z0-9]", "_")
+            .replaceAll("_+", "_")
+            .replaceAll("^_|_$", "")
+            .toLowerCase();
+        if (code.isEmpty()) {
+            code = "indicator_" + System.currentTimeMillis() % 100000;
+        }
+        return code;
     }
 
     /**

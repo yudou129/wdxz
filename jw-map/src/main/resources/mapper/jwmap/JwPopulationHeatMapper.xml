@@ -130,4 +130,7 @@
             indicator_value = VALUES(indicator_value)
     </insert>
 
+    <delete id="deleteByIndicatorCode">DELETE FROM jw_population_heat WHERE indicator_code = #{indicatorCode}</delete>
+    <update id="updateIndicatorCode">UPDATE jw_population_heat SET indicator_code = #{newCode} WHERE indicator_code = #{oldCode}</update>
+
 </mapper>

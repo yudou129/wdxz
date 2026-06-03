@@ -193,6 +193,19 @@ export const dynamicRoutes = [
         meta: { title: '天地图', icon: 'map' }
       }
     ]
+  },
+  {
+    path: '/jwmap/config',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: 'indicator',
+        component: () => import('@/views/jwmap/config/indicator'),
+        name: 'JwMapIndicatorConfig',
+        meta: { title: '指标管理', icon: 'setting' }
+      }
+    ]
   }
 ]
 

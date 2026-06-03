@@ -25,7 +25,8 @@ public class JwImportController extends BaseController {
             @RequestParam("file") MultipartFile file,
             @RequestParam("city") String city) {
         try {
-            int count = excelImportService.importPoiInfo(file.getInputStream(), city, getUsername());
+            String username = getUsernameSafely();
+            int count = excelImportService.importPoiInfo(file.getInputStream(), city, username);
             return success("成功导入 " + count + " 条POI数据");
         } catch (Exception e) {
             logger.error("导入POI异常", e);
@@ -45,34 +46,6 @@ public class JwImportController extends BaseController {
             return success("成功导入 " + count + " 条人口热力数据");
         } catch (Exception e) {
             logger.error("导入人口热力异常", e);
-            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
-        }
-    }
-
-    /**
-     * 导入外部资源权重表
-     */
-    @PostMapping("/externalWeight")
-    public AjaxResult importExternalWeight(@RequestParam("file") MultipartFile file) {
-        try {
-            int count = excelImportService.importExternalWeight(file.getInputStream());
-            return success("成功导入 " + count + " 条权重数据");
-        } catch (Exception e) {
-            logger.error("导入外部资源权重异常", e);
-            return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
-        }
-    }
-
-    /**
-     * 导入网点效能权重表
-     */
-    @PostMapping("/branchEfficiencyWeight")
-    public AjaxResult importBranchEfficiencyWeight(@RequestParam("file") MultipartFile file) {
-        try {
-            int count = excelImportService.importBranchEfficiencyWeight(file.getInputStream());
-            return success("成功导入 " + count + " 条权重数据");
-        } catch (Exception e) {
-            logger.error("导入网点效能权重异常", e);
             return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
@@ -123,6 +96,17 @@ public class JwImportController extends BaseController {
         } catch (Exception e) {
             logger.error("导入同业银行异常", e);
             return error("导入失败：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+        }
+    }
+
+    /**
+     * 安全获取当前登录用户名（在未认证时返回"system"而非抛异常）
+     */
+    private String getUsernameSafely() {
+        try {
+            return getUsername();
+        } catch (Exception e) {
+            return "system";
         }
     }
 }

@@ -4,6 +4,7 @@
 
     <resultMap type="com.ruoyi.jwmap.domain.JwGridScore" id="JwGridScoreResult">
         <id property="gridCode" column="grid_code"/>
+        <id property="scoreCategory" column="score_category"/>
         <result property="city" column="city"/>
         <result property="positiveDistance" column="positive_distance"/>
         <result property="negativeDistance" column="negative_distance"/>
@@ -12,7 +13,7 @@
     </resultMap>
 
     <sql id="selectJwGridScoreVo">
-        SELECT grid_code, city, positive_distance, negative_distance, site_score, create_time
+        SELECT grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
         FROM jw_grid_score
     </sql>
 
@@ -21,6 +22,7 @@
         <where>
             <if test="gridCode != null and gridCode != ''">AND grid_code LIKE CONCAT('%', #{gridCode}, '%')</if>
             <if test="city != null and city != ''">AND city = #{city}</if>
+            <if test="scoreCategory != null and scoreCategory != ''">AND score_category = #{scoreCategory}</if>
         </where>
         ORDER BY site_score DESC
     </select>
@@ -31,25 +33,32 @@
     </select>
 
     <select id="selectByGridCode" parameterType="String" resultMap="JwGridScoreResult">
-        <include refid="selectJwGridScoreVo"/>
+        SELECT grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        FROM jw_grid_score
+        WHERE grid_code = #{gridCode} AND score_category = 'overall'
+    </select>
+
+    <select id="selectScoresByGridCode" parameterType="String" resultMap="JwGridScoreResult">
+        SELECT grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        FROM jw_grid_score
         WHERE grid_code = #{gridCode}
     </select>
 
     <select id="selectByCity" parameterType="String" resultMap="JwGridScoreResult">
         <include refid="selectJwGridScoreVo"/>
-        WHERE city = #{city}
+        WHERE city = #{city} AND score_category = 'overall'
         ORDER BY site_score DESC
     </select>
 
     <select id="countByCity" parameterType="String" resultType="int">
-        SELECT COUNT(*) FROM jw_grid_score WHERE city = #{city}
+        SELECT COUNT(*) FROM jw_grid_score WHERE city = #{city} AND score_category = 'overall'
     </select>
 
     <insert id="insertJwGridScore" parameterType="com.ruoyi.jwmap.domain.JwGridScore">
         INSERT INTO jw_grid_score (
-            grid_code, city, positive_distance, negative_distance, site_score, create_time
+            grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
         ) VALUES (
-            #{gridCode}, #{city}, #{positiveDistance}, #{negativeDistance}, #{siteScore}, sysdate()
+            #{gridCode}, #{city}, #{scoreCategory}, #{positiveDistance}, #{negativeDistance}, #{siteScore}, sysdate()
         )
     </insert>
 
@@ -60,7 +69,7 @@
             <if test="negativeDistance != null">negative_distance = #{negativeDistance},</if>
             <if test="siteScore != null">site_score = #{siteScore},</if>
         </set>
-        WHERE grid_code = #{gridCode}
+        WHERE grid_code = #{gridCode} AND score_category = #{scoreCategory}
     </update>
 
     <delete id="deleteJwGridScoreByGridCode" parameterType="String">
@@ -80,18 +89,18 @@
 
     <insert id="batchInsert" parameterType="java.util.List">
         INSERT INTO jw_grid_score (
-            grid_code, city, positive_distance, negative_distance, site_score, create_time
+            grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
         ) VALUES
         <foreach item="item" collection="list" separator=",">
-            (#{item.gridCode}, #{item.city}, #{item.positiveDistance}, #{item.negativeDistance}, #{item.siteScore}, sysdate())
+            (#{item.gridCode}, #{item.city}, #{item.scoreCategory}, #{item.positiveDistance}, #{item.negativeDistance}, #{item.siteScore}, sysdate())
         </foreach>
     </insert>
 
     <insert id="upsertGridScore" parameterType="com.ruoyi.jwmap.domain.JwGridScore">
         INSERT INTO jw_grid_score (
-            grid_code, city, positive_distance, negative_distance, site_score, create_time
+            grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
         ) VALUES (
-            #{gridCode}, #{city}, #{positiveDistance}, #{negativeDistance}, #{siteScore}, sysdate()
+            #{gridCode}, #{city}, #{scoreCategory}, #{positiveDistance}, #{negativeDistance}, #{siteScore}, sysdate()
         )
         ON DUPLICATE KEY UPDATE
             city = VALUES(city),

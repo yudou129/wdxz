@@ -58,4 +58,7 @@
         DELETE FROM jw_score_category_config WHERE category_code = #{categoryCode}
     </delete>
 
+    <delete id="deleteByIndicatorCode">DELETE FROM jw_score_category_config WHERE indicator_code = #{indicatorCode}</delete>
+    <update id="updateIndicatorCode">UPDATE jw_score_category_config SET indicator_code = #{newCode} WHERE indicator_code = #{oldCode}</update>
+
 </mapper>

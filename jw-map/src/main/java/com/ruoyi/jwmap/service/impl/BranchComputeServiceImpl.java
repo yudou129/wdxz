@@ -15,10 +15,12 @@ import java.util.stream.Collectors;
  * 网点数据计算服务实现
  *
  * 管线步骤：
- * 1. 计算数据计算表（人均/单位面积/户均等22个衍生指标）
- * 2. 计算汇总行（实际权重/MAX/MIN）
- * 3. 归一化处理（网点公式: value*weight/SQRT(SUMSQ)）
- * 4. 五类TOPSIS得分（营收/指标/客户/运营/总分）
+ * 1. assignGridToBranch — 空间关联网点到网格
+ * 2. computeBranchIndicators — 遍历 is_derived=1 的网点指标，模式分发器公式计算
+ * 3. computeBranchSummary — 权重来自 indicator_config 的 getEffectiveWeight()
+ * 4. computeBranchNormalized — 归一化
+ * 5. computeBranchScore — 按根节点分类 + overall 分别 TOPSIS
+ * 6. computeRankings — 排名
  */
 @Service
 public class BranchComputeServiceImpl implements IBranchComputeService {
@@ -28,30 +30,7 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
     @Autowired private JwBranchSummaryMapper branchSummaryMapper;
     @Autowired private JwBranchScoreMapper branchScoreMapper;
     @Autowired private JwIndicatorConfigMapper indicatorConfigMapper;
-    @Autowired private JwBranchEffWeightMapper branchEffWeightMapper;
     @Autowired private JwGridMetaMapper gridMetaMapper;
-    @Autowired private JwScoreCategoryConfigMapper categoryConfigMapper;
-
-    // ===== TOPSIS 类别指标分组（DB驱动，动态加载）=====
-
-    /** 从 DB 获取所有活跃分类编码（保持 LinkedHashMap 顺序） */
-    private Map<String, List<String>> loadCategoryMap() {
-        Map<String, List<String>> map = new LinkedHashMap<>();
-        List<JwScoreCategoryConfig> configs = categoryConfigMapper.selectAllActive();
-        for (JwScoreCategoryConfig c : configs) {
-            map.computeIfAbsent(c.getCategoryCode(), k -> new ArrayList<>())
-                .add(c.getIndicatorCode());
-        }
-        return map;
-    }
-
-    /** 从 DB 获取所有参与计算的指标编码 */
-    private List<String> loadAllBranchIndicators() {
-        return categoryConfigMapper.selectAllActive().stream()
-            .map(JwScoreCategoryConfig::getIndicatorCode)
-            .distinct()
-            .collect(Collectors.toList());
-    }
 
     @Override
     @Transactional
@@ -71,6 +50,11 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
         List<JwBranchInfo> branches = branchInfoMapper.selectByCity(city);
         if (branches.isEmpty()) return 0;
 
+        // 加载 is_derived=1 的 branch 叶子指标（公式驱动）
+        List<JwIndicatorConfig> formulaIndicators = indicatorConfigMapper.selectLeavesByType("branch");
+        // 加载 branch_raw 叶子节点（原始数据，需复制到数据计算表参与评分）
+        List<JwIndicatorConfig> rawLeaves = indicatorConfigMapper.selectLeavesByType("branch_raw");
+
         // 清理该市该年旧的计算数据
         for (JwBranchInfo branch : branches) {
             branchIndicatorMapper.deleteByBranchAndYear(branch.getBranchId(), dataYear, "数据计算表");
@@ -82,8 +66,24 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
             Map<String, Double> baseData = getBaseData(branch.getBranchId(), dataYear);
             if (baseData.isEmpty()) continue;
 
-            // 计算22个衍生指标
-            Map<String, Double> computed = computeDerivedIndicators(branch, baseData, dataYear);
+            Map<String, Double> computed = new LinkedHashMap<>();
+
+            // 1. 模式分发器：遍历所有公式指标并计算
+            for (JwIndicatorConfig formula : formulaIndicators) {
+                Double result = evaluateFormula(formula, baseData, branch, dataYear);
+                if (result != null) {
+                    computed.put(formula.getIndicatorCode(), result);
+                }
+            }
+
+            // 2. 复制 branch_raw 叶子值到数据计算表，使其参与 TOPSIS 评分
+            for (JwIndicatorConfig raw : rawLeaves) {
+                Double val = baseData.get(raw.getIndicatorCode());
+                if (val != null) {
+                    computed.put(raw.getIndicatorCode(), val);
+                }
+            }
+
             if (computed.isEmpty()) continue;
 
             for (Map.Entry<String, Double> entry : computed.entrySet()) {
@@ -101,6 +101,96 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
     }
 
     /**
+     * 模式分发器：根据 computation_pattern 执行对应的公式计算
+     */
+    private Double evaluateFormula(JwIndicatorConfig formula, Map<String, Double> base,
+                                   JwBranchInfo branch, Integer dataYear) {
+        if (!"1".equals(formula.getIsDerived())) return null;
+
+        String pattern = formula.getComputationPattern();
+        if (pattern == null) return null;
+
+        try {
+            switch (pattern) {
+                case "per_capita": {
+                    String[] inputs = formula.getInputCodesArray();
+                    if (inputs.length == 0) return null;
+                    double val = base.getOrDefault(inputs[0], 0.0);
+                    return safeDiv(val, totalStaff(branch));
+                }
+                case "per_area": {
+                    String[] inputs = formula.getInputCodesArray();
+                    if (inputs.length == 0) return null;
+                    double val = base.getOrDefault(inputs[0], 0.0);
+                    return safeDiv(val, totalArea(branch));
+                }
+                case "sum_per_capita": {
+                    String[] inputs = formula.getInputCodesArray();
+                    double sum = 0;
+                    for (String code : inputs) sum += base.getOrDefault(code, 0.0);
+                    return safeDiv(sum, totalStaff(branch));
+                }
+                case "sum_per_area": {
+                    String[] inputs = formula.getInputCodesArray();
+                    double sum = 0;
+                    for (String code : inputs) sum += base.getOrDefault(code, 0.0);
+                    return safeDiv(sum, totalArea(branch));
+                }
+                case "per_customer": {
+                    // Format: "+code1,-code2|+code3,+code4" (num|den)
+                    String input = formula.getInputCodes();
+                    if (input == null || input.isEmpty()) return null;
+                    String[] parts = input.split("\\|");
+                    String numPart = parts.length > 0 ? parts[0] : "";
+                    String denPart = parts.length > 1 ? parts[1] : "";
+                    double numerator = evaluateSignedSum(numPart, base);
+                    double denominator = evaluateSignedSum(denPart, base);
+                    return safeDiv(numerator, denominator);
+                }
+                case "growth_rate": {
+                    String inputCodes = formula.getInputCodes();
+                    if (inputCodes == null || !inputCodes.contains("|")) return null;
+                    String[] parts = inputCodes.split("\\|");
+                    if (parts.length < 2) return null;
+                    return calcGrowthRate(branch.getBranchId(), dataYear, parts[0], parts[1]);
+                }
+                default:
+                    return null;
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int totalStaff(JwBranchInfo branch) {
+        return branch.getTotalStaff() != null && branch.getTotalStaff() > 0 ? branch.getTotalStaff() : 1;
+    }
+
+    private double totalArea(JwBranchInfo branch) {
+        return branch.getTotalArea() != null && branch.getTotalArea() > 0 ? branch.getTotalArea() : 1.0;
+    }
+
+    /**
+     * 计算带符号的多指标累加值
+     * 格式: "+code1,-code2,+code3" → code1 - code2 + code3
+     */
+    private double evaluateSignedSum(String expr, Map<String, Double> base) {
+        if (expr == null || expr.trim().isEmpty()) return 0;
+        double sum = 0;
+        for (String token : expr.split(",")) {
+            token = token.trim();
+            if (token.isEmpty()) continue;
+            if (token.startsWith("-")) {
+                sum -= base.getOrDefault(token.substring(1), 0.0);
+            } else {
+                String code = token.startsWith("+") ? token.substring(1) : token;
+                sum += base.getOrDefault(code, 0.0);
+            }
+        }
+        return sum;
+    }
+
+    /**
      * 从基础数据提取指标值Map
      */
     private Map<String, Double> getBaseData(Long branchId, Integer dataYear) {
@@ -113,87 +203,10 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
     }
 
     /**
-     * 计算22个衍生指标
-     */
-    private Map<String, Double> computeDerivedIndicators(JwBranchInfo branch, Map<String, Double> base, Integer dataYear) {
-        Map<String, Double> result = new LinkedHashMap<>();
-        int totalStaff = branch.getTotalStaff() != null ? branch.getTotalStaff() : 1;
-        double totalArea = branch.getTotalArea() != null && branch.getTotalArea() > 0 ? branch.getTotalArea() : 1;
-
-        // 基础指标值
-        double interestIncome = base.getOrDefault("interest_income", 0.0);
-        double feeIncome = base.getOrDefault("fee_income", 0.0);
-        double totalRevenue = interestIncome + feeIncome;
-
-        // 客户数
-        double pcustT1 = base.getOrDefault("pcust_t1", 0.0);
-        double pcustT2 = base.getOrDefault("pcust_t2", 0.0);
-        double pcustT3 = base.getOrDefault("pcust_t3", 0.0);
-        double pcustTotal = pcustT1 + pcustT2 + pcustT3;
-        double ccustH = base.getOrDefault("ccust_h", 0.0);
-        double ccustL = base.getOrDefault("ccust_l", 0.0);
-        double ccustTotal = ccustH + ccustL;
-        double icustH = base.getOrDefault("icust_h", 0.0);
-        double icustL = base.getOrDefault("icust_l", 0.0);
-        double icustTotal = icustH + icustL;
-
-        // 1-2. 营收类
-        result.put("branch_rev_per_capita", safeDiv(totalRevenue, totalStaff));
-        result.put("branch_rev_per_area", safeDiv(totalRevenue, totalArea));
-
-        // 3-4. 全量个人金融资产
-        double assetBalance = base.getOrDefault("total_asset_balance", 0.0);
-        result.put("branch_asset_avg_balance", safeDiv(assetBalance, pcustTotal));
-        result.put("branch_asset_avg_growth", calcGrowthRate(branch.getBranchId(), dataYear, "total_asset_balance", "total_asset_growth"));
-
-        // 5-6. 储蓄存款
-        double savingBalance = base.getOrDefault("saving_balance", 0.0);
-        result.put("branch_saving_avg_balance", safeDiv(savingBalance, pcustTotal));
-        result.put("branch_saving_avg_growth", calcGrowthRate(branch.getBranchId(), dataYear, "saving_balance", "saving_growth"));
-
-        // 7-8. 公司客户存款
-        double corpDepBalance = base.getOrDefault("corp_dep_balance", 0.0);
-        result.put("branch_corp_dep_avg_balance", safeDiv(corpDepBalance, ccustTotal));
-        result.put("branch_corp_dep_avg_growth", calcGrowthRate(branch.getBranchId(), dataYear, "corp_dep_balance", "corp_dep_growth"));
-
-        // 9-10. 机构客户存款
-        double instDepBalance = base.getOrDefault("inst_dep_balance", 0.0);
-        result.put("branch_inst_dep_avg_balance", safeDiv(instDepBalance, icustTotal));
-        result.put("branch_inst_dep_avg_growth", calcGrowthRate(branch.getBranchId(), dataYear, "inst_dep_balance", "inst_dep_growth"));
-
-        // 11-12. 贷款类
-        double inclusiveLoan = base.getOrDefault("inclusive_loan_amount", 0.0);
-        double personalLoan = base.getOrDefault("personal_loan_amount", 0.0);
-        result.put("branch_incloan_per_capita", safeDiv(inclusiveLoan, totalStaff));
-        result.put("branch_perloan_per_capita", safeDiv(personalLoan, totalStaff));
-
-        // 13-19. 客户发展（客户数/总人数）
-        result.put("branch_pcust_t1_per_capita", safeDiv(pcustT1, totalStaff));
-        result.put("branch_pcust_t2_per_capita", safeDiv(pcustT2, totalStaff));
-        result.put("branch_pcust_t3_per_capita", safeDiv(pcustT3, totalStaff));
-        result.put("branch_ccust_h_per_capita", safeDiv(ccustH, totalStaff));
-        result.put("branch_ccust_l_per_capita", safeDiv(ccustL, totalStaff));
-        result.put("branch_icust_h_per_capita", safeDiv(icustH, totalStaff));
-        result.put("branch_icust_l_per_capita", safeDiv(icustL, totalStaff));
-
-        // 20-22. 业务运营（业务量/总面积）
-        double counterTxn = base.getOrDefault("counter_txn", 0.0);
-        double terminalTxn = base.getOrDefault("terminal_txn", 0.0);
-        double atmTxn = base.getOrDefault("atm_txn", 0.0);
-        result.put("branch_counter_per_area", safeDiv(counterTxn, totalArea));
-        result.put("branch_terminal_per_area", safeDiv(terminalTxn, totalArea));
-        result.put("branch_atm_per_area", safeDiv(atmTxn, totalArea));
-
-        return result;
-    }
-
-    /**
      * 日均增幅 = 本年日均增量 / 上年日均余额
-     * 2023年无2022数据，返回null表示"--"
      */
     private Double calcGrowthRate(Long branchId, Integer dataYear, String balanceCode, String growthCode) {
-        if (dataYear == 2023) return null;  // 无上一年数据
-        // 查询上年日均余额
+        if (dataYear == 2023) return null;
         List<JwBranchIndicator> prevYear = branchIndicatorMapper.selectByBranchAndYear(branchId, dataYear - 1, "基础数据");
         double prevBalance = 0;
         for (JwBranchIndicator item : prevYear) {
@@ -203,7 +216,6 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
             }
         }
         if (prevBalance == 0) return null;
-        // 查询本年日均增量
         List<JwBranchIndicator> currYear = branchIndicatorMapper.selectByBranchAndYear(branchId, dataYear, "基础数据");
         double currGrowth = 0;
         for (JwBranchIndicator item : currYear) {
@@ -245,15 +257,23 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
 
     private void computeBranchSummary(String city, Integer dataYear) {
         branchSummaryMapper.deleteByCityAndYear(city, dataYear);
-        List<JwWeightConfig> weights = branchEffWeightMapper.selectAll();
-        Map<String, Double> weightMap = weights.stream()
-            .filter(w -> w.getIndicatorCode() != null && !w.getIndicatorCode().isEmpty())
-            .collect(Collectors.toMap(JwWeightConfig::getIndicatorCode, JwWeightConfig::getTotalWeight, (a, b) -> a));
+
+        // 加载 branch + branch_raw 类型所有叶子指标，使原始数据也参与评分
+        List<JwIndicatorConfig> allBranch = new ArrayList<>();
+        allBranch.addAll(indicatorConfigMapper.selectByType("branch"));
+        allBranch.addAll(indicatorConfigMapper.selectByType("branch_raw"));
+        Map<String, JwIndicatorConfig> configMap = allBranch.stream()
+            .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
+
+        // 只对叶子节点计算权重
+        List<JwIndicatorConfig> leaves = allBranch.stream()
+            .filter(c -> c.isLeaf(configMap))
+            .collect(Collectors.toList());
 
         List<JwBranchInfo> branches = branchInfoMapper.selectByCity(city);
-        List<String> allIndicators = loadAllBranchIndicators();
 
-        for (String code : allIndicators) {
+        for (JwIndicatorConfig leaf : leaves) {
+            String code = leaf.getIndicatorCode();
             List<Double> values = new ArrayList<>();
             for (JwBranchInfo branch : branches) {
                 JwBranchIndicator ind = branchIndicatorMapper.selectByBranchYearSheetAndIndicator(
@@ -266,7 +286,7 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
 
             double maxVal = values.stream().mapToDouble(Double::doubleValue).max().orElse(0);
             double minVal = values.stream().mapToDouble(Double::doubleValue).min().orElse(0);
-            double weight = weightMap.getOrDefault(code, 0.0);
+            double weight = leaf.getEffectiveWeight(configMap);
 
             JwBranchSummary summary = new JwBranchSummary();
             summary.setCity(city);
@@ -284,7 +304,6 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
         List<JwBranchSummary> summaries = branchSummaryMapper.selectByCityAndYear(city, dataYear);
         if (branches.isEmpty() || summaries.isEmpty()) return;
 
-        // 清理旧归一化数据
         for (JwBranchInfo branch : branches) {
             branchIndicatorMapper.deleteByBranchAndYear(branch.getBranchId(), dataYear, "数据计算表归一化");
         }
@@ -300,7 +319,6 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
                 colValues.add(val);
                 branchValueMap.put(branch.getBranchId(), val);
             }
-            // 网点归一化: value * weight / SQRT(SUMSQ)
             double sumSq = TopsisCalculator.calcSumSq(colValues);
             double weight = summary.getActualWeight();
             double maxNorm = 0, minNorm = Double.MAX_VALUE;
@@ -333,27 +351,56 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
         Map<String, JwBranchSummary> summaryMap = summaries.stream()
             .collect(Collectors.toMap(JwBranchSummary::getIndicatorCode, s -> s, (a, b) -> a));
 
-        // 清理旧得分
         branchScoreMapper.deleteByCityAndYear(city, dataYear);
+
+        // 按根节点分组叶子指标（用于分类得分）
+        List<JwIndicatorConfig> allBranch = indicatorConfigMapper.selectByType("branch");
+        Map<String, JwIndicatorConfig> configMap = allBranch.stream()
+            .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
+        List<JwIndicatorConfig> roots = allBranch.stream()
+            .filter(c -> c.getParentCode() == null || c.getParentCode().isEmpty())
+            .collect(Collectors.toList());
 
         int count = 0;
         for (JwBranchInfo branch : branches) {
-            // 对每个类别和总分做TOPSIS
-            for (Map.Entry<String, List<String>> catEntry : loadCategoryMap().entrySet()) {
-                String category = catEntry.getKey();
-                List<String> indicatorCodes = catEntry.getValue();
-                computeCategoryScore(branch, dataYear, city, category, indicatorCodes, summaryMap);
+            // 按每个根节点分类做 TOPSIS
+            for (JwIndicatorConfig root : roots) {
+                List<String> leafCodes = getLeafCodesUnder(root.getIndicatorCode(), configMap);
+                computeCategoryScore(branch, dataYear, city, root.getIndicatorCode(), leafCodes, summaryMap);
             }
-            // 总分
-            List<String> allCodes = loadAllBranchIndicators();
-            computeCategoryScore(branch, dataYear, city, "overall", allCodes, summaryMap);
+            // overall 用所有叶子
+            List<JwIndicatorConfig> allLeaves = allBranch.stream()
+                .filter(c -> c.isLeaf(configMap))
+                .collect(Collectors.toList());
+            List<String> allLeafCodes = allLeaves.stream()
+                .map(JwIndicatorConfig::getIndicatorCode).collect(Collectors.toList());
+            computeCategoryScore(branch, dataYear, city, "overall", allLeafCodes, summaryMap);
             count++;
         }
 
-        // 计算排名
         computeRankings(city, dataYear);
-
         return count;
+    }
+
+    /** 获取某个根节点下所有叶子指标的编码列表 */
+    private List<String> getLeafCodesUnder(String rootCode, Map<String, JwIndicatorConfig> configMap) {
+        Set<String> leafCodes = new LinkedHashSet<>();
+        for (JwIndicatorConfig config : configMap.values()) {
+            if (config.isLeaf(configMap) && isUnderRoot(config, rootCode, configMap)) {
+                leafCodes.add(config.getIndicatorCode());
+            }
+        }
+        return new ArrayList<>(leafCodes);
+    }
+
+    private boolean isUnderRoot(JwIndicatorConfig node, String rootCode, Map<String, JwIndicatorConfig> configMap) {
+        String parent = node.getParentCode();
+        while (parent != null && !parent.isEmpty()) {
+            if (parent.equals(rootCode)) return true;
+            JwIndicatorConfig p = configMap.get(parent);
+            parent = p != null ? p.getParentCode() : null;
+        }
+        return false;
     }
 
     private void computeCategoryScore(JwBranchInfo branch, Integer dataYear, String city,
@@ -392,8 +439,9 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
     }
 
     private void computeRankings(String city, Integer dataYear) {
-        for (String category : loadCategoryMap().keySet()) {
-            List<JwBranchScore> scores = branchScoreMapper.selectByCityAndYearAndCategory(city, dataYear, category);
+        List<JwIndicatorConfig> roots = indicatorConfigMapper.selectRoots("branch");
+        for (JwIndicatorConfig root : roots) {
+            List<JwBranchScore> scores = branchScoreMapper.selectByCityAndYearAndCategory(city, dataYear, root.getIndicatorCode());
             scores.sort((a, b) -> Double.compare(
                 b.getCategoryScore() != null ? b.getCategoryScore() : 0,
                 a.getCategoryScore() != null ? a.getCategoryScore() : 0));
@@ -402,7 +450,6 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
                 branchScoreMapper.updateRank(scores.get(i));
             }
         }
-        // overall排名
         List<JwBranchScore> overallScores = branchScoreMapper.selectByCityAndYearAndCategory(city, dataYear, "overall");
         overallScores.sort((a, b) -> Double.compare(
             b.getCategoryScore() != null ? b.getCategoryScore() : 0,
@@ -419,7 +466,9 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
         status.put("city", city);
         List<JwBranchInfo> branches = branchInfoMapper.selectByCity(city);
         status.put("branchCount", branches.size());
-        status.put("hasWeight", branchEffWeightMapper.selectAll().size() > 0);
+        // hasWeight → 检查 branch 类型是否有叶子指标
+        List<JwIndicatorConfig> leaves = indicatorConfigMapper.selectLeavesByType("branch");
+        status.put("hasWeight", !leaves.isEmpty());
         boolean hasBase = false;
         if (!branches.isEmpty()) {
             List<JwBranchIndicator> base = branchIndicatorMapper.selectByBranchAndYear(branches.get(0).getBranchId(), 2024, "基础数据");

@@ -18,12 +18,6 @@ export function importPoi(data) {
 export function importPopulationHeat(data) {
   return request({ url: '/jwmap/import/populationHeat', method: 'post', data: data, timeout: 600000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
-export function importExternalWeight(data) {
-  return request({ url: '/jwmap/import/externalWeight', method: 'post', data: data, timeout: 300000, headers: { 'Content-Type': 'multipart/form-data' } })
-}
-export function importBranchEfficiencyWeight(data) {
-  return request({ url: '/jwmap/import/branchEfficiencyWeight', method: 'post', data: data, timeout: 300000, headers: { 'Content-Type': 'multipart/form-data' } })
-}
 export function importBranchInfo(data) {
   return request({ url: '/jwmap/import/branchInfo', method: 'post', data: data, timeout: 600000, headers: { 'Content-Type': 'multipart/form-data' } })
 }
@@ -89,15 +83,8 @@ export function getBranchList(city) {
 export function getBranchScore(city, year) {
   return request({ url: '/jwmap/data/branch/score/' + city + '/' + year, method: 'get' })
 }
-export function getIndicatorList(sourceTable) {
-  const params = sourceTable ? { sourceTable } : {}
+export function getIndicatorList(params) {
   return request({ url: '/jwmap/data/indicator/list', method: 'get', params })
-}
-export function getExternalWeightList() {
-  return request({ url: '/jwmap/data/weight/external', method: 'get' })
-}
-export function getBranchEfficiencyWeightList() {
-  return request({ url: '/jwmap/data/weight/branchEfficiency', method: 'get' })
 }
 export function getPeerBankList(city) {
   return request({ url: '/jwmap/data/peerBank/list', method: 'get', params: { city } })
@@ -154,4 +141,24 @@ export function getNearbyBranches(branchId, radius) {
 }
 export function getPillarGap(gridCode) {
   return request({ url: '/jwmap/data/grid/pillar/gap/' + gridCode, method: 'get' })
+}
+
+// ===== 指标配置管理 =====
+export function getIndicatorTree(type) {
+  return request({ url: '/jwmap/config/indicators/tree', method: 'get', params: { indicatorType: type } })
+}
+export function generateIndicatorCode(name, type) {
+  return request({ url: '/jwmap/config/indicators/code/generate', method: 'get', params: { name, indicatorType: type } })
+}
+export function saveIndicator(data) {
+  return request({ url: '/jwmap/config/indicators', method: 'post', data: data })
+}
+export function updateIndicator(id, data) {
+  return request({ url: '/jwmap/config/indicators/' + id, method: 'put', data: data })
+}
+export function deleteIndicator(id) {
+  return request({ url: '/jwmap/config/indicators/' + id, method: 'delete' })
+}
+export function batchDeleteIndicators(codes) {
+  return request({ url: '/jwmap/config/indicators/batchDelete', method: 'post', data: { codes } })
 }

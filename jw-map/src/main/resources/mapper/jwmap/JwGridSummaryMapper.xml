@@ -130,4 +130,7 @@
             min_norm = VALUES(min_norm)
     </insert>
 
+    <delete id="deleteByIndicatorCode">DELETE FROM jw_grid_summary WHERE indicator_code = #{indicatorCode}</delete>
+    <update id="updateIndicatorCode">UPDATE jw_grid_summary SET indicator_code = #{newCode} WHERE indicator_code = #{oldCode}</update>
+
 </mapper>

@@ -35,4 +35,7 @@ public interface JwGridSummaryMapper {
     int batchInsert(List<JwGridSummary> list);
 
     int upsertJwGridSummary(JwGridSummary s);
+
+    int deleteByIndicatorCode(@Param("indicatorCode") String indicatorCode);
+    int updateIndicatorCode(@Param("oldCode") String oldCode, @Param("newCode") String newCode);
 }

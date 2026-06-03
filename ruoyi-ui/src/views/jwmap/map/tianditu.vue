@@ -104,7 +104,7 @@ export default {
       map: null, boundaryMgr: null, measureTool: null,
       heatmapLayer: null, heatmapVisible: false,
       cityBoundaries: [], branchLayer: null,
-      indicatorNameMap: {}, cityNameMap: {},
+      indicatorNameMap: {}, indicatorParentMap: {}, cityNameMap: {},
       selectedYear: 2024,
       sidebar: {
         visible: false, mode: 'grid-only', width: 380,
@@ -245,11 +245,11 @@ export default {
       this.sidebar.visible = true
     },
     async loadPillarGap(gridCode) {
-      if (!gridCode) { this.sidebar.pillarGap = { population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }; return }
+      if (!gridCode) { this.sidebar.pillarGap = {}; return }
       try {
         const res = await getPillarGap(gridCode)
-        this.sidebar.pillarGap = res.data || { population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }
-      } catch (e) { this.sidebar.pillarGap = { population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } } }
+        this.sidebar.pillarGap = res.data || {}
+      } catch (e) { this.sidebar.pillarGap = {} }
     },
     async loadBranchScores(branchId) {
       try {
@@ -295,11 +295,13 @@ export default {
         code: d.indicatorCode,
         name: this.indicatorNameMap[d.indicatorCode] || d.indicatorCode,
         value: d.indicatorValue,
-        categoryLevel1: d.categoryLevel1,
-        categoryLevel2: d.categoryLevel2
+        categoryLevel1: d.level1Name,
+        categoryLevel2: d.level1Name,
+        level1Code: d.level1Code,
+        level1Name: d.level1Name
       }))
       this.sidebar.gridRankMeta = rankRes.data || { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 }
-      this.sidebar.pillar = pillarRes.data || { population: { score: 0, count: 0 }, enterprise: { score: 0, count: 0 }, business: { score: 0, count: 0 } }
+      this.sidebar.pillar = pillarRes.data || {}
       this.loadPillarGap(gridCode)
 
       const brRes = await getGridBranches(gridCode)
@@ -524,24 +526,32 @@ export default {
     },
 
     getIndicatorCategory(code) {
-      if (!code) return '其他'
-      if (code.includes('rev')) return '营收'
-      if (code.includes('asset') || code.includes('saving') || code.includes('dep') || code.includes('loan')) return '业绩'
-      if (code.includes('cust')) return '客户'
-      if (code.includes('counter') || code.includes('terminal') || code.includes('atm')) return '运营'
-      return '其他'
+      if (!code || !this.indicatorParentMap) return '其他'
+      // 沿 parentCode 链上溯到一级根节点
+      let current = code
+      let parentCode = this.indicatorParentMap[current]
+      while (parentCode) {
+        current = parentCode
+        parentCode = this.indicatorParentMap[parentCode]
+      }
+      return this.indicatorNameMap[current] || current
     },
 
     // ==== 指标名称映射 ====
     async loadIndicatorNames() {
       try {
         const res = await getIndicatorList(null)
-        const map = {}
+        const nameMap = {}
+        const parentMap = {}
         const list = res.data || []
         for (const item of list) {
-          if (item.indicatorCode) map[item.indicatorCode] = item.indicatorName || item.indicatorCode
+          if (item.indicatorCode) {
+            nameMap[item.indicatorCode] = item.indicatorName || item.indicatorCode
+            if (item.parentCode) parentMap[item.indicatorCode] = item.parentCode
+          }
         }
-        this.indicatorNameMap = map
+        this.indicatorNameMap = nameMap
+        this.indicatorParentMap = parentMap
       } catch (e) { /* ignore */ }
     }
   }

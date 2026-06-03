@@ -6,21 +6,21 @@
         <id property="indicatorId" column="indicator_id"/>
         <result property="indicatorCode" column="indicator_code"/>
         <result property="indicatorName" column="indicator_name"/>
-        <result property="categoryLevel1" column="category_level1"/>
-        <result property="categoryLevel2" column="category_level2"/>
-        <result property="dataType" column="data_type"/>
+        <result property="indicatorType" column="indicator_type"/>
+        <result property="parentCode" column="parent_code"/>
+        <result property="isDerived" column="is_derived"/>
+        <result property="computationPattern" column="computation_pattern"/>
+        <result property="inputCodes" column="input_codes"/>
+        <result property="calculationWeight" column="calculation_weight"/>
         <result property="sortOrder" column="sort_order"/>
-        <result property="sourceTables" column="source_tables"/>
-        <result property="isWeighted" column="is_weighted"/>
-        <result property="isActive" column="is_active"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
     </resultMap>
 
     <sql id="selectJwIndicatorConfigVo">
-        SELECT indicator_id, indicator_code, indicator_name, category_level1, category_level2,
-               data_type, sort_order, source_tables, is_weighted, is_active,
-               create_time, update_time
+        SELECT indicator_id, indicator_code, indicator_name, indicator_type,
+               parent_code, is_derived, computation_pattern, input_codes,
+               calculation_weight, sort_order, create_time, update_time
         FROM jw_indicator_config
     </sql>
 
@@ -33,20 +33,14 @@
             <if test="indicatorName != null and indicatorName != ''">
                 AND indicator_name LIKE CONCAT('%', #{indicatorName}, '%')
             </if>
-            <if test="categoryLevel1 != null and categoryLevel1 != ''">
-                AND category_level1 = #{categoryLevel1}
+            <if test="indicatorType != null and indicatorType != ''">
+                AND indicator_type = #{indicatorType}
             </if>
-            <if test="categoryLevel2 != null and categoryLevel2 != ''">
-                AND category_level2 = #{categoryLevel2}
-            </if>
-            <if test="isWeighted != null and isWeighted != ''">
-                AND is_weighted = #{isWeighted}
-            </if>
-            <if test="isActive != null and isActive != ''">
-                AND is_active = #{isActive}
+            <if test="parentCode != null and parentCode != ''">
+                AND parent_code = #{parentCode}
             </if>
         </where>
-        ORDER BY sort_order
+        ORDER BY indicator_type, sort_order, indicator_id
     </select>
 
     <select id="selectJwIndicatorConfigById" parameterType="Long" resultMap="JwIndicatorConfigResult">
@@ -54,25 +48,44 @@
         WHERE indicator_id = #{indicatorId}
     </select>
 
-    <select id="selectActiveWeighted" resultMap="JwIndicatorConfigResult">
+    <select id="selectByType" resultMap="JwIndicatorConfigResult">
         <include refid="selectJwIndicatorConfigVo"/>
-        WHERE is_weighted = '1' AND is_active = '1'
-        ORDER BY sort_order
+        WHERE indicator_type = #{indicatorType}
+        ORDER BY sort_order, indicator_id
     </select>
 
-    <select id="selectBySourceTable" resultMap="JwIndicatorConfigResult">
+    <select id="selectByTypes" resultMap="JwIndicatorConfigResult">
         <include refid="selectJwIndicatorConfigVo"/>
-        WHERE FIND_IN_SET(#{sourceTable}, source_tables)
-        ORDER BY sort_order
-    </select>
-
-    <select id="selectByCodes" resultMap="JwIndicatorConfigResult">
-        <include refid="selectJwIndicatorConfigVo"/>
-        WHERE indicator_code IN
-        <foreach item="code" collection="list" open="(" separator="," close=")">
-            #{code}
+        WHERE indicator_type IN
+        <foreach item="type" collection="types" open="(" separator="," close=")">
+            #{type}
         </foreach>
-        ORDER BY sort_order
+        ORDER BY sort_order, indicator_id
+    </select>
+
+    <select id="selectLeavesByType" resultMap="JwIndicatorConfigResult">
+        SELECT t.* FROM jw_indicator_config t
+        WHERE t.indicator_type = #{indicatorType}
+          AND NOT EXISTS (
+              SELECT 1 FROM jw_indicator_config c
+              WHERE c.parent_code = t.indicator_code
+          )
+        ORDER BY t.sort_order, t.indicator_id
+    </select>
+
+    <select id="selectByParent" resultMap="JwIndicatorConfigResult">
+        <include refid="selectJwIndicatorConfigVo"/>
+        WHERE parent_code = #{parentCode}
+        ORDER BY sort_order, indicator_id
+    </select>
+
+    <select id="selectRoots" resultMap="JwIndicatorConfigResult">
+        <include refid="selectJwIndicatorConfigVo"/>
+        WHERE parent_code IS NULL
+        <if test="indicatorType != null and indicatorType != ''">
+            AND indicator_type = #{indicatorType}
+        </if>
+        ORDER BY sort_order, indicator_id
     </select>
 
     <select id="selectByCode" resultMap="JwIndicatorConfigResult">
@@ -85,15 +98,24 @@
         WHERE indicator_name = #{indicatorName}
     </select>
 
+    <select id="selectByCodes" resultMap="JwIndicatorConfigResult">
+        <include refid="selectJwIndicatorConfigVo"/>
+        WHERE indicator_code IN
+        <foreach item="code" collection="list" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+        ORDER BY sort_order
+    </select>
+
     <insert id="insertIndicatorConfig" parameterType="com.ruoyi.jwmap.domain.JwIndicatorConfig" useGeneratedKeys="true" keyProperty="indicatorId">
         INSERT INTO jw_indicator_config (
-            indicator_code, indicator_name, category_level1, category_level2,
-            data_type, sort_order, source_tables, is_weighted, is_active,
-            create_time, update_time
+            indicator_code, indicator_name, indicator_type,
+            parent_code, is_derived, computation_pattern, input_codes,
+            calculation_weight, sort_order, create_time, update_time
         ) VALUES (
-            #{indicatorCode}, #{indicatorName}, #{categoryLevel1}, #{categoryLevel2},
-            #{dataType}, #{sortOrder}, #{sourceTables}, #{isWeighted}, #{isActive},
-            sysdate(), sysdate()
+            #{indicatorCode}, #{indicatorName}, #{indicatorType},
+            #{parentCode}, #{isDerived}, #{computationPattern}, #{inputCodes},
+            #{calculationWeight}, #{sortOrder}, sysdate(), sysdate()
         )
     </insert>
 
@@ -102,13 +124,13 @@
         <set>
             <if test="indicatorCode != null">indicator_code = #{indicatorCode},</if>
             <if test="indicatorName != null">indicator_name = #{indicatorName},</if>
-            <if test="categoryLevel1 != null">category_level1 = #{categoryLevel1},</if>
-            <if test="categoryLevel2 != null">category_level2 = #{categoryLevel2},</if>
-            <if test="dataType != null">data_type = #{dataType},</if>
+            <if test="indicatorType != null">indicator_type = #{indicatorType},</if>
+            <if test="parentCode != null">parent_code = #{parentCode},</if>
+            <if test="isDerived != null">is_derived = #{isDerived},</if>
+            <if test="computationPattern != null">computation_pattern = #{computationPattern},</if>
+            <if test="inputCodes != null">input_codes = #{inputCodes},</if>
+            <if test="calculationWeight != null">calculation_weight = #{calculationWeight},</if>
             <if test="sortOrder != null">sort_order = #{sortOrder},</if>
-            <if test="sourceTables != null">source_tables = #{sourceTables},</if>
-            <if test="isWeighted != null">is_weighted = #{isWeighted},</if>
-            <if test="isActive != null">is_active = #{isActive},</if>
             update_time = sysdate()
         </set>
         WHERE indicator_id = #{indicatorId}
@@ -125,38 +147,51 @@
         </foreach>
     </delete>
 
+    <delete id="deleteByParentCode">
+        DELETE FROM jw_indicator_config WHERE parent_code = #{parentCode}
+    </delete>
+
+    <delete id="deleteByCode">
+        DELETE FROM jw_indicator_config WHERE indicator_code = #{indicatorCode}
+    </delete>
+
+    <update id="updateParentCode">
+        UPDATE jw_indicator_config SET parent_code = #{newCode}
+        WHERE parent_code = #{oldCode}
+    </update>
+
     <insert id="batchInsert" parameterType="java.util.List">
         INSERT INTO jw_indicator_config (
-            indicator_code, indicator_name, category_level1, category_level2,
-            data_type, sort_order, source_tables, is_weighted, is_active,
-            create_time, update_time
+            indicator_code, indicator_name, indicator_type,
+            parent_code, is_derived, computation_pattern, input_codes,
+            calculation_weight, sort_order, create_time, update_time
         ) VALUES
         <foreach item="item" collection="list" separator=",">
-            (#{item.indicatorCode}, #{item.indicatorName}, #{item.categoryLevel1}, #{item.categoryLevel2},
-             #{item.dataType}, #{item.sortOrder}, #{item.sourceTables}, #{item.isWeighted}, #{item.isActive},
-             sysdate(), sysdate())
+            (#{item.indicatorCode}, #{item.indicatorName}, #{item.indicatorType},
+             #{item.parentCode}, #{item.isDerived}, #{item.computationPattern}, #{item.inputCodes},
+             #{item.calculationWeight}, #{item.sortOrder}, sysdate(), sysdate())
         </foreach>
     </insert>
 
     <insert id="upsertJwIndicatorConfig" parameterType="com.ruoyi.jwmap.domain.JwIndicatorConfig">
         INSERT INTO jw_indicator_config (
-            indicator_code, indicator_name, category_level1, category_level2,
-            data_type, sort_order, source_tables, is_weighted, is_active,
-            create_time, update_time
+            indicator_code, indicator_name, indicator_type,
+            parent_code, is_derived, computation_pattern, input_codes,
+            calculation_weight, sort_order, create_time, update_time
         ) VALUES (
-            #{indicatorCode}, #{indicatorName}, #{categoryLevel1}, #{categoryLevel2},
-            #{dataType}, #{sortOrder}, #{sourceTables}, #{isWeighted}, #{isActive},
-            sysdate(), sysdate()
+            #{indicatorCode}, #{indicatorName}, #{indicatorType},
+            #{parentCode}, #{isDerived}, #{computationPattern}, #{inputCodes},
+            #{calculationWeight}, #{sortOrder}, sysdate(), sysdate()
         )
         ON DUPLICATE KEY UPDATE
             indicator_name = VALUES(indicator_name),
-            category_level1 = VALUES(category_level1),
-            category_level2 = VALUES(category_level2),
-            data_type = VALUES(data_type),
+            indicator_type = VALUES(indicator_type),
+            parent_code = VALUES(parent_code),
+            is_derived = VALUES(is_derived),
+            computation_pattern = VALUES(computation_pattern),
+            input_codes = VALUES(input_codes),
+            calculation_weight = VALUES(calculation_weight),
             sort_order = VALUES(sort_order),
-            source_tables = VALUES(source_tables),
-            is_weighted = VALUES(is_weighted),
-            is_active = VALUES(is_active),
             update_time = sysdate()
     </insert>
 

@@ -44,4 +44,7 @@ public interface JwPopulationHeatMapper {
     int upsertJwPopulationHeat(JwPopulationHeat heat);
 
     int upsertPopulationHeat(JwPopulationHeat heat);
+
+    int deleteByIndicatorCode(@Param("indicatorCode") String indicatorCode);
+    int updateIndicatorCode(@Param("oldCode") String oldCode, @Param("newCode") String newCode);
 }

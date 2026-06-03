@@ -540,8 +540,14 @@ public class ExcelExportService {
         LinkedHashMap<String, List<String>> catGroups = new LinkedHashMap<>();
         for (String code : indicatorCodes) {
             JwIndicatorConfig cfg = configMap.get(code);
-            String cat = (cfg != null && cfg.getCategoryLevel1() != null && !cfg.getCategoryLevel1().isEmpty())
-                    ? cfg.getCategoryLevel1() : "其他";
+            String cat = "其他";
+            if (cfg != null) {
+                // 使用 parent_code 链找到根节点名称作为分类
+                String rootName = getRootName(cfg, configMap);
+                if (rootName != null && !rootName.isEmpty()) {
+                    cat = rootName;
+                }
+            }
             catGroups.computeIfAbsent(cat, k -> new ArrayList<>()).add(code);
         }
 
@@ -1646,5 +1652,20 @@ public class ExcelExportService {
         style.setVerticalAlignment(VerticalAlignment.CENTER);
         style.setDataFormat(workbook.createDataFormat().getFormat("0.00%"));
         return style;
+    }
+
+    /** 沿 parent_code 链找到根节点的 indicator_name 作为分类名 */
+    private String getRootName(JwIndicatorConfig cfg, Map<String, JwIndicatorConfig> configMap) {
+        String parent = cfg.getParentCode();
+        if (parent == null || parent.isEmpty()) return cfg.getIndicatorName();
+        String prev = parent;
+        while (parent != null && !parent.isEmpty()) {
+            JwIndicatorConfig p = configMap.get(parent);
+            if (p == null) break;
+            prev = parent;
+            parent = p.getParentCode();
+        }
+        JwIndicatorConfig root = configMap.get(prev);
+        return root != null ? root.getIndicatorName() : null;
     }
 }
