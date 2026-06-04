@@ -53,11 +53,21 @@
           <div v-if="indicatorTree.length > 0" class="section">
             <h4 class="section-title">指标数据</h4>
             <el-collapse v-model="activeCategories">
-              <el-collapse-item v-for="(root, idx) in indicatorTree" :key="idx"
-                :title="root.name" :name="String(idx)">
-                <el-collapse v-model="activeL2[idx]" class="inner-collapse">
-                  <el-collapse-item v-for="(cat, cidx) in root.categories" :key="cidx"
-                    :title="cat.name" :name="String(cidx)">
+              <el-collapse-item v-for="(root, idx) in indicatorTree" :key="idx" :name="String(idx)">
+                <template slot="title">
+                  <span class="level-root">{{ root.name }}</span>
+                </template>
+                <!-- 直接子节点：直属于根，无中间分类标题 -->
+                <div v-for="ind in root.direct" :key="ind.indicatorCode" class="indicator-row">
+                  <span class="ind-name">{{ ind.indicatorName || ind.indicatorCode }}</span>
+                  <span class="ind-value">{{ formatValue(ind.indicatorValue) }}</span>
+                </div>
+                <!-- 中间分类节点：有中间父节点的，按分类折叠展示 -->
+                <el-collapse v-if="root.categories.length" v-model="activeL2[idx]" class="inner-collapse">
+                  <el-collapse-item v-for="(cat, cidx) in root.categories" :key="cidx" :name="String(cidx)">
+                    <template slot="title">
+                      <span class="level-category">{{ cat.name }}</span>
+                    </template>
                     <div v-for="ind in cat.indicators" :key="ind.indicatorCode" class="indicator-row">
                       <span class="ind-name">{{ ind.indicatorName || ind.indicatorCode }}</span>
                       <span class="ind-value">{{ formatValue(ind.indicatorValue) }}</span>
@@ -69,11 +79,11 @@
           </div>
           <el-empty v-else description="该网点暂无指标数据" :image-size="80" style="padding:20px 0" />
 
-          <!-- 分类得分 -->
-          <div v-if="categoryScoreList.length > 0" class="section">
+          <!-- 分类得分（一级指标的 TOPSIS 得分） -->
+          <div v-if="pillarList.length > 0" class="section">
             <h4 class="section-title">分类得分</h4>
             <el-row :gutter="12">
-              <el-col :span="Math.floor(24 / categoryScoreList.length)" v-for="s in categoryScoreList" :key="s.key">
+              <el-col :span="Math.floor(24 / pillarList.length)" v-for="s in pillarList" :key="s.key">
                 <div class="pillar-card">
                   <div class="pillar-label">{{ s.label }}</div>
                   <div class="pillar-value">{{ s.score }}</div>
@@ -110,15 +120,13 @@
 <script>
 import {
   getBranchScore, getBranchList, getBranchIndicators,
-  getBranchScoreDetail, getBranchInternalRanking, getIndicatorList
+  getBranchInternalRanking, getIndicatorList,
+  getBranchPillarScores
 } from '@/api/jwmap/data'
-
-const CATEGORY_LABEL = {
-  revenue: '营收', indicator: '指标', customer: '客户', operation: '运营', overall: '总分',
-  branch_l1_revenue: '营收能力', branch_l1_indicator: '业绩表现', branch_l1_customer: '客户发展', branch_l1_operation: '业务运营'
-}
+import detailViewMixin from '../mixins/detailViewMixin'
 
 export default {
+  mixins: [detailViewMixin],
   props: {
     city: { type: String, default: '' },
     year: { type: Number, default: 2024 }
@@ -130,18 +138,11 @@ export default {
       selectedBranch: null,
       branchDetail: {},
       branchIndicators: [],
-      categoryScores: [],
-      internalRanking: null,
-      indicatorMap: {},
-      categoryMap: {},
-      districtFilter: '',
-      currentPage: 1,
-      pageSize: 20,
-      activeCategories: [],
-      activeL2: {}
+      internalRanking: null
     }
   },
   computed: {
+    indicators() { return this.branchIndicators },
     districtList() {
       const set = new Set()
       this.allBranches.forEach(b => {
@@ -163,40 +164,6 @@ export default {
     pagedBranches() {
       const start = (this.currentPage - 1) * this.pageSize
       return this.filteredBranches.slice(start, start + this.pageSize)
-    },
-    indicatorTree() {
-      const rootMap = {}
-      for (const ind of this.branchIndicators) {
-        const l1Code = ind.level1Code || '__other__'
-        const l1Name = ind.level1Name || '其他'
-        const parentCode = ind.parentCode
-        const l2Name = parentCode
-          ? (this.categoryMap[parentCode] || parentCode)
-          : '其他'
-        if (!rootMap[l1Code]) {
-          rootMap[l1Code] = { code: l1Code, name: l1Name, categories: {} }
-        }
-        if (!rootMap[l1Code].categories[l2Name]) {
-          rootMap[l1Code].categories[l2Name] = []
-        }
-        rootMap[l1Code].categories[l2Name].push(ind)
-      }
-      return Object.values(rootMap).map(root => ({
-        code: root.code,
-        name: root.name,
-        categories: Object.entries(root.categories).map(([name, indicators]) => ({
-          name,
-          indicators
-        }))
-      }))
-    },
-    categoryScoreList() {
-      if (!this.categoryScores || this.categoryScores.length === 0) return []
-      return this.categoryScores.map(s => ({
-        key: s.scoreCategory,
-        label: CATEGORY_LABEL[s.scoreCategory] || s.scoreCategory,
-        score: s.categoryScore ? s.categoryScore.toFixed(4) : '0.0000'
-      }))
     }
   },
   watch: {
@@ -216,7 +183,7 @@ export default {
       this.selectedBranch = null
       this.branchDetail = {}
       this.branchIndicators = []
-      this.categoryScores = []
+      this.pillarScores = null
       this.internalRanking = null
       try {
         const [scoreRes, infoRes, indRes] = await Promise.all([
@@ -260,32 +227,25 @@ export default {
       this.selectedBranch = branch
       this.branchDetail = this.branchInfoMap[branch.branchId] || {}
       this.branchIndicators = []
-      this.categoryScores = []
+      this.pillarScores = null
       this.internalRanking = null
       try {
-        const [indRes, scoreRes, rankRes] = await Promise.all([
+        const [indRes, pillarRes, rankRes] = await Promise.all([
           getBranchIndicators(branch.branchId, this.year),
-          getBranchScoreDetail(branch.branchId, this.year),
+          getBranchPillarScores(branch.branchId, this.year),
           getBranchInternalRanking(branch.branchId, this.year)
         ])
         this.branchIndicators = indRes.data || []
-        this.categoryScores = scoreRes.data || []
+        this.pillarScores = pillarRes.data || null
         this.internalRanking = rankRes.data || null
       } catch (e) {
         this.branchIndicators = []
-        this.categoryScores = []
+        this.pillarScores = null
         this.internalRanking = null
       }
     },
     rankIndex(row) {
       return this.filteredBranches.indexOf(row) + 1
-    },
-    formatValue(val) {
-      if (val === null || val === undefined) return '-'
-      const num = Number(val)
-      if (isNaN(num)) return val
-      if (Number.isInteger(num)) return num.toLocaleString()
-      return num.toFixed(4)
     }
   }
 }
@@ -396,4 +356,6 @@ export default {
   font-weight: 700;
   color: #232845;
 }
+.level-root { font-size: 15px; font-weight: 700; color: #232845; }
+.level-category { font-size: 13px; font-weight: 600; color: #5a6276; }
 </style>

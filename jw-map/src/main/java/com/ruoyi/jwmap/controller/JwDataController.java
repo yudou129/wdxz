@@ -118,28 +118,40 @@ public class JwDataController extends BaseController {
 
     @GetMapping("/grid/indicators/{gridCode}")
     public AjaxResult gridIndicators(@PathVariable String gridCode) {
-        List<JwGridDataRaw> rawList = gridDataRawMapper.selectByGridCode(gridCode);
-        if (rawList.isEmpty()) {
-            return success(Collections.emptyList());
-        }
+        // 1. 加载 grid 和 grid_raw 类型的全部叶子节点（排除 grid_auto）
+        List<JwIndicatorConfig> leafConfigs = new ArrayList<>();
+        leafConfigs.addAll(indicatorConfigMapper.selectLeavesByType("grid"));
+        leafConfigs.addAll(indicatorConfigMapper.selectLeavesByType("grid_raw"));
 
-        // 加载全部指标配置（含中间节点），确保父链可完整追溯
+        // 2. 加载全部配置，确保父链可完整追溯
         List<JwIndicatorConfig> allConfigs = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
         Map<String, JwIndicatorConfig> configMap = allConfigs.stream()
             .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
 
-        List<Map<String, Object>> result = new ArrayList<>();
+        // 3. 查询该网格的原始数据 → code→value 映射
+        List<JwGridDataRaw> rawList = gridDataRawMapper.selectByGridCode(gridCode);
+        Map<String, Double> dataMap = new HashMap<>();
         for (JwGridDataRaw raw : rawList) {
+            if (raw.getIndicatorValue() != null) {
+                dataMap.put(raw.getIndicatorCode(), raw.getIndicatorValue());
+            }
+        }
+
+        // 4. 遍历全部叶子节点，有数据用实际值，无数据填 0.0
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (JwIndicatorConfig cfg : leafConfigs) {
+            String code = cfg.getIndicatorCode();
+            Double value = dataMap.getOrDefault(code, 0.0);
+
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("indicatorCode", raw.getIndicatorCode());
-            item.put("indicatorValue", raw.getIndicatorValue());
-            JwIndicatorConfig cfg = configMap.get(raw.getIndicatorCode());
-            item.put("indicatorName", cfg != null ? cfg.getIndicatorName() : null);
-            item.put("indicatorType", cfg != null ? cfg.getIndicatorType() : null);
-            item.put("parentCode", cfg != null ? cfg.getParentCode() : null);
+            item.put("indicatorCode", code);
+            item.put("indicatorValue", value);
+            item.put("indicatorName", cfg.getIndicatorName());
+            item.put("indicatorType", cfg.getIndicatorType());
+            item.put("parentCode", cfg.getParentCode());
 
             // 一级根节点信息（用于前端三级树展示）
-            String level1Code = cfg != null ? findLevel1Code(raw.getIndicatorCode(), configMap) : null;
+            String level1Code = findLevel1Code(code, configMap);
             item.put("level1Code", level1Code);
             if (level1Code != null) {
                 JwIndicatorConfig root = configMap.get(level1Code);
@@ -157,6 +169,34 @@ public class JwDataController extends BaseController {
     public AjaxResult branchScoreDetail(@PathVariable Long branchId, @PathVariable Integer year) {
         List<JwBranchScore> list = branchScoreMapper.selectByBranchAndYear(branchId, year);
         return success(list);
+    }
+
+    /** 网点各一级分类 TOPSIS 得分（匹配网格 getGridPillarScores 模式） */
+    @GetMapping("/branch/pillar/{branchId}/{year}")
+    public AjaxResult getBranchPillarScores(@PathVariable Long branchId, @PathVariable Integer year) {
+        List<JwIndicatorConfig> roots = indicatorConfigMapper.selectByTypes(Arrays.asList("branch", "branch_auto", "branch_raw")).stream()
+            .filter(c -> c.getParentCode() == null || c.getParentCode().isEmpty())
+            .collect(Collectors.toList());
+
+        List<JwBranchScore> scores = branchScoreMapper.selectByBranchAndYear(branchId, year);
+        Map<String, Double> scoreMap = new HashMap<>();
+        for (JwBranchScore s : scores) {
+            if (s.getScoreCategory() != null && s.getCategoryScore() != null) {
+                scoreMap.put(s.getScoreCategory(), s.getCategoryScore());
+            }
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (JwIndicatorConfig root : roots) {
+            if ("auto_import_branch".equals(root.getIndicatorCode())) continue; // 不展示自动导入得分
+            Double score = scoreMap.get(root.getIndicatorCode());
+            Map<String, Object> m = new HashMap<>();
+            m.put("score", score != null ? score : 0.0);
+            m.put("name", root.getIndicatorName());
+            m.put("code", root.getIndicatorCode());
+            result.put(root.getIndicatorCode(), m);
+        }
+        return success(result);
     }
 
     @GetMapping("/grid/ranking/{city}")
@@ -213,28 +253,40 @@ public class JwDataController extends BaseController {
 
     @GetMapping("/branch/indicators/{branchId}/{year}")
     public AjaxResult branchIndicators(@PathVariable Long branchId, @PathVariable Integer year) {
-        List<JwBranchIndicator> rawList = branchIndicatorMapper.selectByBranchAndYear(branchId, year, "数据计算表");
-        if (rawList.isEmpty()) {
-            return success(Collections.emptyList());
-        }
+        // 1. 加载 branch 和 branch_raw 类型的全部叶子节点（排除 _auto）
+        List<JwIndicatorConfig> leafConfigs = new ArrayList<>();
+        leafConfigs.addAll(indicatorConfigMapper.selectLeavesByType("branch"));
+        leafConfigs.addAll(indicatorConfigMapper.selectLeavesByType("branch_raw"));
 
-        // 加载全部指标配置，确保父链可完整追溯
+        // 2. 加载全部配置，确保父链可完整追溯
         List<JwIndicatorConfig> allConfigs = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
         Map<String, JwIndicatorConfig> configMap = allConfigs.stream()
             .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
 
-        List<Map<String, Object>> result = new ArrayList<>();
+        // 3. 查询该网点的数据计算表 → code→value 映射
+        List<JwBranchIndicator> rawList = branchIndicatorMapper.selectByBranchAndYear(branchId, year, "数据计算表");
+        Map<String, Double> dataMap = new HashMap<>();
         for (JwBranchIndicator raw : rawList) {
+            if (raw.getIndicatorValue() != null) {
+                dataMap.put(raw.getIndicatorCode(), raw.getIndicatorValue());
+            }
+        }
+
+        // 4. 遍历全部叶子节点，有数据用实际值，无数据填 0.0
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (JwIndicatorConfig cfg : leafConfigs) {
+            String code = cfg.getIndicatorCode();
+            Double value = dataMap.getOrDefault(code, 0.0);
+
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("indicatorCode", raw.getIndicatorCode());
-            item.put("indicatorValue", raw.getIndicatorValue());
-            JwIndicatorConfig cfg = configMap.get(raw.getIndicatorCode());
-            item.put("indicatorName", cfg != null ? cfg.getIndicatorName() : null);
-            item.put("indicatorType", cfg != null ? cfg.getIndicatorType() : null);
-            item.put("parentCode", cfg != null ? cfg.getParentCode() : null);
+            item.put("indicatorCode", code);
+            item.put("indicatorValue", value);
+            item.put("indicatorName", cfg.getIndicatorName());
+            item.put("indicatorType", cfg.getIndicatorType());
+            item.put("parentCode", cfg.getParentCode());
 
             // 一级根节点信息（用于前端三级树展示）
-            String level1Code = cfg != null ? findLevel1Code(raw.getIndicatorCode(), configMap) : null;
+            String level1Code = findLevel1Code(code, configMap);
             item.put("level1Code", level1Code);
             if (level1Code != null) {
                 JwIndicatorConfig root = configMap.get(level1Code);

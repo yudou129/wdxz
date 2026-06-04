@@ -49,12 +49,24 @@
           <div v-if="indicatorTree.length > 0" class="section">
             <h4 class="section-title">指标数据</h4>
             <el-collapse v-model="activeCategories">
-              <el-collapse-item v-for="(root, idx) in indicatorTree" :key="idx"
-                :title="root.name + (pillarScores && pillarScores[root.code] ? '   TOPSIS: ' + (pillarScores[root.code].score || 0).toFixed(4) : '')"
-                :name="String(idx)">
-                <el-collapse v-model="activeL2[idx]" class="inner-collapse">
-                  <el-collapse-item v-for="(cat, cidx) in root.categories" :key="cidx"
-                    :title="cat.name" :name="String(cidx)">
+              <el-collapse-item v-for="(root, idx) in indicatorTree" :key="idx" :name="String(idx)">
+                <template slot="title">
+                  <span class="level-root">{{ root.name }}</span>
+                  <span v-if="pillarScores && pillarScores[root.code]" class="pillar-hint">
+                    TOPSIS: {{ (pillarScores[root.code].score || 0).toFixed(4) }}
+                  </span>
+                </template>
+                <!-- 直接子节点：直属于根，无中间分类标题 -->
+                <div v-for="ind in root.direct" :key="ind.indicatorCode" class="indicator-row">
+                  <span class="ind-name">{{ ind.indicatorName || ind.indicatorCode }}</span>
+                  <span class="ind-value">{{ formatValue(ind.indicatorValue) }}</span>
+                </div>
+                <!-- 中间分类节点：有中间父节点的，按分类折叠展示 -->
+                <el-collapse v-if="root.categories.length" v-model="activeL2[idx]" class="inner-collapse">
+                  <el-collapse-item v-for="(cat, cidx) in root.categories" :key="cidx" :name="String(cidx)">
+                    <template slot="title">
+                      <span class="level-category">{{ cat.name }}</span>
+                    </template>
                     <div v-for="ind in cat.indicators" :key="ind.indicatorCode" class="indicator-row">
                       <span class="ind-name">{{ ind.indicatorName || ind.indicatorCode }}</span>
                       <span class="ind-value">{{ formatValue(ind.indicatorValue) }}</span>
@@ -98,8 +110,10 @@
 
 <script>
 import { getGridList, getGridIndicators, getGridBranches, getGridPillarScores, getIndicatorList } from '@/api/jwmap/data'
+import detailViewMixin from '../mixins/detailViewMixin'
 
 export default {
+  mixins: [detailViewMixin],
   props: {
     city: { type: String, default: '' }
   },
@@ -108,18 +122,11 @@ export default {
       allGrids: [],
       selectedGrid: null,
       gridIndicators: [],
-      gridBranches: [],
-      pillarScores: null,
-      indicatorMap: {},
-      categoryMap: {},
-      districtFilter: '',
-      currentPage: 1,
-      pageSize: 20,
-      activeCategories: [],
-      activeL2: {}
+      gridBranches: []
     }
   },
   computed: {
+    indicators() { return this.gridIndicators },
     districtList() {
       const set = new Set()
       this.allGrids.forEach(g => { if (g.district) set.add(g.district) })
@@ -135,41 +142,6 @@ export default {
     pagedGrids() {
       const start = (this.currentPage - 1) * this.pageSize
       return this.filteredGrids.slice(start, start + this.pageSize)
-    },
-    indicatorTree() {
-      // 构建三级树：根节点(level1) → 二级分类(parent) → 叶子指标
-      const rootMap = {}
-      for (const ind of this.gridIndicators) {
-        const l1Code = ind.level1Code || '__other__'
-        const l1Name = ind.level1Name || '其他'
-        const parentCode = ind.parentCode
-        const l2Name = parentCode
-          ? (this.categoryMap[parentCode] || parentCode)
-          : '其他'
-        if (!rootMap[l1Code]) {
-          rootMap[l1Code] = { code: l1Code, name: l1Name, categories: {} }
-        }
-        if (!rootMap[l1Code].categories[l2Name]) {
-          rootMap[l1Code].categories[l2Name] = []
-        }
-        rootMap[l1Code].categories[l2Name].push(ind)
-      }
-      return Object.values(rootMap).map(root => ({
-        code: root.code,
-        name: root.name,
-        categories: Object.entries(root.categories).map(([name, indicators]) => ({
-          name,
-          indicators
-        }))
-      }))
-    },
-    pillarList() {
-      if (!this.pillarScores) return []
-      return Object.keys(this.pillarScores).map(key => ({
-        key,
-        label: this.pillarScores[key].name || key,
-        score: (this.pillarScores[key].score || 0).toFixed(2)
-      }))
     }
   },
   watch: {
@@ -243,13 +215,6 @@ export default {
     gridRank(gridCode) {
       const idx = this.filteredGrids.findIndex(g => g.gridCode === gridCode)
       return idx >= 0 ? idx + 1 : '-'
-    },
-    formatValue(val) {
-      if (val === null || val === undefined) return '-'
-      const num = Number(val)
-      if (isNaN(num)) return val
-      if (Number.isInteger(num)) return num.toLocaleString()
-      return num.toFixed(4)
     }
   }
 }
@@ -344,4 +309,7 @@ export default {
   font-weight: 700;
   color: #232845;
 }
+.level-root { font-size: 15px; font-weight: 700; color: #232845; }
+.level-category { font-size: 13px; font-weight: 600; color: #5a6276; }
+.pillar-hint { font-size: 12px; font-weight: 400; color: #8c95a8; margin-left: 8px; }
 </style>

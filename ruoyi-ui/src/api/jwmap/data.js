@@ -121,6 +121,9 @@ export function getBranchInternalRanking(branchId, year) {
 export function getGridDistrictRanking(gridCode) {
   return request({ url: '/jwmap/data/grid/ranking/district/' + gridCode, method: 'get' })
 }
+export function getBranchPillarScores(branchId, year) {
+  return request({ url: '/jwmap/data/branch/pillar/' + branchId + '/' + year, method: 'get' })
+}
 export function getGridPillarScores(gridCode) {
   return request({ url: '/jwmap/data/grid/pillar/' + gridCode, method: 'get' })
 }

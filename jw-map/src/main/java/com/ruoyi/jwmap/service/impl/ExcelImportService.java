@@ -715,9 +715,22 @@ public class ExcelImportService {
      */
     private String matchIndicatorCodeFromNorm(String name, String parentCode) {
         if (name == null || name.isEmpty()) return null;
-        Map<String, JwIndicatorConfig> normMap = buildNormalizedMap();
         String norm = normalizeName(name);
         if (!norm.isEmpty()) {
+            // 1. ★ 优先在指定父节点下查找（避免多父级同名指标的歧义）
+            if (parentCode != null) {
+                List<JwIndicatorConfig> children = indicatorConfigMapper.selectByParent(parentCode);
+                for (JwIndicatorConfig child : children) {
+                    if (child.getIndicatorName() != null) {
+                        String childNorm = normalizeName(child.getIndicatorName());
+                        if (norm.equals(childNorm)) {
+                            return child.getIndicatorCode();
+                        }
+                    }
+                }
+            }
+            // 2. 回退到全局查找（兼容未指定父节点或自动导入指标）
+            Map<String, JwIndicatorConfig> normMap = buildNormalizedMap();
             JwIndicatorConfig cfg = normMap.get(norm);
             if (cfg != null) return cfg.getIndicatorCode();
         }
@@ -947,6 +960,33 @@ public class ExcelImportService {
                 if (cfg != null) return cfg.getIndicatorCode();
             }
         }
+
+        // 2. ★ 子分类上下文匹配：当多个指标同名但上级分类不同时，
+        //    从 fullName 提取子分类，找到对应父指标，在其子节点中筛选
+        if (fullName != null && shortName != null) {
+            String subCategory = extractSubCategory(fullName, shortName);
+            if (subCategory != null) {
+                String normSubCat = normalizeName(subCategory);
+                String normShort = normalizeName(shortName);
+                if (!normSubCat.isEmpty() && !normShort.isEmpty()) {
+                    JwIndicatorConfig parentCfg = normMap.get(normSubCat);
+                    if (parentCfg != null) {
+                        String parentCode = parentCfg.getIndicatorCode();
+                        List<JwIndicatorConfig> children = indicatorConfigMapper.selectByParent(parentCode);
+                        for (JwIndicatorConfig child : children) {
+                            if (child.getIndicatorName() != null) {
+                                String childNorm = normalizeName(child.getIndicatorName());
+                                if (normShort.equals(childNorm)) {
+                                    return child.getIndicatorCode();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. 回退：按 shortName 全局匹配（兼容无子分类或自动导入指标）
         if (shortName != null) {
             String normShort = normalizeName(shortName);
             if (!normShort.isEmpty()) {
@@ -955,10 +995,24 @@ public class ExcelImportService {
             }
         }
 
-        // 2. 未匹配 → 动态创建 branch_auto 指标（权重默认 0）
+        // 4. 未匹配 → 动态创建 branch_auto 指标（权重默认 0）
         String nameToUse = fullName != null ? fullName : shortName;
         log.info("未匹配到网点指标，动态创建: {}", nameToUse);
         return ensureIndicator(nameToUse, "branch_auto");
+    }
+
+    /**
+     * 从 fullName 中提取子分类部分（去掉 shortName 后缀）
+     * 例如: extractSubCategory("全量个人金融资产 日均余额（万元）", "日均余额（万元）") → "全量个人金融资产"
+     */
+    private String extractSubCategory(String fullName, String shortName) {
+        if (fullName == null || shortName == null) return null;
+        int idx = fullName.lastIndexOf(shortName);
+        if (idx > 0) {
+            String cat = fullName.substring(0, idx).trim();
+            return cat.isEmpty() ? null : cat;
+        }
+        return null;
     }
 
     // ========== 动态指标创建 ==========

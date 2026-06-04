@@ -353,8 +353,8 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
 
         branchScoreMapper.deleteByCityAndYear(city, dataYear);
 
-        // 按根节点分组叶子指标（用于分类得分）
-        List<JwIndicatorConfig> allBranch = indicatorConfigMapper.selectByType("branch");
+        // 构建 code → config 映射，按根节点分组（匹配 computeGridScore 模式）
+        List<JwIndicatorConfig> allBranch = indicatorConfigMapper.selectByTypes(Arrays.asList("branch", "branch_auto", "branch_raw"));
         Map<String, JwIndicatorConfig> configMap = allBranch.stream()
             .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
         List<JwIndicatorConfig> roots = allBranch.stream()

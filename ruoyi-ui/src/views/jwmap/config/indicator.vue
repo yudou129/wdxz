@@ -36,7 +36,6 @@
           node-key="indicatorCode"
           highlight-current
           show-checkbox
-          default-expand-all
           @node-click="onNodeClick"
           @check="onCheck"
         >
@@ -557,15 +556,17 @@ export default {
     },
     buildInputCodes() {
       const pattern = this.form.computationPattern
-      const sel = this.form.inputSelections.filter(s => s)
-      if (sel.length === 0) return null
       switch (pattern) {
         case 'per_capita':
-        case 'per_area':
-          return sel[0]
+        case 'per_area': {
+          const sel = this.form.inputSelections.filter(s => s)
+          return sel.length === 0 ? null : sel[0]
+        }
         case 'sum_per_capita':
-        case 'sum_per_area':
-          return sel.join(',')
+        case 'sum_per_area': {
+          const sel = this.form.inputSelections.filter(s => s)
+          return sel.length === 0 ? null : sel.join(',')
+        }
         case 'per_customer': {
           const numCodes = this.form.inputSelectionsNum.filter(s => s)
           const denCodes = this.form.inputSelectionsDen.filter(s => s)
@@ -574,8 +575,10 @@ export default {
           const denPart = denCodes.map((c, i) => (this.form.inputSignsDen[i] || '+') + c).join(',')
           return numPart + '|' + denPart
         }
-        case 'growth_rate':
-          return sel.length >= 2 ? sel[0] + '|' + sel[1] : null
+        case 'growth_rate': {
+          const sel = this.form.inputSelections.filter(s => s)
+          return sel.length < 2 ? null : sel[0] + '|' + sel[1]
+        }
         default:
           return null
       }
