@@ -149,7 +149,15 @@ export default {
 
       this.heatmapLayer = new HeatmapLayer(this.map)
       this.branchLayer = L.layerGroup().addTo(this.map)
-      this.map.on('grid-click', (e) => this.onGridClick(e.gridCode, e.data))
+      // 热力图网格点击 — 通过坐标范围判断（替代 L.rectangle SVG 点击，后者在透明填充下不可靠）
+      this.map.on('click', (e) => {
+        if (!this.heatmapVisible) return
+        // 排除网点标记点击：网点标记有独立 click 事件，避免重复触发
+        const target = e.originalEvent && e.originalEvent.target
+        if (target && (target.classList.contains('branch-icon') || target.closest('.branch-icon'))) return
+        const gridData = this.heatmapLayer.getGridAtLatLng(e.latlng)
+        if (gridData) this.onGridClick(gridData.gridCode, gridData)
+      })
 
       this.boundaryMgr = new BoundaryManager(this.map)
       this.boundaryMgr.init({ createControl: false })
@@ -279,43 +287,47 @@ export default {
 
     // ==== 网格点击 ====
     async onGridClick(gridCode, data) {
-      this.sidebar.gridData = data
-      const hd = this.heatmapLayer && this.heatmapLayer.getData()
-      if (hd && hd.length) {
-        const idx = hd.findIndex(d => d.gridCode === gridCode)
-        this.sidebar.gridRank = idx >= 0 ? idx + 1 : null
-      }
-      // 并行加载指标、排名、三聚集
-      const [indRes, rankRes, pillarRes] = await Promise.all([
-        getGridIndicators(gridCode),
-        getGridDistrictRanking(gridCode),
-        getGridPillarScores(gridCode)
-      ])
-      this.sidebar.gridIndicators = (indRes.data || []).map(d => ({
-        code: d.indicatorCode,
-        name: this.indicatorNameMap[d.indicatorCode] || d.indicatorCode,
-        value: d.indicatorValue,
-        categoryLevel1: d.level1Name,
-        categoryLevel2: d.level1Name,
-        level1Code: d.level1Code,
-        level1Name: d.level1Name
-      }))
-      this.sidebar.gridRankMeta = rankRes.data || { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 }
-      this.sidebar.pillar = pillarRes.data || {}
-      this.loadPillarGap(gridCode)
-
-      const brRes = await getGridBranches(gridCode)
-      const branches = brRes.data || []
-      if (branches.length > 0) {
-        this.sidebar.mode = 'split'; this.sidebar.width = 600
-        this.sidebar.branchData = branches[0]
-        await Promise.all([
-          this.loadBranchScores(branches[0].branchId),
-          this.loadBranchRankMeta(branches[0].branchId),
-          this.loadBranchQuadrant(branches[0])
+      try {
+        this.sidebar.gridData = data
+        const hd = this.heatmapLayer && this.heatmapLayer.getData()
+        if (hd && hd.length) {
+          const idx = hd.findIndex(d => d.gridCode === gridCode)
+          this.sidebar.gridRank = idx >= 0 ? idx + 1 : null
+        }
+        // 并行加载指标、排名、三聚集
+        const [indRes, rankRes, pillarRes] = await Promise.all([
+          getGridIndicators(gridCode).catch(() => ({ data: [] })),
+          getGridDistrictRanking(gridCode).catch(() => ({ data: null })),
+          getGridPillarScores(gridCode).catch(() => ({ data: null }))
         ])
-      } else {
-        this.sidebar.mode = 'grid-only'; this.sidebar.width = 380
+        this.sidebar.gridIndicators = (indRes.data || []).map(d => ({
+          code: d.indicatorCode,
+          name: this.indicatorNameMap[d.indicatorCode] || d.indicatorCode,
+          value: d.indicatorValue,
+          categoryLevel1: d.level1Name,
+          categoryLevel2: d.level1Name,
+          level1Code: d.level1Code,
+          level1Name: d.level1Name
+        }))
+        this.sidebar.gridRankMeta = rankRes.data || { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 }
+        this.sidebar.pillar = pillarRes.data || {}
+        this.loadPillarGap(gridCode)
+
+        const brRes = await getGridBranches(gridCode).catch(() => ({ data: [] }))
+        const branches = brRes.data || []
+        if (branches.length > 0) {
+          this.sidebar.mode = 'split'; this.sidebar.width = 600
+          this.sidebar.branchData = branches[0]
+          await Promise.all([
+            this.loadBranchScores(branches[0].branchId),
+            this.loadBranchRankMeta(branches[0].branchId),
+            this.loadBranchQuadrant(branches[0])
+          ])
+        } else {
+          this.sidebar.mode = 'grid-only'; this.sidebar.width = 380
+        }
+      } catch (e) {
+        console.error('[jwmap] 网格点击加载失败:', e)
       }
       this.sidebar.visible = true
     },

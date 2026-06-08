@@ -1,16 +1,18 @@
 import L from 'leaflet'
 
 /**
- * 热力图层 — Canvas 渲染 + L.rectangle 点击热区
+ * 热力图层 — Canvas 瓦片渲染 + 坐标命中检测
  * 配色：low(0) #00ff00 → #ffff00 → #ff0000 high(1)
  * 数据格式：{ gridCode, longitude, latitude, westLongitude, eastLongitude,
  *             northLatitude, southLatitude, siteScore }
+ *
+ * 点击检测不使用 L.rectangle（SVG visiblePainted 在透明填充下不可靠），
+ * 改用 getGridAtLatLng() 数学判断，由外部 map click 事件驱动。
  */
 export class HeatmapLayer {
   constructor(map) {
     this.map = map
     this._canvasLayer = null
-    this._clickLayer = L.layerGroup()
     this._data = []
     this._visible = false
   }
@@ -25,20 +27,35 @@ export class HeatmapLayer {
     return this._data
   }
 
+  /**
+   * 判断 latlng（BD09 坐标）落在哪个网格内
+   * @param {L.LatLng} latlng
+   * @returns {object|null} 匹配的网格数据项，无匹配返回 null
+   */
+  getGridAtLatLng(latlng) {
+    const lat = latlng.lat
+    const lng = latlng.lng
+    for (const item of this._data) {
+      if (item.siteScore == null) continue
+      if (item.southLatitude <= lat && lat <= item.northLatitude &&
+          item.westLongitude <= lng && lng <= item.eastLongitude) {
+        return item
+      }
+    }
+    return null
+  }
+
   show() {
     if (this._visible) return
     this._visible = true
     this._renderCanvas()
-    this._renderClickRects()
     if (this._canvasLayer) this.map.addLayer(this._canvasLayer)
-    if (this._clickLayer) this.map.addLayer(this._clickLayer)
   }
 
   hide() {
     if (!this._visible) return
     this._visible = false
     if (this._canvasLayer) { this.map.removeLayer(this._canvasLayer); this._canvasLayer = null }
-    if (this._clickLayer) { this.map.removeLayer(this._clickLayer); this._clickLayer.clearLayers() }
   }
 
   _renderCanvas() {
@@ -79,19 +96,6 @@ export class HeatmapLayer {
         ctx.strokeRect(x1, y1, w, h)
       }
       return tile
-    }
-  }
-
-  _renderClickRects() {
-    this._clickLayer.clearLayers()
-    for (const item of this._data) {
-      if (item.siteScore == null) continue
-      const rect = L.rectangle(
-        [[item.southLatitude, item.westLongitude], [item.northLatitude, item.eastLongitude]],
-        { color: 'transparent', weight: 0, fillColor: 'transparent', fillOpacity: 0 }
-      )
-      rect.on('click', () => this.map.fire('grid-click', { gridCode: item.gridCode, data: item }))
-      this._clickLayer.addLayer(rect)
     }
   }
 
