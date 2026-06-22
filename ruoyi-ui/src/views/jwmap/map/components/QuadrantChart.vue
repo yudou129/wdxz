@@ -76,16 +76,21 @@ export default {
       if (this.chart) this.chart.dispose()
       this.chart = echarts.init(this.$refs.chartEl)
 
-      const medianSite = this.data.medianSiteScore || 0.5
-      const medianBranch = this.data.medianBranchScore || 0.5
       const allData = this.data.allData || []
+      const total = allData.length || 1
+      const medianSite = this.data.medianSiteScore || 0
+      const medianBranch = this.data.medianBranchScore || 0
 
       const seriesData = {}
-      const markData = { Q1: [], Q2: [], Q3: [], Q4: [] }
       for (const item of allData) {
         const q = item.quadrant || 'Q1'
         if (!seriesData[q]) seriesData[q] = []
-        seriesData[q].push([item.siteScore, item.branchScore, item.branchName, item.branchId])
+        // [x=siteRank, y=branchRank, name, id, siteScore, branchScore]
+        seriesData[q].push([
+          item.siteRank, item.branchRank,
+          item.branchName, item.branchId,
+          item.siteScore, item.branchScore
+        ])
       }
 
       const option = {
@@ -94,26 +99,26 @@ export default {
           formatter: function (p) {
             const d = p.data
             return '<b>' + d[2] + '</b><br/>'
-              + '选址得分: ' + d[0].toFixed(4) + '<br/>'
-              + '网点得分: ' + d[1].toFixed(4) + '<br/>'
+              + '选址排名: #' + d[0] + ' / 得分: ' + (d[4] != null ? Number(d[4]).toFixed(4) : '-') + '<br/>'
+              + '网点排名: #' + d[1] + ' / 得分: ' + (d[5] != null ? Number(d[5]).toFixed(4) : '-') + '<br/>'
               + '象限: ' + (QUADRANT_LABELS[p.seriesName] || p.seriesName)
           }
         },
         legend: { show: false },
         grid: { left: 50, right: 16, top: 16, bottom: 40 },
         xAxis: {
-          name: '选址得分',
+          name: '选址排名',
           nameLocation: 'center',
           nameGap: 28,
-          type: 'value', min: 0, max: 1,
+          type: 'value', min: 1, max: total, inverse: true,
           splitLine: { lineStyle: { color: '#f0f0f0' } },
           axisLabel: { fontSize: 10, color: '#888' }
         },
         yAxis: {
-          name: '网点得分',
+          name: '网点排名',
           nameLocation: 'center',
           nameGap: 36,
-          type: 'value', min: 0, max: 1,
+          type: 'value', min: 1, max: total, inverse: true,
           splitLine: { lineStyle: { color: '#f0f0f0' } },
           axisLabel: { fontSize: 10, color: '#888' }
         },
@@ -149,13 +154,14 @@ export default {
         ],
       }
 
-      // 添加中位线标记线
+      // 添加中位线标记线（标注中位数排名）
       option.series.push({
         type: 'scatter', name: 'markLine', data: [], symbolSize: 0,
         markLine: {
           silent: true,
           symbol: 'none',
-          label: { show: false },
+          label: { show: true, position: 'end', fontSize: 10, color: '#999',
+            formatter: function (p) { return '中位:#' + p.value } },
           data: [
             { xAxis: medianSite, lineStyle: { color: '#bbb', type: 'dashed', width: 1 } },
             { yAxis: medianBranch, lineStyle: { color: '#bbb', type: 'dashed', width: 1 } }
@@ -186,7 +192,7 @@ export default {
   top: 60px;
   width: 440px;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background:

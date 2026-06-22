@@ -137,4 +137,21 @@
         </foreach>
     </insert>
 
+    <select id="selectWithinBounds" resultMap="JwPoiInfoResult">
+        <include refid="selectJwPoiInfoVo"/>
+        WHERE city = #{city}
+          AND (del_flag IS NULL OR del_flag = '0')
+          AND longitude BETWEEN #{westLng} AND #{eastLng}
+          AND latitude BETWEEN #{southLat} AND #{northLat}
+        ORDER BY poi_type, poi_name
+    </select>
+
+    <select id="selectDistinctPoiTypes" resultType="java.lang.String">
+        SELECT DISTINCT poi_type FROM jw_poi_info
+        WHERE city = #{city}
+          AND (del_flag IS NULL OR del_flag = '0')
+          AND poi_type IS NOT NULL AND poi_type != ''
+        ORDER BY poi_type
+    </select>
+
 </mapper>

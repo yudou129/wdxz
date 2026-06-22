@@ -39,6 +39,14 @@
         WHERE grid_code = #{gridCode}
     </select>
 
+    <select id="selectByGridCodes" resultMap="JwPopulationHeatResult">
+        <include refid="selectJwPopulationHeatVo"/>
+        WHERE grid_code IN
+        <foreach collection="gridCodes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
+
     <select id="selectByGridAndIndicator" resultMap="JwPopulationHeatResult">
         <include refid="selectJwPopulationHeatVo"/>
         WHERE grid_code = #{gridCode} AND indicator_code = #{indicatorCode}

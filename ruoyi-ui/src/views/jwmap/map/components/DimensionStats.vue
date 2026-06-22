@@ -42,7 +42,7 @@ export default {
 <style scoped>
 .dim-panel {
   position: absolute; right: 12px; top: 60px; width: 300px;
-  isolation: isolate; overflow: hidden; border-radius: 10px;
+  isolation: isolate; overflow: visible; border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.28);
   background: linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0.08)), rgba(255,255,255,0.10);
   backdrop-filter: blur(22px) saturate(170%) contrast(1.04);
@@ -53,7 +53,7 @@ export default {
 .dim-title { font-weight: 700; font-size: 13px; color: #232845; }
 .dim-title i { color: #4f6ef6; margin-right: 4px; }
 .close-btn { color: #8c95a8; }
-.dim-body { padding: 10px 14px; max-height: 320px; overflow-y: auto; }
+.dim-body { padding: 10px 14px; max-height: 55vh; overflow-y: auto; }
 .dim-list { margin-top: 10px; }
 .dim-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
 .dim-name { width: 48px; font-size: 12px; color: #666; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

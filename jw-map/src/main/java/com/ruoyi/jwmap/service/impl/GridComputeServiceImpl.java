@@ -93,25 +93,28 @@ public class GridComputeServiceImpl implements IGridComputeService {
         if (metas.isEmpty()) return;
         List<JwPoiInfo> poiList = poiInfoMapper.selectByCity(city);
 
-        // 预计算每个网格的POI类型计数
+        // 构建网格快速查找：将POI坐标映射到最近网格（网格不重叠，直接按坐标匹配）
         Map<String, Map<String, Integer>> gridPoiTypeCount = new LinkedHashMap<>();
+        for (JwGridMeta meta : metas) {
+            gridPoiTypeCount.put(meta.getGridCode(), new LinkedHashMap<>());
+        }
         for (JwPoiInfo poi : poiList) {
             if (poi.getPoiType() == null || poi.getPoiType().isEmpty()) continue;
-            String poiType = poi.getPoiType().trim();
+            if (poi.getLongitude() == null || poi.getLatitude() == null) continue;
+            String pType = poi.getPoiType().trim();
+            // 寻找包含该POI的网格（网格不重叠，找到即停止）
             for (JwGridMeta meta : metas) {
-                if (meta.getWestLongitude() == null || meta.getEastLongitude() == null) continue;
-                if (poi.getLongitude() != null && poi.getLatitude() != null
-                    && poi.getLongitude() >= meta.getWestLongitude()
+                if (meta.getWestLongitude() == null) continue;
+                if (poi.getLongitude() >= meta.getWestLongitude()
                     && poi.getLongitude() <= meta.getEastLongitude()
                     && poi.getLatitude() >= meta.getSouthLatitude()
                     && poi.getLatitude() <= meta.getNorthLatitude()) {
-                    gridPoiTypeCount.computeIfAbsent(meta.getGridCode(), k -> new LinkedHashMap<>())
-                        .merge(poiType, 1, Integer::sum);
+                    gridPoiTypeCount.get(meta.getGridCode()).merge(pType, 1, Integer::sum);
+                    break; // 网格不重叠，找到即跳出
                 }
             }
         }
 
-        // 预加载所有 grid 相关类型指标配置，只取叶子节点用于 POI 匹配
         List<JwIndicatorConfig> allGridConfigs = indicatorConfigMapper.selectByTypes(Arrays.asList("grid", "grid_auto", "grid_raw"));
         Map<String, JwIndicatorConfig> gridConfigMap = allGridConfigs.stream()
             .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
@@ -120,33 +123,39 @@ public class GridComputeServiceImpl implements IGridComputeService {
             .map(JwIndicatorConfig::getIndicatorCode)
             .collect(Collectors.toSet());
 
+        // 批量加载人口热力数据
+        List<String> allGridCodes = metas.stream().map(JwGridMeta::getGridCode).collect(Collectors.toList());
+        List<JwPopulationHeat> allHeatData = populationHeatMapper.selectByGridCodes(allGridCodes);
+        Map<String, List<JwPopulationHeat>> heatByGrid = allHeatData.stream()
+            .collect(Collectors.groupingBy(JwPopulationHeat::getGridCode));
+
+        List<JwGridDataRaw> batchRaw = new ArrayList<>();
         for (JwGridMeta meta : metas) {
-            // 写入人口热力指标
-            List<JwPopulationHeat> heatData = populationHeatMapper.selectByGridCode(meta.getGridCode());
+            List<JwPopulationHeat> heatData = heatByGrid.getOrDefault(meta.getGridCode(), Collections.emptyList());
             for (JwPopulationHeat heat : heatData) {
                 JwGridDataRaw raw = new JwGridDataRaw();
                 raw.setGridCode(meta.getGridCode());
                 raw.setIndicatorCode(heat.getIndicatorCode());
                 raw.setIndicatorValue(heat.getIndicatorValue());
-                gridDataRawMapper.upsertGridData(raw);
+                batchRaw.add(raw);
             }
 
-            // 写入POI类型指标：查 indicator_config 中已配置的 POI 指标，按名称匹配
             Map<String, Integer> typeCounts = gridPoiTypeCount.get(meta.getGridCode());
             if (typeCounts != null) {
                 for (Map.Entry<String, Integer> entry : typeCounts.entrySet()) {
-                    String poiType = entry.getKey().trim();
-                    // 标准化后匹配叶子节点 indicator_name
-                    String indicatorCode = matchPoiIndicator(poiType, gridConfigMap, leafCodes);
+                    String indicatorCode = matchPoiIndicator(entry.getKey().trim(), gridConfigMap, leafCodes);
                     if (indicatorCode != null) {
                         JwGridDataRaw poiRaw = new JwGridDataRaw();
                         poiRaw.setGridCode(meta.getGridCode());
                         poiRaw.setIndicatorCode(indicatorCode);
                         poiRaw.setIndicatorValue(entry.getValue().doubleValue());
-                        gridDataRawMapper.upsertGridData(poiRaw);
+                        batchRaw.add(poiRaw);
                     }
                 }
             }
+        }
+        if (!batchRaw.isEmpty()) {
+            gridDataRawMapper.batchInsert(batchRaw);
         }
     }
 
@@ -185,12 +194,10 @@ public class GridComputeServiceImpl implements IGridComputeService {
     private void computeGridSummary(String city) {
         gridSummaryMapper.deleteByCity(city);
 
-        // 加载 grid 相关类型所有指标，构建 code → config 映射
         List<JwIndicatorConfig> allGrid = indicatorConfigMapper.selectByTypes(Arrays.asList("grid", "grid_auto", "grid_raw"));
         Map<String, JwIndicatorConfig> configMap = allGrid.stream()
             .collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
 
-        // 只对叶子节点计算汇总
         List<JwIndicatorConfig> leaves = allGrid.stream()
             .filter(c -> c.isLeaf(configMap))
             .collect(Collectors.toList());
@@ -198,13 +205,21 @@ public class GridComputeServiceImpl implements IGridComputeService {
         List<JwGridMeta> metas = gridMetaMapper.selectByCity(city);
         if (metas.isEmpty()) return;
 
+        // 批量加载全部原始数据
+        List<JwGridDataRaw> allRaw = gridDataRawMapper.selectAllByCity(city);
+        Map<String, Map<String, Double>> rawMap = new LinkedHashMap<>();
+        for (JwGridDataRaw raw : allRaw) {
+            rawMap.computeIfAbsent(raw.getGridCode(), k -> new LinkedHashMap<>())
+                .put(raw.getIndicatorCode(), raw.getIndicatorValue());
+        }
+
         for (JwIndicatorConfig leaf : leaves) {
             String code = leaf.getIndicatorCode();
             List<Double> values = new ArrayList<>();
             for (JwGridMeta meta : metas) {
-                JwGridDataRaw raw = gridDataRawMapper.selectByGridAndIndicator(meta.getGridCode(), code);
-                if (raw != null) {
-                    values.add(raw.getIndicatorValue());
+                Map<String, Double> gridRaw = rawMap.get(meta.getGridCode());
+                if (gridRaw != null && gridRaw.containsKey(code)) {
+                    values.add(gridRaw.get(code));
                 }
             }
             if (values.isEmpty()) continue;
@@ -230,18 +245,25 @@ public class GridComputeServiceImpl implements IGridComputeService {
         List<JwGridSummary> summaries = gridSummaryMapper.selectByCity(city);
         if (metas.isEmpty() || summaries.isEmpty()) return;
 
+        // 批量加载全部原始数据，避免 N×M 次单条查询
+        List<JwGridDataRaw> allRaw = gridDataRawMapper.selectAllByCity(city);
+        Map<String, Map<String, Double>> rawMap = new LinkedHashMap<>(); // gridCode → (indicatorCode → value)
+        for (JwGridDataRaw raw : allRaw) {
+            rawMap.computeIfAbsent(raw.getGridCode(), k -> new LinkedHashMap<>())
+                .put(raw.getIndicatorCode(), raw.getIndicatorValue());
+        }
+
         Map<String, JwGridSummary> summaryMap = summaries.stream()
             .collect(Collectors.toMap(JwGridSummary::getIndicatorCode, s -> s, (a, b) -> a));
 
+        List<JwGridDataNormalized> batchNorm = new ArrayList<>();
         for (JwGridSummary summary : summaries) {
             String code = summary.getIndicatorCode();
             List<Double> colValues = new ArrayList<>();
-            Map<String, Double> gridValueMap = new LinkedHashMap<>();
             for (JwGridMeta meta : metas) {
-                JwGridDataRaw raw = gridDataRawMapper.selectByGridAndIndicator(meta.getGridCode(), code);
-                double val = raw != null ? raw.getIndicatorValue() : 0;
+                Map<String, Double> gridRaw = rawMap.get(meta.getGridCode());
+                double val = (gridRaw != null && gridRaw.containsKey(code)) ? gridRaw.get(code) : 0;
                 colValues.add(val);
-                gridValueMap.put(meta.getGridCode(), val);
             }
             List<Double> normValues = TopsisCalculator.normalizeGridColumn(colValues);
             double maxNorm = normValues.stream().mapToDouble(Double::doubleValue).max().orElse(0);
@@ -250,14 +272,16 @@ public class GridComputeServiceImpl implements IGridComputeService {
             summary.setMinNorm(minNorm);
             gridSummaryMapper.updateGridSummary(summary);
 
-            int i = 0;
-            for (Map.Entry<String, Double> entry : gridValueMap.entrySet()) {
+            for (int i = 0; i < metas.size(); i++) {
                 JwGridDataNormalized norm = new JwGridDataNormalized();
-                norm.setGridCode(entry.getKey());
+                norm.setGridCode(metas.get(i).getGridCode());
                 norm.setIndicatorCode(code);
-                norm.setNormalizedValue(normValues.get(i++));
-                gridDataNormalizedMapper.upsertGridData(norm);
+                norm.setNormalizedValue(normValues.get(i));
+                batchNorm.add(norm);
             }
+        }
+        if (!batchNorm.isEmpty()) {
+            gridDataNormalizedMapper.batchInsert(batchNorm);
         }
     }
 
@@ -270,6 +294,14 @@ public class GridComputeServiceImpl implements IGridComputeService {
         List<JwGridSummary> summaries = gridSummaryMapper.selectByCity(city);
         if (metas.isEmpty() || summaries.isEmpty()) return 0;
 
+        // 批量加载全部归一化数据
+        List<JwGridDataNormalized> allNorm = gridDataNormalizedMapper.selectAllByCity(city);
+        Map<String, Map<String, Double>> normMap = new LinkedHashMap<>();
+        for (JwGridDataNormalized n : allNorm) {
+            normMap.computeIfAbsent(n.getGridCode(), k -> new LinkedHashMap<>())
+                .put(n.getIndicatorCode(), n.getNormalizedValue());
+        }
+
         Map<String, JwGridSummary> summaryMap = summaries.stream()
             .collect(Collectors.toMap(JwGridSummary::getIndicatorCode, s -> s, (a, b) -> a));
 
@@ -281,23 +313,59 @@ public class GridComputeServiceImpl implements IGridComputeService {
             .filter(c -> c.getParentCode() == null || c.getParentCode().isEmpty())
             .collect(Collectors.toList());
 
-        int count = 0;
-        for (JwGridMeta meta : metas) {
-            // 按根节点分类分别 TOPSIS
-            for (JwIndicatorConfig root : roots) {
-                List<String> leafCodes = getLeafCodesUnder(root.getIndicatorCode(), configMap);
-                computeCategoryScore(meta, city, root.getIndicatorCode(), leafCodes, summaryMap);
-            }
-            // overall 用所有叶子
-            List<JwIndicatorConfig> allLeaves = allGrid.stream()
-                .filter(c -> c.isLeaf(configMap))
-                .collect(Collectors.toList());
-            List<String> allLeafCodes = allLeaves.stream()
-                .map(JwIndicatorConfig::getIndicatorCode).collect(Collectors.toList());
-            computeCategoryScore(meta, city, "overall", allLeafCodes, summaryMap);
-            count++;
+        // 预计算所有分类的叶子指标列表
+        Map<String, List<String>> categoryLeafCodes = new LinkedHashMap<>();
+        for (JwIndicatorConfig root : roots) {
+            categoryLeafCodes.put(root.getIndicatorCode(), getLeafCodesUnder(root.getIndicatorCode(), configMap));
         }
-        return count;
+        List<JwIndicatorConfig> allLeaves = allGrid.stream()
+            .filter(c -> c.isLeaf(configMap))
+            .collect(Collectors.toList());
+        List<String> allLeafCodes = allLeaves.stream()
+            .map(JwIndicatorConfig::getIndicatorCode).collect(Collectors.toList());
+        categoryLeafCodes.put("overall", allLeafCodes);
+
+        List<JwGridScore> batchScores = new ArrayList<>();
+        for (JwGridMeta meta : metas) {
+            Map<String, Double> gridNorm = normMap.getOrDefault(meta.getGridCode(), Collections.emptyMap());
+            for (Map.Entry<String, List<String>> entry : categoryLeafCodes.entrySet()) {
+                String category = entry.getKey();
+                List<String> leafCodes = entry.getValue();
+                List<Double> normValues = new ArrayList<>();
+                List<Double> maxNorms = new ArrayList<>();
+                List<Double> minNorms = new ArrayList<>();
+                List<Double> weights = new ArrayList<>();
+
+                for (String code : leafCodes) {
+                    JwGridSummary summary = summaryMap.get(code);
+                    if (summary == null || summary.getMaxNorm() == null) {
+                        normValues.add(0.0); maxNorms.add(0.0); minNorms.add(0.0); weights.add(0.0);
+                        continue;
+                    }
+                    normValues.add(gridNorm.getOrDefault(code, 0.0));
+                    maxNorms.add(summary.getMaxNorm());
+                    minNorms.add(summary.getMinNorm());
+                    weights.add(summary.getActualWeight());
+                }
+
+                double[] result = TopsisCalculator.calcTopsis(normValues, maxNorms, minNorms, weights);
+
+                JwGridScore score = new JwGridScore();
+                score.setGridCode(meta.getGridCode());
+                score.setCity(city);
+                score.setScoreCategory(category);
+                score.setPositiveDistance(result[0]);
+                score.setNegativeDistance(result[1]);
+                score.setSiteScore(result[2]);
+                batchScores.add(score);
+            }
+        }
+        if (!batchScores.isEmpty()) {
+            for (JwGridScore s : batchScores) {
+                gridScoreMapper.upsertGridScore(s);
+            }
+        }
+        return metas.size();
     }
 
     private List<String> getLeafCodesUnder(String rootCode, Map<String, JwIndicatorConfig> configMap) {
@@ -318,38 +386,6 @@ public class GridComputeServiceImpl implements IGridComputeService {
             parent = p != null ? p.getParentCode() : null;
         }
         return false;
-    }
-
-    private void computeCategoryScore(JwGridMeta meta, String city, String category,
-                                      List<String> indicatorCodes, Map<String, JwGridSummary> summaryMap) {
-        List<Double> normValues = new ArrayList<>();
-        List<Double> maxNorms = new ArrayList<>();
-        List<Double> minNorms = new ArrayList<>();
-        List<Double> weights = new ArrayList<>();
-
-        for (String code : indicatorCodes) {
-            JwGridSummary summary = summaryMap.get(code);
-            if (summary == null || summary.getMaxNorm() == null || summary.getMinNorm() == null) {
-                normValues.add(0.0); maxNorms.add(0.0); minNorms.add(0.0); weights.add(0.0);
-                continue;
-            }
-            JwGridDataNormalized norm = gridDataNormalizedMapper.selectByGridAndIndicator(meta.getGridCode(), code);
-            normValues.add(norm != null ? norm.getNormalizedValue() : 0.0);
-            maxNorms.add(summary.getMaxNorm());
-            minNorms.add(summary.getMinNorm());
-            weights.add(summary.getActualWeight());
-        }
-
-        double[] result = TopsisCalculator.calcTopsis(normValues, maxNorms, minNorms, weights);
-
-        JwGridScore score = new JwGridScore();
-        score.setGridCode(meta.getGridCode());
-        score.setCity(city);
-        score.setScoreCategory(category);
-        score.setPositiveDistance(result[0]);
-        score.setNegativeDistance(result[1]);
-        score.setSiteScore(result[2]);
-        gridScoreMapper.upsertGridScore(score);
     }
 
     @Override

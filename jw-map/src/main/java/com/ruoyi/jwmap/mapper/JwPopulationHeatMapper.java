@@ -18,6 +18,8 @@ public interface JwPopulationHeatMapper {
 
     List<JwPopulationHeat> selectByGridCode(@Param("gridCode") String gridCode);
 
+    List<JwPopulationHeat> selectByGridCodes(@Param("gridCodes") List<String> gridCodes);
+
     JwPopulationHeat selectByGridAndIndicator(@Param("gridCode") String gridCode,
                                               @Param("indicatorCode") String indicatorCode);
 

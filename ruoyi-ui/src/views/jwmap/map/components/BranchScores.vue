@@ -1,7 +1,7 @@
 <template>
   <div class="branch-scores">
     <div v-for="s in scores" :key="s.scoreCategory" class="score-row" :class="{ compact }">
-      <span class="s-label">{{ label(s.scoreCategory) }}</span>
+      <span class="s-label">{{ label(s) }}</span>
       <div class="s-bar-track">
         <div class="s-bar" :style="{ width: pct(s), background: color(s) }" />
       </div>
@@ -14,8 +14,8 @@ export default {
   name: 'BranchScores',
   props: { scores: Array, compact: Boolean },
   methods: {
-    label(c) {
-      return { revenue: '营收', indicator: '业绩', customer: '客户', operation: '运营', overall: '综合' }[c] || c
+    label(s) {
+      return s.categoryName || { revenue: '营收', indicator: '业绩', customer: '客户', operation: '运营', overall: '综合' }[s.scoreCategory] || s.scoreCategory
     },
     val(s) {
       const v = s.categoryScore

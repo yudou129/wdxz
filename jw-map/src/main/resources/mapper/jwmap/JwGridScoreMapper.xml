@@ -83,6 +83,19 @@
         </foreach>
     </delete>
 
+    <select id="selectTopCodesWithoutBranch" resultType="string">
+        SELECT gs.grid_code
+        FROM jw_grid_score gs
+        WHERE gs.city = #{city} AND gs.score_category = 'overall'
+          AND NOT EXISTS (
+            SELECT 1 FROM jw_branch_info bi
+            WHERE bi.grid_code = gs.grid_code
+              AND (bi.del_flag IS NULL OR bi.del_flag = '0')
+          )
+        ORDER BY gs.site_score DESC
+        LIMIT #{limit}
+    </select>
+
     <delete id="deleteByCity" parameterType="String">
         DELETE FROM jw_grid_score WHERE city = #{city}
     </delete>

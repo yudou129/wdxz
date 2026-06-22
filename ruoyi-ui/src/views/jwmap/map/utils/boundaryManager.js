@@ -170,13 +170,6 @@ export class BoundaryManager {
       await this._loadDistrictOptions(adcode)
     }
 
-    this.highlightLayer = this._makeHighlightLayer(feature).addTo(this.map)
-
-    const districts = this.districtCache[adcode]
-    if (districts) {
-      this.districtLayer = this._makeDistrictLayer(districts).addTo(this.map)
-    }
-
     const [lng, lat] = feature.properties.center
     this.map.setView([lat, lng], 11)
   }
@@ -194,13 +187,6 @@ export class BoundaryManager {
 
     this._clearHL()
     this._removeDL()
-
-    const districts = this.districtCache[parentCode]
-    if (districts) {
-      this.districtLayer = this._makeDistrictLayer(districts).addTo(this.map)
-    }
-
-    this.highlightLayer = this._makeHighlightLayer(dFeature).addTo(this.map)
 
     const [lng, lat] = dFeature.properties.center
     this.map.setView([lat, lng], 13)

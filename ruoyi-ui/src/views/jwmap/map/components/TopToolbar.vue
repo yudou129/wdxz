@@ -1,26 +1,48 @@
 <template>
   <div class="top-toolbar">
-    <span class="toolbar-label">行政区</span>
-    <el-select v-model="selectedCity" size="small" placeholder="贵州省" @change="onCityChange"
-               style="width:110px;">
-      <el-option label="贵州省" value="all" />
-      <el-option v-for="c in cities" :key="c.properties.adcode"
-                 :label="c.properties.name" :value="c.properties.adcode" />
-    </el-select>
-    <el-select v-if="selectedCity !== 'all'" v-model="selectedDistrict" size="small"
-               placeholder="选择区县" @change="onDistrictChange" style="width:120px;margin-left:6px;">
-      <el-option label="全部区县" value="all" />
-      <el-option v-for="d in districts" :key="d.properties.adcode"
-                 :label="d.properties.name" :value="d.properties.adcode" />
-    </el-select>
+    <div class="toolbar-row toolbar-row-top">
+      <span class="toolbar-label">行政区</span>
+      <el-select v-model="selectedCity" size="small" placeholder="贵州省" @change="onCityChange"
+                 style="width:110px;">
+        <el-option label="贵州省" value="all" />
+        <el-option v-for="c in cities" :key="c.properties.adcode"
+                   :label="c.properties.name" :value="c.properties.adcode" />
+      </el-select>
+      <el-select v-if="selectedCity !== 'all'" v-model="selectedDistrict" size="small"
+                 placeholder="选择区县" @change="onDistrictChange" style="width:120px;margin-left:6px;">
+        <el-option label="全部区县" value="all" />
+        <el-option v-for="d in districts" :key="d.properties.adcode"
+                   :label="d.properties.name" :value="d.properties.adcode" />
+      </el-select>
 
-    <span class="toolbar-label" style="margin-left:12px;">一级支行</span>
-    <el-select v-model="selectedBranch" size="small" placeholder="全部" @change="onBranchChange">
-      <el-option label="全部" value="all" />
-      <el-option v-for="b in branchOptions" :key="b" :label="b" :value="b" />
-    </el-select>
+      <span class="toolbar-label" style="margin-left:12px;">一级支行</span>
+      <el-select v-model="selectedBranch" size="small" placeholder="全部" @change="onBranchChange">
+        <el-option label="全部" value="all" />
+        <el-option v-for="b in branchOptions" :key="b" :label="b" :value="b" />
+      </el-select>
 
-    <div class="toolbar-right">
+      <div class="toolbar-search">
+        <i class="el-icon-search search-icon" />
+        <input ref="searchInput" v-model="searchQuery" class="search-input"
+               placeholder="搜索网点..." @input="onSearchInput"
+               @focus="searchFocused = true" @blur="onSearchBlur" />
+        <div v-if="searchFocused && searchResults.length > 0" class="search-dropdown">
+          <div v-for="b in searchResults" :key="b.branchId" class="search-item"
+               @mousedown.prevent="selectBranch(b)">
+            <div class="search-item-row1">
+              <span class="search-item-name">{{ b.secondaryBranch || b.primaryBranch || '未知网点' }}</span>
+              <el-button v-if="compareActive" size="mini" type="text" class="add-compare-btn"
+                         @mousedown.stop.prevent="addCompare(b)">
+                加入对比
+              </el-button>
+            </div>
+            <span class="search-item-parent">{{ b.primaryBranch }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar-row toolbar-row-bottom">
       <el-button size="small" @click="$emit('toggle-quadrant')">
         <i class="el-icon-s-data" /> 四象限
       </el-button>
@@ -31,6 +53,31 @@
                  :class="{ 'heatmap-on': heatmapActive }"
                  @click="$emit('toggle-heatmap')">
         <i class="el-icon-data-board" /> 热力图
+      </el-button>
+      <el-button size="small" :type="blankSpotActive ? 'info' : 'default'"
+                 :class="{ 'blankspot-on': blankSpotActive }"
+                 @click="$emit('toggle-blank-spot')">
+        <i class="el-icon-view" /> 空白点
+      </el-button>
+      <el-button size="small" :type="peerBankActive ? 'primary' : 'default'"
+                 :class="{ 'peerbk-on': peerBankActive }"
+                 @click="$emit('toggle-peerbank')">
+        <i class="el-icon-office-building" /> 同业
+      </el-button>
+      <el-button size="small" :type="rangeActive ? 'warning' : 'default'"
+                 :class="{ 'range-on': rangeActive }"
+                 @click="$emit('toggle-range')">
+        <i class="el-icon-rank" /> 范围
+      </el-button>
+      <el-button size="small" :type="rankingActive ? 'success' : 'default'"
+                 :class="{ 'ranking-on': rankingActive }"
+                 @click="$emit('toggle-ranking')">
+        <i class="el-icon-trophy" /> 排名
+      </el-button>
+      <el-button size="small" :type="compareActive ? 'warning' : 'default'"
+                 :class="{ 'compare-on': compareActive }"
+                 @click="$emit('toggle-compare')">
+        <i class="el-icon-data-analysis" /> {{ compareActive ? '退出对比' : '对比' }}
       </el-button>
     </div>
   </div>
@@ -43,12 +90,19 @@ export default {
   name: 'TopToolbar',
   props: {
     cities: { type: Array, default: () => [] },
-    heatmapActive: { type: Boolean, default: false }
+    heatmapActive: { type: Boolean, default: false },
+    peerBankActive: { type: Boolean, default: true },
+    rangeActive: { type: Boolean, default: false },
+    rankingActive: { type: Boolean, default: false },
+    compareActive: { type: Boolean, default: false },
+    blankSpotActive: { type: Boolean, default: false },
+    branchList: { type: Array, default: () => [] }
   },
   data() {
     return {
       selectedCity: 'all', selectedDistrict: 'all',
-      selectedBranch: 'all', branchOptions: [], districts: []
+      selectedBranch: 'all', branchOptions: [], districts: [],
+      searchQuery: '', searchResults: [], searchFocused: false
     }
   },
   computed: {
@@ -62,7 +116,38 @@ export default {
       return map
     }
   },
+  watch: {
+    branchList() {
+      this.searchQuery = ''
+      this.searchResults = []
+    }
+  },
   methods: {
+    onSearchInput() {
+      const q = this.searchQuery.trim().toLowerCase()
+      if (!q || q.length < 2 || !this.branchList.length) { this.searchResults = []; return }
+      this.searchResults = this.branchList.filter(b => {
+        const name = (b.secondaryBranch || b.primaryBranch || '').toLowerCase()
+        const parent = (b.primaryBranch || '').toLowerCase()
+        const addr = (b.address || '').toLowerCase()
+        const district = (b.districtName || '').toLowerCase()
+        return name.includes(q) || parent.includes(q) || addr.includes(q) || district.includes(q)
+      }).slice(0, 20) // 最多显示20条
+    },
+    selectBranch(b) {
+      this.searchQuery = b.secondaryBranch || b.primaryBranch || ''
+      this.searchResults = []
+      this.searchFocused = false
+      this.$refs.searchInput.blur()
+      this.$emit('search-branch', b)
+    },
+    addCompare(b) {
+      this.$emit('add-compare-branch', b)
+    },
+    onSearchBlur() {
+      // 延迟隐藏，让点击选项有机会触发
+      setTimeout(() => { this.searchFocused = false }, 200)
+    },
     onCityChange(val) {
       this.selectedDistrict = 'all'
       if (val === 'all') {
@@ -108,7 +193,6 @@ export default {
   transform: translateX(-50%);
   z-index: 1000;
   isolation: isolate;
-  overflow: hidden;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background:
@@ -121,11 +205,22 @@ export default {
     inset 0 -1px 0 rgba(255, 255, 255, 0.10),
     0 4px 20px rgba(79, 110, 246, 0.06),
     0 1px 3px rgba(0, 0, 0, 0.04);
-  padding: 10px 18px;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.toolbar-row {
   display: flex;
   align-items: center;
   white-space: nowrap;
+}
+.toolbar-row-top {
   gap: 2px;
+}
+.toolbar-row-bottom {
+  justify-content: center;
+  gap: 4px;
 }
 .top-toolbar::before {
   content: '';
@@ -159,10 +254,94 @@ export default {
   font-weight: 500;
   margin-right: 2px;
 }
-.toolbar-right {
-  margin-left: 20px;
-  padding-left: 16px;
-  border-left: 1px solid rgba(79, 110, 246, 0.1);
+/* 网点搜索 */
+.toolbar-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+}
+.search-icon {
+  position: absolute;
+  left: 8px;
+  color: #999;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 1;
+}
+.search-input {
+  width: 140px;
+  height: 28px;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 6px;
+  padding: 0 8px 0 26px;
+  font-size: 12px;
+  outline: none;
+  background: rgba(255,255,255,0.7);
+  transition: border-color 0.2s, width 0.2s;
+}
+.search-input:focus {
+  width: 180px;
+  border-color: #409eff;
+  background: rgba(255,255,255,0.95);
+}
+.search-input::placeholder {
+  color: #aaa;
+}
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 2000;
+}
+.search-item {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f5f5;
+}
+.search-item:last-child {
+  border-bottom: none;
+}
+.search-item:hover {
+  background: #f0f7ff;
+}
+.search-item-row1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.search-item-name {
+  font-size: 13px;
+  color: #333;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.add-compare-btn {
+  font-size: 11px;
+  color: #4f6ef6;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+.add-compare-btn:hover {
+  color: #3b54d4;
+}
+.search-item-parent {
+  font-size: 11px;
+  color: #999;
+  margin-top: 1px;
 }
 .heatmap-on {
   background: #f56c6c;
@@ -172,5 +351,50 @@ export default {
 .heatmap-on:hover {
   background: #e85b5b;
   border-color: #e85b5b;
+}
+.peerbk-on {
+  background: #409eff;
+  border-color: #409eff;
+  color: #fff;
+}
+.peerbk-on:hover {
+  background: #3a8ee6;
+  border-color: #3a8ee6;
+}
+.range-on {
+  background: #e6a23c;
+  border-color: #e6a23c;
+  color: #fff;
+}
+.range-on:hover {
+  background: #d4941f;
+  border-color: #d4941f;
+}
+.ranking-on {
+  background: #67c23a;
+  border-color: #67c23a;
+  color: #fff;
+}
+.ranking-on:hover {
+  background: #5daf34;
+  border-color: #5daf34;
+}
+.compare-on {
+  background: #e6a23c;
+  border-color: #e6a23c;
+  color: #fff;
+}
+.compare-on:hover {
+  background: #d4941f;
+  border-color: #d4941f;
+}
+.blankspot-on {
+  background: #06b6d4;
+  border-color: #06b6d4;
+  color: #fff;
+}
+.blankspot-on:hover {
+  background: #0891b2;
+  border-color: #0891b2;
 }
 </style>

@@ -33,4 +33,18 @@ public interface JwPoiInfoMapper {
     int deleteByCity(@Param("city") String city);
 
     int batchInsert(List<JwPoiInfo> list);
+
+    /**
+     * 查询指定矩形边界内的 POI（供范围统计使用）
+     */
+    List<JwPoiInfo> selectWithinBounds(@Param("city") String city,
+                                        @Param("westLng") Double westLng,
+                                        @Param("eastLng") Double eastLng,
+                                        @Param("southLat") Double southLat,
+                                        @Param("northLat") Double northLat);
+
+    /**
+     * 查询某个城市下所有非空的 poiType 列表（去重）
+     */
+    List<String> selectDistinctPoiTypes(@Param("city") String city);
 }

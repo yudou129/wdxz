@@ -15,6 +15,8 @@ export class HeatmapLayer {
     this._canvasLayer = null
     this._data = []
     this._visible = false
+    this._minScore = 0
+    this._maxScore = 1
   }
 
   isVisible() { return this._visible }
@@ -24,6 +26,12 @@ export class HeatmapLayer {
     const { getGridScoreByCity } = await import('@/api/jwmap/data')
     const res = await getGridScoreByCity(city)
     this._data = res.data || []
+    // 计算实际得分范围用于颜色映射（最低→绿色，最高→红色）
+    const scores = this._data.map(d => d.siteScore).filter(s => s != null)
+    this._minScore = scores.length ? Math.min(...scores) : 0
+    this._maxScore = scores.length ? Math.max(...scores) : 1
+    if (this._minScore === this._maxScore) this._maxScore = this._minScore + 0.001
+    console.log(`[heatmap] ${city}: ${scores.length}个网格, siteScore范围 ${this._minScore.toFixed(4)} ~ ${this._maxScore.toFixed(4)}`)
     return this._data
   }
 
@@ -71,8 +79,10 @@ export class HeatmapLayer {
       const crs = self.map.options.crs
 
       for (const item of self._data) {
-        const score = item.siteScore
-        if (score == null) continue
+        const rawScore = item.siteScore
+        if (rawScore == null) continue
+        // 按实际最低→最高值映射到 0→1 颜色范围
+        const score = (rawScore - self._minScore) / (self._maxScore - self._minScore)
 
         // Project bounding box corners to tile pixel coords
         const nw = crs.latLngToPoint(L.latLng(item.northLatitude, item.westLongitude), zoom)

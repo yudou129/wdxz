@@ -9,24 +9,26 @@
         <el-button type="text" icon="el-icon-close" class="close-btn" @click="$emit('close')" />
       </div>
       <div class="detail-body">
-        <!-- 网点模式 -->
-        <template v-if="mode === 'branch' && groupedData.length">
-          <div v-for="g in groupedData" :key="g.name" class="data-section">
-            <h5 class="section-header">{{ g.name }}</h5>
-            <div v-for="item in g.items" :key="item.name" class="data-row">
-              <span class="data-label">{{ item.name }}</span>
-              <span class="data-value" :class="{ highlight: item.highlight }">{{ item.value }}</span>
+        <!-- 网点模式：按数据层级依次展示的动态树 -->
+        <template v-if="mode === 'branch' && branchTree.length">
+          <div v-for="(node, i) in branchTree" :key="i">
+            <div v-if="node.type === 'cat'" :class="['tree-cat', 'depth-' + node.depth]">
+              {{ node.name }}
+            </div>
+            <div v-else class="data-row" :style="{ paddingLeft: (node.depth * 14 + 4) + 'px' }">
+              <span class="data-label">{{ node.name }}</span>
+              <span class="data-value">{{ fmtVal(node.value) }}</span>
             </div>
           </div>
         </template>
 
-        <!-- 网格模式：一级分类为标题，该分类下所有三级指标合并在一个堆叠百分比条上 -->
+        <!-- 网格模式：按叶子节点的直接父级分组，每组一个堆叠百分比条 -->
         <template v-if="mode === 'grid' && stackedGroups.length">
-          <div v-for="l1 in stackedGroups" :key="l1.name" class="l1-section">
-            <h5 class="l1-header">{{ l1.name }}</h5>
-            <StackedBar v-for="l2 in l1.subs" :key="l2.name"
-              :label="l1.name"
-              :segments="l2.segments" />
+          <div v-for="l2 in stackedGroups" :key="l2.name" class="l1-section">
+            <h5 class="l1-header">{{ l2.l1Name }} / {{ l2.name }}</h5>
+            <StackedBar
+              :label="l2.name"
+              :segments="l2.subs[0].segments" />
           </div>
         </template>
 
@@ -49,37 +51,57 @@ export default {
   },
   computed: {
     hasContent() {
-      if (this.mode === 'branch') return this.groupedData.length > 0
+      if (this.mode === 'branch') return this.branchTree.length > 0
       if (this.mode === 'grid') return this.stackedGroups.length > 0
       return this.data.length > 0
     },
-    groupedData() {
+    // 网点模式：动态树——按每条数据的 ancestors 链构建任意深度层级
+    branchTree() {
       if (this.mode !== 'branch' || !this.data.length) return []
-      const map = {}
+      const root = { _c: {}, _items: [] }
       for (const item of this.data) {
-        const l1 = item.categoryLevel1 || '其他'
-        if (!map[l1]) map[l1] = []
-        map[l1].push({ name: item.name, value: item.value, highlight: item.highlight || false })
+        let node = root
+        for (const name of (item.ancestors || [])) {
+          if (!node._c[name]) node._c[name] = { _c: {}, _items: [] }
+          node = node._c[name]
+        }
+        node._items.push({ name: item.name, value: item.value })
       }
-      return Object.entries(map).map(([name, items]) => ({ name, items }))
+      const flat = []
+      const walk = (node, depth) => {
+        for (const [name, child] of Object.entries(node._c)) {
+          flat.push({ type: 'cat', name, depth })
+          walk(child, depth + 1)
+          for (const item of child._items) {
+            flat.push({ type: 'leaf', name: item.name, value: item.value, depth: depth + 1 })
+          }
+        }
+      }
+      walk(root, 0)
+      return flat
     },
-    // 网格模式：一级分类 → 该分类下所有三级指标合并在一个StackedBar上
+    // 网格模式：按叶子节点的直接父级分组，每组独立一个 StackedBar
     stackedGroups() {
       if (this.mode !== 'grid' || !this.data.length) return []
 
-      const l1Map = {}
+      const l2Map = {}
       for (const item of this.data) {
-        const l1 = item.categoryLevel1 || '其他'
         const v = parseFloat(item.value)
-        if (!l1Map[l1]) l1Map[l1] = { name: l1, items: [], total: 0 }
-        l1Map[l1].items.push({ name: item.name, value: item.value, raw: v })
-        if (!isNaN(v)) l1Map[l1].total += v
+        // 跳过值为0或NaN的项
+        if (isNaN(v) || v === 0) continue
+        const l2 = item.categoryLevel2 || item.categoryLevel1 || '其他'
+        if (!l2Map[l2]) {
+          l2Map[l2] = { name: l2, l1Name: item.categoryLevel1 || '其他', items: [], total: 0 }
+        }
+        l2Map[l2].items.push({ name: item.name, value: item.value, raw: v })
+        l2Map[l2].total += v
       }
 
-      return Object.values(l1Map).map(g => {
+      return Object.values(l2Map).map(g => {
         const total = g.total || 1
         return {
           name: g.name,
+          l1Name: g.l1Name,
           subs: [{
             name: g.name,
             segments: g.items.map(item => ({
@@ -91,6 +113,9 @@ export default {
         }
       })
     }
+  },
+  methods: {
+    fmtVal(v) { return typeof v === 'number' ? v.toFixed(2) : (v != null ? String(v) : '-') }
   }
 }
 </script>
@@ -102,7 +127,7 @@ export default {
   border-radius: 10px;
   border: 1px solid rgba(79,110,246,0.14);
   box-shadow: 4px 0 24px rgba(79,110,246,0.08), 0 1px 3px rgba(0,0,0,0.03);
-  z-index: 999; display: flex; flex-direction: column;
+  z-index: 1000; display: flex; flex-direction: column;
 }
 .detail-header {
   padding: 14px 18px; border-bottom: 1px solid rgba(79,110,246,0.08);
@@ -131,6 +156,11 @@ export default {
 .data-value { color: #303651; font-weight: 500; font-variant-numeric: tabular-nums; }
 .data-value.highlight { color: #4f6ef6; font-weight: 700; }
 .empty-hint { text-align: center; color: #aaa; padding: 40px 0; font-size: 14px; }
+/* 动态树层级样式 */
+.tree-cat { font-weight: 600; margin: 8px 0 3px; }
+.tree-cat.depth-0 { font-size: 14px; color: #232845; border-left: 3px solid #4f6ef6; padding: 3px 0 3px 10px; background: linear-gradient(90deg, rgba(79,110,246,0.06), transparent); }
+.tree-cat.depth-1 { font-size: 13px; color: #454e6b; border-left: 2px solid #a0b4f8; padding: 2px 0 2px 18px; }
+.tree-cat.depth-2 { font-size: 12px; color: #6b7280; padding: 2px 0 2px 28px; }
 .panel-expand-enter-active, .panel-expand-leave-active {
   transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.25s;
 }

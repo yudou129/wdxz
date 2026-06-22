@@ -75,9 +75,9 @@ export default {
   right: 12px;
   bottom: 12px;
   width: 272px;
-  max-height: 400px;
+  max-height: 70vh;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background:

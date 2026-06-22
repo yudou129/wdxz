@@ -39,6 +39,62 @@ public class JwDataController extends BaseController {
         return success(list);
     }
 
+    // ===== POI 范围统计 =====
+
+    @PostMapping("/poi/withinRange")
+    public AjaxResult poiWithinRange(@RequestBody Map<String, Object> params) {
+        String city = (String) params.get("city");
+        if (city == null || city.isEmpty()) return error("城市参数不能为空");
+
+        String shapeType = (String) params.get("shapeType"); // "circle" or "square"
+        double centerLng = toDouble(params.get("centerLng"));
+        double centerLat = toDouble(params.get("centerLat"));
+        double radius = toDouble(params.get("radius")); // 米
+
+        if (radius <= 0) return error("半径必须大于0");
+
+        // 1) 计算矩形边界（以 center 为中心，radius/halfSide 为半边长）
+        double halfSide = radius;
+        double latDelta = halfSide / 111320.0;
+        double lngDelta = halfSide / (111320.0 * Math.cos(Math.toRadians(centerLat)));
+
+        double westLng = centerLng - lngDelta;
+        double eastLng = centerLng + lngDelta;
+        double southLat = centerLat - latDelta;
+        double northLat = centerLat + latDelta;
+
+        // 2) SQL 边界框查询（减少传输量）
+        List<JwPoiInfo> withinBounds = poiInfoMapper.selectWithinBounds(city, westLng, eastLng, southLat, northLat);
+
+        // 3) 圆形模式：用 Haversine 精确过滤
+        List<Map<String, Object>> result;
+        if ("circle".equals(shapeType)) {
+            result = withinBounds.stream()
+                .filter(p -> p.getLatitude() != null && p.getLongitude() != null)
+                .filter(p -> haversine(centerLat, centerLng, p.getLatitude(), p.getLongitude()) * 1000 <= radius)
+                .map(this::poiToMap)
+                .collect(Collectors.toList());
+        } else {
+            result = withinBounds.stream()
+                .map(this::poiToMap)
+                .collect(Collectors.toList());
+        }
+
+        return success(result);
+    }
+
+    /** JwPoiInfo → 精简 Map */
+    private Map<String, Object> poiToMap(JwPoiInfo p) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("poiId", p.getPoiId());
+        m.put("poiName", p.getPoiName());
+        m.put("poiType", p.getPoiType());
+        m.put("address", p.getAddress());
+        m.put("longitude", p.getLongitude());
+        m.put("latitude", p.getLatitude());
+        return m;
+    }
+
     // ===== 指标配置 =====
     @GetMapping("/indicator/list")
     public AjaxResult indicatorList(@RequestParam(required = false) String indicatorType) {
@@ -314,10 +370,8 @@ public class JwDataController extends BaseController {
             Object ss = row.get("siteScore");
             Object bs = row.get("branchScore");
             if (ss != null && bs != null) {
-                double siteVal = ((Number) ss).doubleValue();
-                double branchVal = ((Number) bs).doubleValue();
-                siteScores.add(siteVal);
-                branchScores.add(branchVal);
+                siteScores.add(((Number) ss).doubleValue());
+                branchScores.add(((Number) bs).doubleValue());
                 validRows.add(row);
             }
         }
@@ -325,34 +379,47 @@ public class JwDataController extends BaseController {
         if (siteScores.isEmpty()) {
             return success(new HashMap<String, Object>() {{
                 put("medianSiteScore", 0); put("medianBranchScore", 0);
+                put("medianSiteRank", 0); put("medianBranchRank", 0);
                 put("quadrants", new HashMap<>()); put("allData", new ArrayList<>());
             }});
         }
 
-        // 计算中位数
-        Collections.sort(siteScores);
-        Collections.sort(branchScores);
-        double medianSite = siteScores.get(siteScores.size() / 2);
-        double medianBranch = branchScores.get(branchScores.size() / 2);
+        // 计算排名（1=最优，并列同分取最小排名）
+        Map<Double, Integer> siteRankMap = buildRankMap(siteScores);
+        Map<Double, Integer> branchRankMap = buildRankMap(branchScores);
 
-        // 分类到四象限
+        // 收集排名用于中位数分割
+        List<Integer> siteRanks = new ArrayList<>();
+        List<Integer> branchRanks = new ArrayList<>();
+        for (Map<String, Object> row : validRows) {
+            siteRanks.add(siteRankMap.get(((Number) row.get("siteScore")).doubleValue()));
+            branchRanks.add(branchRankMap.get(((Number) row.get("branchScore")).doubleValue()));
+        }
+        Collections.sort(siteRanks);
+        Collections.sort(branchRanks);
+        int medianSiteRank = siteRanks.get(siteRanks.size() / 2);
+        int medianBranchRank = branchRanks.get(branchRanks.size() / 2);
+
+        // 分类到四象限（排名越小越好，≤ 中位数排名的属于"高"象限）
         Map<String, List<Map<String, Object>>> quadrants = new LinkedHashMap<>();
-        quadrants.put("Q1", new ArrayList<>()); // 高能效 + 高聚集
-        quadrants.put("Q2", new ArrayList<>()); // 高能效 + 低聚集
-        quadrants.put("Q3", new ArrayList<>()); // 低能效 + 低聚集
-        quadrants.put("Q4", new ArrayList<>()); // 低能效 + 高聚集
+        quadrants.put("Q1", new ArrayList<>());
+        quadrants.put("Q2", new ArrayList<>());
+        quadrants.put("Q3", new ArrayList<>());
+        quadrants.put("Q4", new ArrayList<>());
 
         List<Map<String, Object>> allData = new ArrayList<>();
         for (Map<String, Object> row : validRows) {
             double siteVal = ((Number) row.get("siteScore")).doubleValue();
             double branchVal = ((Number) row.get("branchScore")).doubleValue();
+            int siteRank = siteRankMap.get(siteVal);
+            int branchRank = branchRankMap.get(branchVal);
 
             String quadrant;
-            if (branchVal >= medianBranch && siteVal >= medianSite) {
+            if (branchRank <= medianBranchRank && siteRank <= medianSiteRank) {
                 quadrant = "Q1";
-            } else if (branchVal >= medianBranch && siteVal < medianSite) {
+            } else if (branchRank <= medianBranchRank && siteRank > medianSiteRank) {
                 quadrant = "Q2";
-            } else if (branchVal < medianBranch && siteVal < medianSite) {
+            } else if (branchRank > medianBranchRank && siteRank > medianSiteRank) {
                 quadrant = "Q3";
             } else {
                 quadrant = "Q4";
@@ -367,6 +434,8 @@ public class JwDataController extends BaseController {
             item.put("latitude", row.get("latitude"));
             item.put("siteScore", siteVal);
             item.put("branchScore", branchVal);
+            item.put("siteRank", siteRank);
+            item.put("branchRank", branchRank);
             item.put("quadrant", quadrant);
             item.put("quadrantLabel", getQuadrantLabel(quadrant));
 
@@ -375,12 +444,25 @@ public class JwDataController extends BaseController {
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("medianSiteScore", medianSite);
-        result.put("medianBranchScore", medianBranch);
+        result.put("medianSiteScore", medianSiteRank);   // 兼容前端旧字段名，存排名中位数
+        result.put("medianBranchScore", medianBranchRank);
+        result.put("medianSiteRank", medianSiteRank);
+        result.put("medianBranchRank", medianBranchRank);
         result.put("totalBranches", allData.size());
         result.put("quadrants", quadrants);
         result.put("allData", allData);
         return success(result);
+    }
+
+    /** 得分→排名（1=最优），并列同分取最小排名 */
+    private Map<Double, Integer> buildRankMap(List<Double> scores) {
+        List<Double> sorted = new ArrayList<>(scores);
+        sorted.sort(Collections.reverseOrder());
+        Map<Double, Integer> map = new LinkedHashMap<>();
+        for (int i = 0; i < sorted.size(); i++) {
+            map.putIfAbsent(sorted.get(i), i + 1);
+        }
+        return map;
     }
 
     private String getQuadrantLabel(String q) {
@@ -756,5 +838,49 @@ public class JwDataController extends BaseController {
     @GetMapping("/population/grids/{city}")
     public AjaxResult getDistinctGrids(@PathVariable String city) {
         return success(populationHeatMapper.selectDistinctGridCodesByCity(city));
+    }
+
+    // ===== 网点空白服务点 =====
+
+    /** 返回排名前 limit 且未落入任何工行网点的网格（高潜力空白区域） */
+    @GetMapping("/grid/topWithoutBranch/{city}")
+    public AjaxResult gridTopWithoutBranch(@PathVariable String city) {
+        // 1. 取前100个无网点网格code
+        List<String> codes = gridScoreMapper.selectTopCodesWithoutBranch(city, 100);
+        if (codes.isEmpty()) return success(new ArrayList<>());
+
+        // 2. 从 gridMeta 中匹配坐标
+        Set<String> codeSet = new HashSet<>(codes);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (JwGridMeta meta : gridMetaMapper.selectByCity(city)) {
+            if (!codeSet.contains(meta.getGridCode())) continue;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("gridCode", meta.getGridCode());
+            item.put("longitude", meta.getLongitude());
+            item.put("latitude", meta.getLatitude());
+            item.put("westLongitude", meta.getWestLongitude());
+            item.put("eastLongitude", meta.getEastLongitude());
+            item.put("northLatitude", meta.getNorthLatitude());
+            item.put("southLatitude", meta.getSouthLatitude());
+            item.put("district", meta.getDistrict());
+            result.add(item);
+        }
+
+        // 3. 批量加载 siteScore
+        Map<String, Double> scoreMap = new HashMap<>();
+        for (JwGridScore s : gridScoreMapper.selectByCity(city)) {
+            if (s.getSiteScore() != null) scoreMap.put(s.getGridCode(), s.getSiteScore());
+        }
+        for (Map<String, Object> item : result) {
+            item.put("siteScore", scoreMap.get(item.get("gridCode")));
+        }
+
+        // 4. 按得分降序排列
+        result.sort((a, b) -> {
+            Double sa = (Double) a.get("siteScore");
+            Double sb = (Double) b.get("siteScore");
+            if (sa == null) return 1; if (sb == null) return -1; return sb.compareTo(sa);
+        });
+        return success(result);
     }
 }

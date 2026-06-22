@@ -145,6 +145,14 @@ export function getNearbyBranches(branchId, radius) {
 export function getPillarGap(gridCode) {
   return request({ url: '/jwmap/data/grid/pillar/gap/' + gridCode, method: 'get' })
 }
+export function getGridTopWithoutBranch(city) {
+  return request({ url: '/jwmap/data/grid/topWithoutBranch/' + city, method: 'get' })
+}
+
+// ===== POI 范围统计 =====
+export function getPoiWithinRange(data) {
+  return request({ url: '/jwmap/data/poi/withinRange', method: 'post', data: data })
+}
 
 // ===== 指标配置管理 =====
 export function getIndicatorTree(type) {

@@ -29,9 +29,9 @@
           </div>
           <div class="pillar-gap-row">
             <span class="pg-label">三聚集与全市最高差距</span>
-            <span>人口 {{ fmtGap(pillarGap.population.gap) }}</span>
-            <span>企业 {{ fmtGap(pillarGap.enterprise.gap) }}</span>
-            <span>商圈 {{ fmtGap(pillarGap.business.gap) }}</span>
+            <span>{{ popGapName }} {{ fmtGap(popGap) }}</span>
+            <span>{{ entGapName }} {{ fmtGap(entGap) }}</span>
+            <span>{{ bizGapName }} {{ fmtGap(bizGap) }}</span>
           </div>
           <el-divider class="thin-divider" />
 
@@ -127,7 +127,13 @@ export default {
     overallScore() {
       const s = this.branchScores.find(s => s.scoreCategory === 'overall')
       return s ? s.categoryScore : null
-    }
+    },
+    popGap() { return this.pillarGap && this.pillarGap.population ? this.pillarGap.population.gap : 0 },
+    entGap() { return this.pillarGap && this.pillarGap.enterprise ? this.pillarGap.enterprise.gap : 0 },
+    bizGap() { return this.pillarGap && this.pillarGap.business ? this.pillarGap.business.gap : 0 },
+    popGapName() { return (this.pillarGap && this.pillarGap.population && this.pillarGap.population.name) || '---' },
+    entGapName() { return (this.pillarGap && this.pillarGap.enterprise && this.pillarGap.enterprise.name) || '---' },
+    bizGapName() { return (this.pillarGap && this.pillarGap.business && this.pillarGap.business.name) || '---' }
   },
   methods: {
     fmtGap(v) { return typeof v === 'number' ? v.toFixed(4) : '-' }
@@ -138,7 +144,7 @@ export default {
 <style scoped>
 .sidebar-panel {
   position: absolute; left: 12px; top: 60px; bottom: 12px;
-  isolation: isolate; overflow: hidden; border-radius: 10px;
+  isolation: isolate; overflow: visible; border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.28);
   background: linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0.08)), rgba(255,255,255,0.10);
   backdrop-filter: blur(22px) saturate(170%) contrast(1.04);
