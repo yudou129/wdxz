@@ -23,7 +23,10 @@
       @search-branch="onSearchBranch"
       @toggle-ranking="onToggleRanking"
       @toggle-compare="onToggleCompare"
-      @add-compare-branch="onAddCompareBranch" />
+      @add-compare-branch="onAddCompareBranch"
+      :pendingCount="pendingCount"
+      @goto-access="goToAccessRequest"
+      @goto-approval="goToApproval" />
 
     <SidebarPanel
       :visible="sidebar.visible"
@@ -40,13 +43,15 @@
       :pillar="sidebar.pillar"
       :peerBanks="peerBanks"
       :nearbyBranches="nearbyBranches"
+      :hasAccess="branchAccess"
       :pillarGap="sidebar.pillarGap"
       :years="availableYears"
       :year="selectedYear"
       @close="closeSidebar"
       @view-detail="showDetailDialog"
       @zoom-branch="zoomToBranch"
-      @year-change="onYearChange" />
+      @year-change="onYearChange"
+      @apply-access="navigateToApplyAccess" />
 
     <RankingList
       :visible="ranking.visible"
@@ -94,7 +99,10 @@
       :data="detailPanel.data"
       :mode="detailPanel.mode"
       :leftPos="detailPanel.left"
-      @close="detailPanel.visible = false" />
+      :hasAccess="branchAccess"
+      :branchId="detailPanel.branchId"
+      @close="detailPanel.visible = false"
+      @apply-access="navigateToApplyAccess" />
 
     <RangeStatsPanel
       ref="rangeStats"
@@ -137,6 +145,7 @@ import { getGridIndicators, getBranchScoreDetail, getGridBranches,
          getGridPillarScores, getDimensionStats,
          getPeerBankDistance, getPeerBankList, getNearbyBranches, getThreeFocusRanking, getPillarGap,
          getGridScoreByCity, getGridTopWithoutBranch } from '@/api/jwmap/data'
+import { checkBranchAccess, getPendingCount } from '@/api/jwmap/data-access'
 import '@/views/jwmap/map/assets/branch-icon.css'
 import '@/views/jwmap/map/assets/peer-bank-icon.css'
 
@@ -196,16 +205,18 @@ export default {
       gridDataCache: null,
       currentCity: null, currentFilter: null, currentAdcode: null,
       branchList: [],
-      detailPanel: { visible: false, data: [], mode: 'branch', left: 400 },
+      detailPanel: { visible: false, data: [], mode: 'branch', left: 400, branchId: null },
       rangeStats: { visible: false },
       rangeShapeLayer: null,
       rangeModeActive: false,
       compareMode: false,
+      pendingCount: 0,
       comparePanel: {
         visible: false,
         branches: [],
         loading: false
       },
+      branchAccess: true, // 当前选中网点的数据访问权限
       blankSpotActive: false,
       blankSpotData: [],
       blankSpotLayer: null,
@@ -218,12 +229,17 @@ export default {
       return [cur - 2, cur - 1, cur]
     }
   },
-  mounted() { this.$nextTick(() => this.initMap()) },
+  mounted() {
+    this.$nextTick(() => this.initMap())
+    this.loadPendingCount()
+    this.$root.$on('pending-count-changed', this.loadPendingCount)
+  },
   beforeDestroy() {
     if (this.measureTool) { this.measureTool._deactivate(); this.measureTool._clear() }
     if (this.rangeModeActive) this.unbindRangeEvents()
     if (this.blankSpotLayer) { this.map.removeLayer(this.blankSpotLayer); this.blankSpotLayer = null }
     this._hidePeerBankLegend()
+    this.$root.$off('pending-count-changed', this.loadPendingCount)
     if (this.map) { this.map.remove(); this.map = null }
   },
   methods: {
@@ -384,14 +400,30 @@ export default {
       }
       this.sidebar.mode = 'branch-only'; this.sidebar.width = 380
       this.sidebar.branchData = branch
-      await Promise.all([
-        this.loadBranchScores(branch.branchId),
-        this.loadBranchRankMeta(branch.branchId),
-        this.loadBranchQuadrant(branch),
-        this.loadPeerAndNearby(branch.branchId),
-        this.loadPillarGap(branch.gridCode)
-      ])
       this.sidebar.visible = true
+
+      // 权限检查
+      this.branchAccess = false
+      if (branch.branchId) {
+        try {
+          const res = await checkBranchAccess(branch.branchId)
+          const data = res.data || {}
+          this.branchAccess = data.hasAccess !== false
+        } catch (e) {
+          this.branchAccess = false
+        }
+      }
+
+      // 有权限才加载详细数据
+      if (this.branchAccess) {
+        await Promise.all([
+          this.loadBranchScores(branch.branchId),
+          this.loadBranchRankMeta(branch.branchId),
+          this.loadBranchQuadrant(branch),
+          this.loadPeerAndNearby(branch.branchId),
+          this.loadPillarGap(branch.gridCode)
+        ])
+      }
     },
     async loadPillarGap(gridCode) {
       const safeGap = { population: { gap: 0, name: '---' }, enterprise: { gap: 0, name: '---' }, business: { gap: 0, name: '---' } }
@@ -1100,6 +1132,22 @@ export default {
     },
     closeSidebar() { this.sidebar.visible = false; this.detailPanel.visible = false },
 
+    // 跳转到数据查看申请页面（携带网点ID，自动回显目标支行）
+    navigateToApplyAccess(branchId) {
+      this.$router.push({ path: '/jwmap/access-request', query: { branchId } })
+    },
+    goToAccessRequest() {
+      this.$router.push('/jwmap/access-request')
+    },
+    goToApproval() {
+      this.$router.push('/jwmap/access-approval')
+    },
+    loadPendingCount() {
+      getPendingCount().then(res => {
+        this.pendingCount = res.data || 0
+      }).catch(() => {})
+    },
+
     // ==== 四象限 ====
     async loadQuadrant() {
       if (!this.currentCity) return
@@ -1153,7 +1201,8 @@ export default {
       if (type === 'branch' || type === 'all') {
         this.detailPanel.data = []
         const branchId = this.sidebar.branchData.branchId
-        if (branchId) {
+        this.detailPanel.branchId = branchId
+        if (branchId && this.branchAccess) {
           try {
             const res = await getBranchIndicators(branchId, this.selectedYear)
             const list = res.data || res || []

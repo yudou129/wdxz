@@ -9,30 +9,41 @@
         <el-button type="text" icon="el-icon-close" class="close-btn" @click="$emit('close')" />
       </div>
       <div class="detail-body">
-        <!-- 网点模式：按数据层级依次展示的动态树 -->
-        <template v-if="mode === 'branch' && branchTree.length">
-          <div v-for="(node, i) in branchTree" :key="i">
-            <div v-if="node.type === 'cat'" :class="['tree-cat', 'depth-' + node.depth]">
-              {{ node.name }}
-            </div>
-            <div v-else class="data-row" :style="{ paddingLeft: (node.depth * 14 + 4) + 'px' }">
-              <span class="data-label">{{ node.name }}</span>
-              <span class="data-value">{{ fmtVal(node.value) }}</span>
-            </div>
+        <!-- 无权限提示 -->
+        <template v-if="mode === 'branch' && hasAccess === false">
+          <div class="no-access">
+            <i class="el-icon-lock" style="font-size:36px;color:#d9d9d9;margin-bottom:12px;"></i>
+            <p>暂无查看该网点详细数据的权限</p>
+            <el-button type="primary" size="small" @click="$emit('apply-access', branchId)">申请查看</el-button>
           </div>
         </template>
 
-        <!-- 网格模式：按叶子节点的直接父级分组，每组一个堆叠百分比条 -->
-        <template v-if="mode === 'grid' && stackedGroups.length">
-          <div v-for="l2 in stackedGroups" :key="l2.name" class="l1-section">
-            <h5 class="l1-header">{{ l2.l1Name }} / {{ l2.name }}</h5>
-            <StackedBar
-              :label="l2.name"
-              :segments="l2.subs[0].segments" />
-          </div>
-        </template>
+        <template v-else>
+          <!-- 网点模式：按数据层级依次展示的动态树 -->
+          <template v-if="mode === 'branch' && branchTree.length">
+            <div v-for="(node, i) in branchTree" :key="i">
+              <div v-if="node.type === 'cat'" :class="['tree-cat', 'depth-' + node.depth]">
+                {{ node.name }}
+              </div>
+              <div v-else class="data-row" :style="{ paddingLeft: (node.depth * 14 + 4) + 'px' }">
+                <span class="data-label">{{ node.name }}</span>
+                <span class="data-value">{{ fmtVal(node.value) }}</span>
+              </div>
+            </div>
+          </template>
 
-        <div v-if="!hasContent" class="empty-hint">暂无详细指标数据</div>
+          <!-- 网格模式：按叶子节点的直接父级分组，每组一个堆叠百分比条 -->
+          <template v-if="mode === 'grid' && stackedGroups.length">
+            <div v-for="l2 in stackedGroups" :key="l2.name" class="l1-section">
+              <h5 class="l1-header">{{ l2.l1Name }} / {{ l2.name }}</h5>
+              <StackedBar
+                :label="l2.name"
+                :segments="l2.subs[0].segments" />
+            </div>
+          </template>
+
+          <div v-if="!hasContent" class="empty-hint">暂无详细指标数据</div>
+        </template>
       </div>
     </div>
   </transition>
@@ -47,7 +58,9 @@ export default {
     visible: Boolean,
     data: { type: Array, default: () => [] },
     mode: { type: String, default: 'branch' },
-    leftPos: { type: Number, default: 420 }
+    leftPos: { type: Number, default: 420 },
+    hasAccess: { type: Boolean, default: true },
+    branchId: { type: Number, default: null }
   },
   computed: {
     hasContent() {
@@ -156,6 +169,8 @@ export default {
 .data-value { color: #303651; font-weight: 500; font-variant-numeric: tabular-nums; }
 .data-value.highlight { color: #4f6ef6; font-weight: 700; }
 .empty-hint { text-align: center; color: #aaa; padding: 40px 0; font-size: 14px; }
+.no-access { text-align: center; padding: 60px 20px; color: #999; }
+.no-access p { margin: 8px 0 16px; font-size: 14px; }
 /* 动态树层级样式 */
 .tree-cat { font-weight: 600; margin: 8px 0 3px; }
 .tree-cat.depth-0 { font-size: 14px; color: #232845; border-left: 3px solid #4f6ef6; padding: 3px 0 3px 10px; background: linear-gradient(90deg, rgba(79,110,246,0.06), transparent); }

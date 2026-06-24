@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.constant.UserConstants;
 import com.ruoyi.common.core.controller.BaseController;
+import com.ruoyi.common.core.domain.TreeSelect;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.domain.entity.SysDept;
 import com.ruoyi.common.enums.BusinessType;
@@ -44,6 +45,16 @@ public class SysDeptController extends BaseController
     {
         List<SysDept> depts = deptService.selectDeptList(dept);
         return success(depts);
+    }
+
+    /**
+     * 获取部门树选择器数据（所有可见部门）
+     */
+    @GetMapping("/treeselect")
+    public AjaxResult treeselect(SysDept dept)
+    {
+        List<TreeSelect> tree = deptService.selectDeptTreeList(dept);
+        return success(tree);
     }
 
     /**

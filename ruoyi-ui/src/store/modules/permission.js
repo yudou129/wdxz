@@ -105,6 +105,9 @@ export function filterDynamicRoutes(routes) {
       if (auth.hasRoleOr(route.roles)) {
         res.push(route)
       }
+    } else {
+      // 无权限要求的动态路由（如申请页、审批页）默认全部可见
+      res.push(route)
     }
   })
   return res

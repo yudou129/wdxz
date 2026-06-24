@@ -17,6 +17,14 @@ export function listDeptExcludeChild(deptId) {
   })
 }
 
+// 查询部门树（用于选择器）
+export function getDeptTree() {
+  return request({
+    url: '/system/dept/treeselect',
+    method: 'get'
+  })
+}
+
 // 查询部门详细
 export function getDept(deptId) {
   return request({

@@ -79,6 +79,14 @@
                  @click="$emit('toggle-compare')">
         <i class="el-icon-data-analysis" /> {{ compareActive ? '退出对比' : '对比' }}
       </el-button>
+      <span style="margin-left:8px;border-left:1px solid rgba(0,0,0,0.1);padding-left:8px" />
+      <el-button size="small" @click="$emit('goto-access')">
+        <i class="el-icon-document" /> 我的申请
+      </el-button>
+      <el-button size="small" type="warning" @click="$emit('goto-approval')">
+        <i class="el-icon-bell" /> 审批管理
+        <el-badge v-if="pendingCount > 0" :value="pendingCount" class="toolbar-badge" />
+      </el-button>
     </div>
   </div>
 </template>
@@ -96,7 +104,8 @@ export default {
     rankingActive: { type: Boolean, default: false },
     compareActive: { type: Boolean, default: false },
     blankSpotActive: { type: Boolean, default: false },
-    branchList: { type: Array, default: () => [] }
+    branchList: { type: Array, default: () => [] },
+    pendingCount: { type: Number, default: 0 }
   },
   data() {
     return {
@@ -396,5 +405,12 @@ export default {
 .blankspot-on:hover {
   background: #0891b2;
   border-color: #0891b2;
+}
+.toolbar-badge {
+  margin-left: 2px;
+}
+.toolbar-badge >>> .el-badge__content {
+  top: 2px;
+  right: -4px;
 }
 </style>

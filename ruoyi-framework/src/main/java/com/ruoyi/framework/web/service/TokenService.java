@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import com.ruoyi.common.constant.CacheConstants;
 import com.ruoyi.common.constant.Constants;
 import com.ruoyi.common.core.domain.model.LoginUser;
+import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.core.redis.RedisCache;
 import com.ruoyi.common.utils.ServletUtils;
 import com.ruoyi.common.utils.StringUtils;
@@ -19,6 +20,7 @@ import com.ruoyi.common.utils.http.UserAgentUtils;
 import com.ruoyi.common.utils.ip.AddressUtils;
 import com.ruoyi.common.utils.ip.IpUtils;
 import com.ruoyi.common.utils.uuid.IdUtils;
+import com.ruoyi.system.service.ISysUserService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -55,9 +57,15 @@ public class TokenService
     @Autowired
     private RedisCache redisCache;
 
+    @Autowired
+    private ISysUserService userService;
+
+    @Autowired
+    private SysPermissionService permissionService;
+
     /**
      * 获取用户身份信息
-     * 
+     *
      * @return 用户信息
      */
     public LoginUser getLoginUser(HttpServletRequest request)
@@ -73,14 +81,65 @@ public class TokenService
                 String uuid = (String) claims.get(Constants.LOGIN_USER_KEY);
                 String userKey = getTokenKey(uuid);
                 LoginUser user = redisCache.getCacheObject(userKey);
+                if (user == null)
+                {
+                    // Redis 缓存丢失（例如重启后），从数据库恢复会话
+                    log.warn("TokenService: Redis miss for key={}", userKey);
+                    String username = (String) claims.get(Constants.JWT_USERNAME);
+                    if (StringUtils.isNotEmpty(username))
+                    {
+                        user = rebuildLoginUser(username, uuid);
+                        if (user != null)
+                        {
+                            log.info("TokenService: rebuildLoginUser SUCCESS for username={}, userId={}",
+                                    username, user.getUserId());
+                        }
+                        else
+                        {
+                            log.error("TokenService: rebuildLoginUser FAILED for username={}", username);
+                        }
+                    }
+                    else
+                    {
+                        log.error("TokenService: no username in JWT claims, cannot rebuild");
+                    }
+                }
                 return user;
             }
             catch (Exception e)
             {
-                log.error("获取用户信息异常'{}'", e.getMessage());
+                log.error("TokenService: parseToken or lookup failed: {}", e.getMessage());
             }
         }
         return null;
+    }
+
+    /**
+     * 从数据库重建登录用户信息（Redis缓存丢失时自动恢复）
+     */
+    private LoginUser rebuildLoginUser(String username, String token)
+    {
+        try
+        {
+            SysUser sysUser = userService.selectUserByUserName(username);
+            if (sysUser == null)
+            {
+                return null;
+            }
+            LoginUser loginUser = new LoginUser(sysUser.getUserId(), sysUser.getDeptId(), sysUser, permissionService.getMenuPermission(sysUser));
+            loginUser.setToken(token);
+            loginUser.setLoginTime(System.currentTimeMillis());
+            loginUser.setExpireTime(loginUser.getLoginTime() + expireTime * MILLIS_MINUTE);
+            // 缓存到 Redis
+            String userKey = getTokenKey(token);
+            redisCache.setCacheObject(userKey, loginUser, expireTime, TimeUnit.MINUTES);
+            return loginUser;
+        }
+        catch (Exception e)
+        {
+            log.error("重建登录用户信息失败'{}'", e.getMessage());
+            return null;
+        }
     }
 
     /**

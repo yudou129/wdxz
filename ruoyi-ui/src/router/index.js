@@ -206,6 +206,32 @@ export const dynamicRoutes = [
         meta: { title: '指标管理', icon: 'setting' }
       }
     ]
+  },
+  {
+    path: '/jwmap/access-request',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/jwmap/access/index'),
+        name: 'JwDataAccessRequest',
+        meta: { title: '数据查看申请', icon: 'edit' }
+      }
+    ]
+  },
+  {
+    path: '/jwmap/access-approval',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/jwmap/access/approval'),
+        name: 'JwDataAccessApproval',
+        meta: { title: '数据审批管理', icon: 'lock' }
+      }
+    ]
   }
 ]
 

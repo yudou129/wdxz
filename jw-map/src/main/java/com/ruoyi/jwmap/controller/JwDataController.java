@@ -5,6 +5,7 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.jwmap.domain.*;
 import com.ruoyi.jwmap.mapper.*;
+import com.ruoyi.jwmap.service.IJwDataAccessService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,6 +30,7 @@ public class JwDataController extends BaseController {
     @Autowired private JwGridDataRawMapper gridDataRawMapper;
     @Autowired private JwBranchIndicatorMapper branchIndicatorMapper;
     @Autowired private JwPeerBankInfoMapper peerBankInfoMapper;
+    @Autowired private IJwDataAccessService accessService;
 
     // ===== POI =====
     @GetMapping("/poi/list")
@@ -223,6 +225,15 @@ public class JwDataController extends BaseController {
 
     @GetMapping("/branch/score/detail/{branchId}/{year}")
     public AjaxResult branchScoreDetail(@PathVariable Long branchId, @PathVariable Integer year) {
+        JwBranchInfo branch = branchInfoMapper.selectJwBranchInfoById(branchId);
+        // 权限检查（含异常保护：会话过期时默认无权限）
+        boolean hasAccess = false;
+        try {
+            hasAccess = accessService.hasBranchAccess(getUserId(), branch);
+        } catch (Exception ignored) {}
+        if (!hasAccess) {
+            return error("暂无权限查看该网点详细数据");
+        }
         List<JwBranchScore> list = branchScoreMapper.selectByBranchAndYear(branchId, year);
         return success(list);
     }
@@ -309,6 +320,16 @@ public class JwDataController extends BaseController {
 
     @GetMapping("/branch/indicators/{branchId}/{year}")
     public AjaxResult branchIndicators(@PathVariable Long branchId, @PathVariable Integer year) {
+        JwBranchInfo branch = branchInfoMapper.selectJwBranchInfoById(branchId);
+        // 权限检查（含异常保护：会话过期时默认无权限）
+        boolean hasAccess = false;
+        try {
+            hasAccess = accessService.hasBranchAccess(getUserId(), branch);
+        } catch (Exception ignored) {}
+        if (!hasAccess) {
+            return error("暂无权限查看该网点详细数据");
+        }
+
         // 1. 加载 branch 和 branch_raw 类型的全部叶子节点（排除 _auto）
         List<JwIndicatorConfig> leafConfigs = new ArrayList<>();
         leafConfigs.addAll(indicatorConfigMapper.selectLeavesByType("branch"));

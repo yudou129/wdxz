@@ -49,6 +49,18 @@
         <div :class="{ 'split-col': mode === 'split' }">
         <template v-if="mode === 'branch-only' || mode === 'split'">
           <BranchInfoCard :branch="branchData" @zoom="$emit('zoom-branch')" />
+
+          <!-- 无权限提示 -->
+          <template v-if="hasAccess === false">
+            <el-divider class="thin-divider" />
+            <div class="no-access">
+              <i class="el-icon-lock" style="font-size:28px;color:#d9d9d9;margin-bottom:8px;"></i>
+              <p style="margin:4px 0 12px;font-size:13px;color:#999;">暂无查看该网点详细数据的权限</p>
+              <el-button type="primary" size="mini" @click="$emit('apply-access', branchData.branchId)">申请查看</el-button>
+            </div>
+          </template>
+
+          <template v-if="hasAccess !== false">
           <el-divider class="thin-divider" />
 
           <div class="section-title"><i class="el-icon-trophy" /> 内部效能排名</div>
@@ -65,6 +77,8 @@
           </el-button>
 
           <PeerBankSection :items="peerBanks" />
+          </template>
+
           <div v-if="nearbyBranches.length" class="peer-section">
             <div class="section-title"><i class="el-icon-map-location" /> 周围网点 ({{ nearbyBranches.length }})</div>
             <div v-for="(item, i) in nearbyBranches.slice(0, 5)" :key="i" class="peer-row">
@@ -115,7 +129,8 @@ export default {
     nearbyBranches: { type: Array, default: () => [] },
     pillarGap: { type: Object, default: () => ({ population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }) },
     years: { type: Array, default: () => [] },
-    year: { type: Number, default: null }
+    year: { type: Number, default: null },
+    hasAccess: { type: Boolean, default: true }
   },
   computed: {
     title() {
@@ -179,6 +194,7 @@ export default {
 .score-gap { font-size: 12px; color: #e6a23c; padding: 2px 0; }
 .score-gap b { color: #e6a23c; }
 .detail-link { margin-top: 2px; color: #4f6ef6; font-weight: 500; }
+.no-access { text-align: center; padding: 24px 16px; }
 .detail-link:hover { color: #3b54d4; }
 .full-width { width: 100%; text-align: center; }
 .split-layout { display: flex; gap: 16px; }
