@@ -50,17 +50,6 @@
         <template v-if="mode === 'branch-only' || mode === 'split'">
           <BranchInfoCard :branch="branchData" @zoom="$emit('zoom-branch')" />
 
-          <!-- 无权限提示 -->
-          <template v-if="hasAccess === false">
-            <el-divider class="thin-divider" />
-            <div class="no-access">
-              <i class="el-icon-lock" style="font-size:28px;color:#d9d9d9;margin-bottom:8px;"></i>
-              <p style="margin:4px 0 12px;font-size:13px;color:#999;">暂无查看该网点详细数据的权限</p>
-              <el-button type="primary" size="mini" @click="$emit('apply-access', branchData.branchId)">申请查看</el-button>
-            </div>
-          </template>
-
-          <template v-if="hasAccess !== false">
           <el-divider class="thin-divider" />
 
           <div class="section-title"><i class="el-icon-trophy" /> 内部效能排名</div>
@@ -77,7 +66,6 @@
           </el-button>
 
           <PeerBankSection :items="peerBanks" />
-          </template>
 
           <div v-if="nearbyBranches.length" class="peer-section">
             <div class="section-title"><i class="el-icon-map-location" /> 周围网点 ({{ nearbyBranches.length }})</div>
@@ -129,8 +117,7 @@ export default {
     nearbyBranches: { type: Array, default: () => [] },
     pillarGap: { type: Object, default: () => ({ population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }) },
     years: { type: Array, default: () => [] },
-    year: { type: Number, default: null },
-    hasAccess: { type: Boolean, default: true }
+    year: { type: Number, default: null }
   },
   computed: {
     title() {

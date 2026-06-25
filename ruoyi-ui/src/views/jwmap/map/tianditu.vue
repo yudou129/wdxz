@@ -43,15 +43,13 @@
       :pillar="sidebar.pillar"
       :peerBanks="peerBanks"
       :nearbyBranches="nearbyBranches"
-      :hasAccess="branchAccess"
       :pillarGap="sidebar.pillarGap"
       :years="availableYears"
       :year="selectedYear"
       @close="closeSidebar"
       @view-detail="showDetailDialog"
       @zoom-branch="zoomToBranch"
-      @year-change="onYearChange"
-      @apply-access="navigateToApplyAccess" />
+      @year-change="onYearChange" />
 
     <RankingList
       :visible="ranking.visible"
@@ -99,9 +97,9 @@
       :data="detailPanel.data"
       :mode="detailPanel.mode"
       :leftPos="detailPanel.left"
-      :hasAccess="branchAccess"
+      :noAccess="detailPanel.noAccess"
       :branchId="detailPanel.branchId"
-      @close="detailPanel.visible = false"
+      @close="detailPanel.visible = false; detailPanel.noAccess = false"
       @apply-access="navigateToApplyAccess" />
 
     <RangeStatsPanel
@@ -205,7 +203,7 @@ export default {
       gridDataCache: null,
       currentCity: null, currentFilter: null, currentAdcode: null,
       branchList: [],
-      detailPanel: { visible: false, data: [], mode: 'branch', left: 400, branchId: null },
+      detailPanel: { visible: false, data: [], mode: 'branch', left: 400, branchId: null, noAccess: false },
       rangeStats: { visible: false },
       rangeShapeLayer: null,
       rangeModeActive: false,
@@ -1130,7 +1128,7 @@ export default {
         }
       } catch (e) { console.error('[jwmap] navigateToGrid error:', e) }
     },
-    closeSidebar() { this.sidebar.visible = false; this.detailPanel.visible = false },
+    closeSidebar() { this.sidebar.visible = false; this.detailPanel.visible = false; this.detailPanel.noAccess = false },
 
     // 跳转到数据查看申请页面（携带网点ID，自动回显目标支行）
     navigateToApplyAccess(branchId) {
@@ -1200,6 +1198,7 @@ export default {
 
       if (type === 'branch' || type === 'all') {
         this.detailPanel.data = []
+        this.detailPanel.noAccess = false
         const branchId = this.sidebar.branchData.branchId
         this.detailPanel.branchId = branchId
         if (branchId && this.branchAccess) {
@@ -1214,6 +1213,8 @@ export default {
           } catch (e) {
             this.$message.error('加载网点指标数据失败')
           }
+        } else if (branchId) {
+          this.detailPanel.noAccess = true
         }
         this.detailPanel.mode = 'branch'
         this.detailPanel.visible = true

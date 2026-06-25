@@ -9,12 +9,15 @@
         <el-button type="text" icon="el-icon-close" class="close-btn" @click="$emit('close')" />
       </div>
       <div class="detail-body">
-        <!-- 无权限提示 -->
-        <template v-if="mode === 'branch' && hasAccess === false">
+        <!-- 无权限提示（查看详细指标数据时触发） -->
+        <template v-if="mode === 'branch' && noAccess">
           <div class="no-access">
             <i class="el-icon-lock" style="font-size:36px;color:#d9d9d9;margin-bottom:12px;"></i>
-            <p>暂无查看该网点详细数据的权限</p>
-            <el-button type="primary" size="small" @click="$emit('apply-access', branchId)">申请查看</el-button>
+            <p>无数据查看权限</p>
+            <div style="display:flex;gap:10px;justify-content:center;margin-top:12px;">
+              <el-button size="small" @click="$emit('close')">取消</el-button>
+              <el-button type="primary" size="small" @click="$emit('apply-access', branchId)">申请</el-button>
+            </div>
           </div>
         </template>
 
@@ -59,7 +62,7 @@ export default {
     data: { type: Array, default: () => [] },
     mode: { type: String, default: 'branch' },
     leftPos: { type: Number, default: 420 },
-    hasAccess: { type: Boolean, default: true },
+    noAccess: { type: Boolean, default: false },
     branchId: { type: Number, default: null }
   },
   computed: {
