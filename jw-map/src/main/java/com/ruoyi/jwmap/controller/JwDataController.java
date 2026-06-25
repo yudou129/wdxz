@@ -3,9 +3,11 @@ package com.ruoyi.jwmap.controller;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.entity.SysDept;
 import com.ruoyi.jwmap.domain.*;
 import com.ruoyi.jwmap.mapper.*;
 import com.ruoyi.jwmap.service.IJwDataAccessService;
+import com.ruoyi.system.mapper.SysDeptMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +33,7 @@ public class JwDataController extends BaseController {
     @Autowired private JwBranchIndicatorMapper branchIndicatorMapper;
     @Autowired private JwPeerBankInfoMapper peerBankInfoMapper;
     @Autowired private IJwDataAccessService accessService;
+    @Autowired private SysDeptMapper sysDeptMapper;
 
     // ===== POI =====
     @GetMapping("/poi/list")
@@ -282,8 +285,44 @@ public class JwDataController extends BaseController {
 
     @GetMapping("/grid/branches/{gridCode}")
     public AjaxResult gridBranches(@PathVariable String gridCode) {
-        List<JwBranchInfo> list = branchInfoMapper.selectByGridCode(gridCode);
-        return success(list);
+        List<JwBranchInfo> allList = branchInfoMapper.selectByGridCode(gridCode);
+        if (allList == null || allList.isEmpty()) {
+            return success(new ArrayList<>());
+        }
+        try {
+            Long userId = getUserId();
+            List<Long> authorizedDeptIds = accessService.selectAuthorizedDeptIds(userId);
+            Set<Long> authSet = new HashSet<>(authorizedDeptIds);
+            // 批量解析部门名称→ID，避免逐条查询
+            Set<String> allDeptNames = new HashSet<>();
+            for (JwBranchInfo b : allList) {
+                if (b.getPrimaryBranch() != null) allDeptNames.add(b.getPrimaryBranch());
+                if (b.getSecondaryBranch() != null) allDeptNames.add(b.getSecondaryBranch());
+            }
+            SysDept query = new SysDept();
+            Map<String, Long> deptNameIdMap = new HashMap<>();
+            for (String name : allDeptNames) {
+                query.setDeptName(name);
+                List<SysDept> list = sysDeptMapper.selectDeptList(query);
+                if (!list.isEmpty()) deptNameIdMap.put(name, list.get(0).getDeptId());
+            }
+            // 过滤：网点的 primary 或 secondary 部门在用户权限范围内
+            List<JwBranchInfo> filtered = allList.stream().filter(b -> {
+                if (b.getPrimaryBranch() != null) {
+                    Long deptId = deptNameIdMap.get(b.getPrimaryBranch());
+                    if (deptId != null && authSet.contains(deptId)) return true;
+                }
+                if (b.getSecondaryBranch() != null) {
+                    Long deptId = deptNameIdMap.get(b.getSecondaryBranch());
+                    if (deptId != null && authSet.contains(deptId)) return true;
+                }
+                return false;
+            }).collect(Collectors.toList());
+            return success(filtered);
+        } catch (Exception e) {
+            logger.warn("gridBranches: 无法获取用户权限, 返回空列表");
+            return success(new ArrayList<>());
+        }
     }
 
     // ===== 网点 =====

@@ -1,5 +1,8 @@
 <template>
   <div class="app-container">
+    <el-alert v-if="notReviewer" title="暂无审批权限"
+             description="当前用户不是数据审核员，请联系管理员分配 data_reviewer 角色"
+             type="warning" show-icon style="margin-bottom:16px;" />
     <el-tabs v-model="activeTab">
       <el-tab-pane label="待审批" name="pending">
         <el-table :data="pendingList" v-loading="pendingLoading" stripe size="small">
@@ -68,12 +71,13 @@
 
 <script>
 import { getPendingRequestList, getReviewedRequestList, approveRequest, rejectRequest } from '@/api/jwmap/data-access'
+import { checkIsReviewer } from '@/api/jwmap/data-access'
 
 export default {
   name: 'JwDataAccessApproval',
-  dicts: ['jw_access_status'],
   data() {
     return {
+      notReviewer: false,
       activeTab: 'pending',
 
       pendingList: [],
@@ -91,12 +95,29 @@ export default {
       showReviewDialog: false,
       reviewItem: null,
       reviewForm: { reviewComment: '' },
-      reviewLoading: false
+      reviewLoading: false,
+      statusOptions: [
+        { value: '0', label: '待审批', raw: { listClass: 'primary' } },
+        { value: '1', label: '已通过', raw: { listClass: 'success' } },
+        { value: '2', label: '已拒绝', raw: { listClass: 'danger' } },
+        { value: '3', label: '已撤销', raw: { listClass: 'info' } },
+        { value: '4', label: '已过期', raw: { listClass: 'warning' } }
+      ]
     }
   },
   created() {
-    this.fetchPendingList()
-    this.fetchReviewedList()
+    checkIsReviewer().then(res => {
+      if (res.data) {
+        this.notReviewer = false
+        this.fetchPendingList()
+        this.fetchReviewedList()
+      } else {
+        this.notReviewer = true
+        this.$message.warning('当前用户不是数据审核员，无审批权限')
+      }
+    }).catch(() => {
+      this.notReviewer = true
+    })
   },
   methods: {
     fetchPendingList() {

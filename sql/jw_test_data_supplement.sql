@@ -10,7 +10,8 @@
 --   角色-部门: data_reviewer → 贵阳市分行(201), 遵义市分行(202)
 --   网点: 贵阳分行下 30+ 网点 (primary_branch='贵阳分行')
 -- 本补充文件新增:
---   1. 省行级审核员
+--   1. 省行级数据审核员 (reviewer_province)
+--   1b. 一级支行级数据审核员 (reviewer_guiyang_branch, reviewer_qingzhen 等)
 --   2. 遵义分行/六盘水分行 网点信息
 --   3. 全状态审批记录（待审批/已通过/已拒绝/已撤销）
 -- ============================================================
@@ -29,6 +30,59 @@ INSERT IGNORE INTO sys_user_role VALUES (30, '3');
 
 -- data_reviewer 角色关联省行部门，使省行审核员能审批 target parent=省行的申请
 INSERT IGNORE INTO sys_role_dept VALUES (3, 200);
+
+
+-- ============================================================
+-- 1b. 一级支行级数据审核员
+--     审批范围：本支行管辖的网点数据查看申请
+-- ============================================================
+INSERT IGNORE INTO sys_user VALUES (31, 210, 'reviewer_guiyang_branch', '审核-贵阳分行',
+    '00', '', '13800000104', '1', '',
+    '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2',
+    '0', '0', '127.0.0.1', sysdate(), sysdate(),
+    'admin', sysdate(), '', null,
+    '测试：贵阳分行数据审核员，可审批贵阳分行下网点申请');
+
+INSERT IGNORE INTO sys_user VALUES (32, 211, 'reviewer_qingzhen', '审核-清镇市支行',
+    '00', '', '13800000105', '1', '',
+    '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2',
+    '0', '0', '127.0.0.1', sysdate(), sysdate(),
+    'admin', sysdate(), '', null,
+    '测试：清镇市支行数据审核员，可审批清镇市支行下网点申请');
+
+INSERT IGNORE INTO sys_user VALUES (33, 220, 'reviewer_zunyi_branch', '审核-遵义分行',
+    '00', '', '13800000106', '1', '',
+    '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2',
+    '0', '0', '127.0.0.1', sysdate(), sysdate(),
+    'admin', sysdate(), '', null,
+    '测试：遵义分行数据审核员，可审批遵义分行下网点申请');
+
+INSERT IGNORE INTO sys_user VALUES (34, 221, 'reviewer_renhuai', '审核-仁怀市支行',
+    '00', '', '13800000107', '1', '',
+    '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2',
+    '0', '0', '127.0.0.1', sysdate(), sysdate(),
+    'admin', sysdate(), '', null,
+    '测试：仁怀市支行数据审核员，可审批仁怀市支行下网点申请');
+
+INSERT IGNORE INTO sys_user VALUES (35, 230, 'reviewer_liupanshui', '审核-六盘水分行',
+    '00', '', '13800000108', '1', '',
+    '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2',
+    '0', '0', '127.0.0.1', sysdate(), sysdate(),
+    'admin', sysdate(), '', null,
+    '测试：六盘水分行数据审核员，可审批六盘水分行下网点申请');
+
+INSERT IGNORE INTO sys_user_role VALUES (31, '3');
+INSERT IGNORE INTO sys_user_role VALUES (32, '3');
+INSERT IGNORE INTO sys_user_role VALUES (33, '3');
+INSERT IGNORE INTO sys_user_role VALUES (34, '3');
+INSERT IGNORE INTO sys_user_role VALUES (35, '3');
+
+-- 一级支行审核员通过 role_dept 关联到本支行部门
+INSERT IGNORE INTO sys_role_dept VALUES (3, 210);
+INSERT IGNORE INTO sys_role_dept VALUES (3, 211);
+INSERT IGNORE INTO sys_role_dept VALUES (3, 220);
+INSERT IGNORE INTO sys_role_dept VALUES (3, 221);
+INSERT IGNORE INTO sys_role_dept VALUES (3, 230);
 
 
 -- ============================================================

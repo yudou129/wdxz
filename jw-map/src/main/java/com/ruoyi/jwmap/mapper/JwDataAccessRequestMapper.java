@@ -46,7 +46,7 @@ public interface JwDataAccessRequestMapper {
     /** 批量过期 */
     int batchExpire(@Param("today") Date today);
 
-    /** 获取审核人列表（指定角色 + 可选管辖部门） */
+    /** 获取审核人列表（指定角色 + 可选上级部门） */
     List<Map<String, Object>> selectReviewers(@Param("roleKey") String roleKey,
                                               @Param("parentDeptId") Long parentDeptId);
 }

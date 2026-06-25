@@ -143,6 +143,12 @@ public class JwDataAccessServiceImpl implements IJwDataAccessService {
         if (req.getReviewerId() != null && !req.getReviewerId().equals(reviewerId)) {
             throw new RuntimeException("您不是该申请的指定审核人，无法审批");
         }
+        // 校验审核人角色是否仍然有效
+        SysUser reviewer = sysUserMapper.selectUserById(reviewerId);
+        if (reviewer == null || reviewer.getRoles() == null
+                || reviewer.getRoles().stream().noneMatch(r -> REVIEWER_ROLE_KEY.equals(r.getRoleKey()))) {
+            throw new RuntimeException("当前用户不再具备审核权限");
+        }
         // 计算有效期
         Calendar cal = Calendar.getInstance();
         Date from = cal.getTime();
@@ -171,6 +177,12 @@ public class JwDataAccessServiceImpl implements IJwDataAccessService {
         // 校验当前用户是否为该申请指定的审核人
         if (req.getReviewerId() != null && !req.getReviewerId().equals(reviewerId)) {
             throw new RuntimeException("您不是该申请的指定审核人，无法审批");
+        }
+        // 校验审核人角色是否仍然有效
+        SysUser reviewer = sysUserMapper.selectUserById(reviewerId);
+        if (reviewer == null || reviewer.getRoles() == null
+                || reviewer.getRoles().stream().noneMatch(r -> REVIEWER_ROLE_KEY.equals(r.getRoleKey()))) {
+            throw new RuntimeException("当前用户不再具备审核权限");
         }
         JwDataAccessRequest update = new JwDataAccessRequest();
         update.setRequestId(requestId);
@@ -202,18 +214,41 @@ public class JwDataAccessServiceImpl implements IJwDataAccessService {
             return true;
         }
 
-        // 3. 跨机构 → 查审批表（支持层级覆盖：审批了市行则覆盖该市下所有支行/网点）
+        // 3. 跨机构 → 查审批表（支持层级覆盖）
+        //    先查 primary_branch 对应部门，再查 secondary_branch 对应部门（可能是更精确的二级支行部门）
         SysDept branchDept = findDeptByName(branch.getPrimaryBranch());
-        if (branchDept == null) return false;
+        SysDept secondaryDept = null;
+        if (branch.getSecondaryBranch() != null
+                && !branch.getSecondaryBranch().equals(branch.getPrimaryBranch())) {
+            secondaryDept = findDeptByName(branch.getSecondaryBranch());
+        }
 
         List<JwDataAccessRequest> approvedList = accessRequestMapper.selectMyList(userId);
         Date now = new Date();
+        // 预加载所有审批目标部门的子孙缓存，避免重复查询
+        Map<Long, Set<Long>> deptDescendantsCache = new HashMap<>();
+        for (JwDataAccessRequest r : approvedList) {
+            if (r.getTargetDeptId() != null && !deptDescendantsCache.containsKey(r.getTargetDeptId())) {
+                Set<Long> descendants = new HashSet<>();
+                List<SysDept> children = sysDeptMapper.selectChildrenDeptById(r.getTargetDeptId());
+                if (children != null) children.forEach(d -> descendants.add(d.getDeptId()));
+                deptDescendantsCache.put(r.getTargetDeptId(), descendants);
+            }
+        }
         for (JwDataAccessRequest r : approvedList) {
             if (!AccessStatus.APPROVED.equals(r.getStatus())) continue;
             if (r.getValidDateFrom() == null || r.getValidDateTo() == null) continue;
             if (r.getValidDateFrom().after(now) || r.getValidDateTo().before(now)) continue;
-            if (isDeptCoveredByApproved(r.getTargetDeptId(), branchDept.getDeptId(), null)) {
+            Set<Long> cache = deptDescendantsCache.get(r.getTargetDeptId());
+            // 检查 primary 部门层级覆盖
+            if (branchDept != null && isDeptCoveredByApproved(r.getTargetDeptId(), branchDept.getDeptId(), cache)) {
                 return true;
+            }
+            // 检查 secondary 部门（可能直接匹配审批的网点级部门）
+            if (secondaryDept != null && (branchDept == null || !secondaryDept.getDeptId().equals(branchDept.getDeptId()))) {
+                if (isDeptCoveredByApproved(r.getTargetDeptId(), secondaryDept.getDeptId(), cache)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -351,8 +386,11 @@ public class JwDataAccessServiceImpl implements IJwDataAccessService {
     private boolean isDeptCoveredByApproved(Long approvedDeptId, Long branchDeptId, Set<Long> deptDescendantsCache) {
         if (approvedDeptId == null || branchDeptId == null) return false;
         if (approvedDeptId.equals(branchDeptId)) return true;
-        // 获取 approvedDeptId 的所有子孙部门，检查 branchDeptId 是否在其中
-        if (deptDescendantsCache != null && deptDescendantsCache.contains(branchDeptId)) return true;
+        // 有缓存 → 直接在缓存中查找（已包含完整后代数据）
+        if (deptDescendantsCache != null) {
+            return deptDescendantsCache.contains(branchDeptId);
+        }
+        // 无缓存 → 回退查数据库
         List<SysDept> descendants = sysDeptMapper.selectChildrenDeptById(approvedDeptId);
         if (descendants != null) {
             for (SysDept d : descendants) {

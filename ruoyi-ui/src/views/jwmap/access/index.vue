@@ -64,16 +64,20 @@
         </el-form-item>
         <el-form-item label="审核人" prop="reviewerId">
           <el-select v-model="form.reviewerId" placeholder="请选择审核人" style="width:100%"
-                     :loading="reviewersLoading">
+                     :loading="reviewersLoading" :disabled="reviewers.length === 0 && !reviewersLoading">
             <el-option v-for="r in reviewers" :key="r.userId || r.userid"
                        :label="r.nickName || r.nickname || r.userName || r.username"
                        :value="r.userId || r.userid" />
           </el-select>
+          <span v-if="reviewers.length === 0 && !reviewersLoading" class="form-tip" style="color:#e6a23c;">
+            该机构无审核员，请联系贵阳分行科技部添加
+          </span>
         </el-form-item>
       </el-form>
       <div slot="footer">
         <el-button @click="showNewForm = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">提交</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting"
+                   :disabled="reviewers.length === 0">提交</el-button>
       </div>
     </el-dialog>
 
@@ -106,7 +110,6 @@ import '@riophae/vue-treeselect/dist/vue-treeselect.css'
 export default {
   name: 'JwDataAccessRequest',
   components: { Treeselect },
-  dicts: ['jw_access_status'],
   data() {
     return {
       activeTab: 'myList',
@@ -130,7 +133,14 @@ export default {
 
       showDetailDialog: false,
       detailData: null,
-      deptTree: []
+      deptTree: [],
+      statusOptions: [
+        { value: '0', label: '待审批', raw: { listClass: 'primary' } },
+        { value: '1', label: '已通过', raw: { listClass: 'success' } },
+        { value: '2', label: '已拒绝', raw: { listClass: 'danger' } },
+        { value: '3', label: '已撤销', raw: { listClass: 'info' } },
+        { value: '4', label: '已过期', raw: { listClass: 'warning' } }
+      ]
     }
   },
   created() {

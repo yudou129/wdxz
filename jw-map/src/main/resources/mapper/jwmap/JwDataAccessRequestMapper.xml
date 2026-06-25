@@ -126,17 +126,16 @@
         WHERE request_id = #{requestId}
     </update>
 
-    <!-- 获取审核人列表（指定角色 + 指定管辖部门） -->
+    <!-- 获取审核人列表（直系上级部门的审核员） -->
     <select id="selectReviewers" resultType="java.util.HashMap">
         SELECT DISTINCT u.user_id AS userId, u.user_name AS userName,
                IFNULL(u.nick_name, u.user_name) AS nickName
         FROM sys_user u
         JOIN sys_user_role ur ON u.user_id = ur.user_id
         JOIN sys_role r ON ur.role_id = r.role_id
-        LEFT JOIN sys_role_dept rd ON r.role_id = rd.role_id
         WHERE r.role_key = #{roleKey}
           <if test="parentDeptId != null">
-            AND (rd.dept_id = #{parentDeptId} OR rd.dept_id IS NULL)
+            AND u.dept_id = #{parentDeptId}
           </if>
         ORDER BY u.user_name
     </select>
