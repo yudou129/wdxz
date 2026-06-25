@@ -22,8 +22,8 @@ public interface IJwDataAccessService {
     /** 我的申请列表 */
     List<JwDataAccessRequest> selectMyList(Long applicantId);
 
-    /** 按ID查询 */
-    JwDataAccessRequest selectById(Long requestId);
+    /** 按ID查询（仅申请人或审核人可查看） */
+    JwDataAccessRequest selectById(Long requestId, Long userId);
 
     // ===== 审批 =====
 

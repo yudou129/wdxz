@@ -181,7 +181,6 @@ export default {
 .score-gap { font-size: 12px; color: #e6a23c; padding: 2px 0; }
 .score-gap b { color: #e6a23c; }
 .detail-link { margin-top: 2px; color: #4f6ef6; font-weight: 500; }
-.no-access { text-align: center; padding: 24px 16px; }
 .detail-link:hover { color: #3b54d4; }
 .full-width { width: 100%; text-align: center; }
 .split-layout { display: flex; gap: 16px; }

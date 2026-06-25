@@ -70,8 +70,7 @@
 </template>
 
 <script>
-import { getPendingRequestList, getReviewedRequestList, approveRequest, rejectRequest } from '@/api/jwmap/data-access'
-import { checkIsReviewer } from '@/api/jwmap/data-access'
+import { getPendingRequestList, getReviewedRequestList, approveRequest, rejectRequest, checkIsReviewer } from '@/api/jwmap/data-access'
 
 export default {
   name: 'JwDataAccessApproval',
@@ -106,20 +105,25 @@ export default {
     }
   },
   created() {
-    checkIsReviewer().then(res => {
-      if (res.data) {
-        this.notReviewer = false
-        this.fetchPendingList()
-        this.fetchReviewedList()
-      } else {
-        this.notReviewer = true
-        this.$message.warning('当前用户不是数据审核员，无审批权限')
-      }
-    }).catch(() => {
-      this.notReviewer = true
-    })
+    this.checkReviewer()
   },
   methods: {
+    checkReviewer() {
+      checkIsReviewer().then(res => {
+        if (res.data) {
+          this.notReviewer = false
+          this.fetchPendingList()
+          this.fetchReviewedList()
+        } else {
+          this.notReviewer = true
+          this.$message.warning('当前用户不是数据审核员，无审批权限')
+        }
+      }).catch(() => {
+        // 网络或服务器错误时不锁定页面，显示提示并重试
+        this.$message.error('无法验证审核员身份，3秒后自动重试')
+        setTimeout(() => this.checkReviewer(), 3000)
+      })
+    },
     fetchPendingList() {
       this.pendingLoading = true
       getPendingRequestList({ pageNum: this.pendingPageNum, pageSize: this.pendingPageSize }).then(res => {

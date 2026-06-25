@@ -113,8 +113,19 @@ public class JwDataAccessServiceImpl implements IJwDataAccessService {
     }
 
     @Override
-    public JwDataAccessRequest selectById(Long requestId) {
-        return accessRequestMapper.selectJwDataAccessRequestById(requestId);
+    public JwDataAccessRequest selectById(Long requestId, Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        JwDataAccessRequest req = accessRequestMapper.selectJwDataAccessRequestById(requestId);
+        if (req == null) {
+            return null;
+        }
+        // 仅申请人或审核人可查看详情
+        if (!userId.equals(req.getApplicantId()) && !userId.equals(req.getReviewerId())) {
+            return null;
+        }
+        return req;
     }
 
     @Override

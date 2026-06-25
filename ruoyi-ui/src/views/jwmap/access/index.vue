@@ -102,8 +102,7 @@
 </template>
 
 <script>
-import { submitAccessRequest, getMyRequestList, cancelRequest, getRequestDetail, resolveBranchDept, getReviewers } from '@/api/jwmap/data-access'
-import { getDeptTree } from '@/api/system/dept'
+import { submitAccessRequest, getMyRequestList, cancelRequest, getRequestDetail, resolveBranchDept, getReviewers, getAccessDeptTree } from '@/api/jwmap/data-access'
 import Treeselect from '@riophae/vue-treeselect'
 import '@riophae/vue-treeselect/dist/vue-treeselect.css'
 
@@ -147,6 +146,12 @@ export default {
     this.fetchList()
     this.loadDeptTree()
   },
+  beforeDestroy() {
+    if (this._branchPollTimer) {
+      clearTimeout(this._branchPollTimer)
+      this._branchPollTimer = null
+    }
+  },
   watch: {
     '$route.query.branchId': {
       handler(branchId) {
@@ -154,8 +159,10 @@ export default {
         // 等 deptTree 加载完成后自动填充
         let retries = 0
         const tryFill = () => {
+          if (this._isDestroyed) return
           if (this.deptTree.length > 0) {
             resolveBranchDept(branchId).then(res => {
+              if (this._isDestroyed) return
               const data = res.data || {}
               if (data.deptId) {
                 this.form.targetDeptId = data.deptId
@@ -163,7 +170,7 @@ export default {
               }
             }).catch(() => {})
           } else if (retries++ < 30) {
-            setTimeout(tryFill, 100)
+            this._branchPollTimer = setTimeout(tryFill, 100)
           }
         }
         tryFill()
@@ -192,8 +199,8 @@ export default {
       }).finally(() => { this.loading = false })
     },
     loadDeptTree() {
-      // 用部门树接口获取省行-市行-支行的树形结构
-      return getDeptTree().then(res => {
+      // 用部门树接口获取省行-市行-支行的树形结构（绕过 DataScope 限制）
+      return getAccessDeptTree().then(res => {
         this.deptTree = res.data || []
       }).catch(() => {
         this.deptTree = []
@@ -215,6 +222,7 @@ export default {
           this.$message.success('申请已提交')
           this.showNewForm = false
           this.form = { targetDeptId: null, reason: '', validDays: 30, reviewerId: null }
+          this.$nextTick(() => this.$refs.formRef.clearValidate())
           this.fetchList()
         }).catch(err => {
           this.$message.error(err.msg || '提交失败')

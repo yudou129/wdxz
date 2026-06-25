@@ -1,18 +1,27 @@
 package com.ruoyi.jwmap.controller;
 
+import com.ruoyi.common.constant.UserConstants;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.TreeSelect;
+import com.ruoyi.common.core.domain.entity.SysDept;
 import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.jwmap.domain.JwBranchInfo;
 import com.ruoyi.jwmap.domain.JwDataAccessRequest;
 import com.ruoyi.jwmap.mapper.JwBranchInfoMapper;
 import com.ruoyi.jwmap.service.IJwDataAccessService;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.ServletUtils;
+import com.ruoyi.system.mapper.SysDeptMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 数据查看权限审批控制器
@@ -26,6 +35,9 @@ public class JwDataAccessController extends BaseController {
 
     @Autowired
     private JwBranchInfoMapper branchInfoMapper;
+
+    @Autowired
+    private SysDeptMapper sysDeptMapper;
 
     // ===== 申请提交 =====
 
@@ -102,11 +114,19 @@ public class JwDataAccessController extends BaseController {
     }
 
     /**
-     * 申请详情
+     * 申请详情（仅申请人或审核人可查看）
      */
     @GetMapping("/request/{requestId}")
     public AjaxResult detail(@PathVariable Long requestId) {
-        return success(accessService.selectById(requestId));
+        Long userId = safeGetUserId();
+        if (userId == null) {
+            return error("登录状态已过期，请重新登录");
+        }
+        JwDataAccessRequest result = accessService.selectById(requestId, userId);
+        if (result == null) {
+            return error("申请不存在或无权限查看");
+        }
+        return success(result);
     }
 
     // ===== 审批 =====
@@ -188,6 +208,10 @@ public class JwDataAccessController extends BaseController {
      */
     @GetMapping("/checkBranch/{branchId}")
     public AjaxResult checkBranchAccess(@PathVariable Long branchId) {
+        Long userId = safeGetUserId();
+        if (userId == null) {
+            return error("登录状态已过期，请重新登录");
+        }
         JwBranchInfo branch = branchInfoMapper.selectJwBranchInfoById(branchId);
         if (branch == null) {
             return success(new java.util.HashMap<String, Object>() {{
@@ -195,12 +219,7 @@ public class JwDataAccessController extends BaseController {
                 put("deptName", "");
             }});
         }
-        boolean hasAccess = false;
-        try {
-            hasAccess = accessService.hasBranchAccess(getUserId(), branch);
-        } catch (Exception e) {
-            // getUserId() 可能因会话过期失败，此时默认无权限
-        }
+        boolean hasAccess = accessService.hasBranchAccess(userId, branch);
         final boolean access = hasAccess;
         return success(new java.util.HashMap<String, Object>() {{
             put("hasAccess", access);
@@ -241,6 +260,59 @@ public class JwDataAccessController extends BaseController {
     @GetMapping("/reviewers")
     public AjaxResult reviewers(@RequestParam(required = false) Long targetDeptId) {
         return success(accessService.listReviewers(targetDeptId));
+    }
+
+    // ===== 部门树（申请页选择目标支行） =====
+
+    /**
+     * 获取全量部门树（不受 DataScope 限制，用于申请页选择目标支行）
+     */
+    @GetMapping("/deptTree")
+    public AjaxResult deptTree() {
+        SysDept query = new SysDept();
+        List<SysDept> depts = sysDeptMapper.selectDeptList(query);
+        List<SysDept> tree = buildDeptTree(depts);
+        List<TreeSelect> result = tree.stream().map(TreeSelect::new).collect(Collectors.toList());
+        return success(result);
+    }
+
+    private List<SysDept> buildDeptTree(List<SysDept> depts) {
+        List<SysDept> returnList = new ArrayList<>();
+        List<Long> tempList = depts.stream().map(SysDept::getDeptId).collect(Collectors.toList());
+        for (SysDept dept : depts) {
+            if (!tempList.contains(dept.getParentId())) {
+                recursionFn(depts, dept);
+                returnList.add(dept);
+            }
+        }
+        if (returnList.isEmpty()) {
+            returnList = depts;
+        }
+        return returnList;
+    }
+
+    private void recursionFn(List<SysDept> list, SysDept t) {
+        List<SysDept> childList = getChildList(list, t);
+        t.setChildren(childList);
+        for (SysDept tChild : childList) {
+            if (hasChild(list, tChild)) {
+                recursionFn(list, tChild);
+            }
+        }
+    }
+
+    private List<SysDept> getChildList(List<SysDept> list, SysDept t) {
+        List<SysDept> tlist = new ArrayList<>();
+        for (SysDept dept : list) {
+            if (dept.getParentId() != null && dept.getParentId().equals(t.getDeptId())) {
+                tlist.add(dept);
+            }
+        }
+        return tlist;
+    }
+
+    private boolean hasChild(List<SysDept> list, SysDept t) {
+        return getChildList(list, t).size() > 0;
     }
 
     // ===== 网点→部门解析（申请页自动回显） =====

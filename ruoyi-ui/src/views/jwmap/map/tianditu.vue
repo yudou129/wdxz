@@ -400,7 +400,7 @@ export default {
       this.sidebar.branchData = branch
       this.sidebar.visible = true
 
-      // 权限检查
+      // 权限检查（仅用于限制详细指标数据）
       this.branchAccess = false
       if (branch.branchId) {
         try {
@@ -412,16 +412,14 @@ export default {
         }
       }
 
-      // 有权限才加载详细数据
-      if (this.branchAccess) {
-        await Promise.all([
-          this.loadBranchScores(branch.branchId),
-          this.loadBranchRankMeta(branch.branchId),
-          this.loadBranchQuadrant(branch),
-          this.loadPeerAndNearby(branch.branchId),
-          this.loadPillarGap(branch.gridCode)
-        ])
-      }
+      // 效能得分、排名等对所有用户可见
+      await Promise.all([
+        this.loadBranchScores(branch.branchId),
+        this.loadBranchRankMeta(branch.branchId),
+        this.loadBranchQuadrant(branch),
+        this.loadPeerAndNearby(branch.branchId),
+        this.loadPillarGap(branch.gridCode)
+      ])
     },
     async loadPillarGap(gridCode) {
       const safeGap = { population: { gap: 0, name: '---' }, enterprise: { gap: 0, name: '---' }, business: { gap: 0, name: '---' } }

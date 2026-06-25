@@ -228,15 +228,6 @@ public class JwDataController extends BaseController {
 
     @GetMapping("/branch/score/detail/{branchId}/{year}")
     public AjaxResult branchScoreDetail(@PathVariable Long branchId, @PathVariable Integer year) {
-        JwBranchInfo branch = branchInfoMapper.selectJwBranchInfoById(branchId);
-        // 权限检查（含异常保护：会话过期时默认无权限）
-        boolean hasAccess = false;
-        try {
-            hasAccess = accessService.hasBranchAccess(getUserId(), branch);
-        } catch (Exception ignored) {}
-        if (!hasAccess) {
-            return error("暂无权限查看该网点详细数据");
-        }
         List<JwBranchScore> list = branchScoreMapper.selectByBranchAndYear(branchId, year);
         return success(list);
     }

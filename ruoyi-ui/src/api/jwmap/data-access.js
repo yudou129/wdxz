@@ -69,3 +69,8 @@ export function resolveBranchDept(branchId) {
 export function getReviewers(targetDeptId) {
   return request({ url: '/jwmap/access/reviewers', method: 'get', params: { targetDeptId } })
 }
+
+// 获取全量部门树（不受DataScope限制，用于申请页选择目标支行）
+export function getAccessDeptTree() {
+  return request({ url: '/jwmap/access/deptTree', method: 'get' })
+}
