@@ -11,7 +11,7 @@
           <el-table-column label="有效期" min-width="160">
             <template slot-scope="{ row }">
               <span v-if="row.status === '1' && row.validDateFrom">
-                {{ row.validDateFrom }} ~ {{ row.validDateTo }}
+                {{ parseDate(row.validDateFrom) }} ~ {{ parseDate(row.validDateTo) }}
               </span>
               <span v-else-if="row.validDays">{{ row.validDays }}天</span>
               <span v-else>-</span>
@@ -224,6 +224,14 @@ export default {
         this.detailData = res.data
         this.showDetailDialog = true
       })
+    },
+    /** 格式化为 yyyy-MM-dd HH:mm:ss */
+    parseDate(date) {
+      if (!date) return '-'
+      const d = new Date(date)
+      if (isNaN(d.getTime())) return date
+      const pad = n => n.toString().padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
     }
   }
 }

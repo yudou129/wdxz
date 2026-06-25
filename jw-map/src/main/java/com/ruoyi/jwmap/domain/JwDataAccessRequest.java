@@ -5,6 +5,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
 import java.util.Date;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 /**
  * 数据查看申请对象 jw_data_access_request
@@ -20,8 +21,11 @@ public class JwDataAccessRequest extends BaseEntity {
     private String status;
     private Long reviewerId;
     private String reviewComment;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date reviewTime;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date validDateFrom;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date validDateTo;
     private String delFlag;
 
