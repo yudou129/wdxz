@@ -62,7 +62,8 @@ public class JwComputeController extends BaseController {
             int count = gridComputeService.computeGridData(city);
             return success("成功计算 " + count + " 个网格数据");
         } catch (Exception e) {
-            return error("计算失败：" + e.getMessage());
+            logger.error("网格数据计算失败, city={}", city, e);
+            return error("计算失败");
         }
     }
 
@@ -75,7 +76,8 @@ public class JwComputeController extends BaseController {
             int count = gridComputeService.computeGridMeta(city);
             return success("成功计算 " + count + " 个网格元信息");
         } catch (Exception e) {
-            return error("计算失败：" + e.getMessage());
+            logger.error("网格元信息计算失败, city={}", city, e);
+            return error("计算失败");
         }
     }
 
@@ -88,7 +90,8 @@ public class JwComputeController extends BaseController {
             int count = gridComputeService.computeGridScore(city);
             return success("成功计算 " + count + " 个网格得分");
         } catch (Exception e) {
-            return error("计算失败：" + e.getMessage());
+            logger.error("网格得分计算失败, city={}", city, e);
+            return error("计算失败");
         }
     }
 
@@ -103,7 +106,8 @@ public class JwComputeController extends BaseController {
             int count = branchComputeService.computeBranchData(city, year);
             return success("成功计算 " + count + " 个网点数据（" + year + "年）");
         } catch (Exception e) {
-            return error("计算失败：" + e.getMessage());
+            logger.error("网点数据计算失败, city={}, year={}", city, year, e);
+            return error("计算失败");
         }
     }
 
@@ -116,7 +120,8 @@ public class JwComputeController extends BaseController {
             int count = branchComputeService.assignGridToBranch(city);
             return success("成功为 " + count + " 个网点分配网格");
         } catch (Exception e) {
-            return error("计算失败：" + e.getMessage());
+            logger.error("网点关联网格失败, city={}", city, e);
+            return error("计算失败");
         }
     }
 }

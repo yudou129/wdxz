@@ -9,6 +9,7 @@ import com.ruoyi.jwmap.domain.*;
 import com.ruoyi.jwmap.mapper.*;
 import com.ruoyi.jwmap.service.IJwDataAccessService;
 import com.ruoyi.jwmap.util.JwGeoUtils;
+import com.ruoyi.jwmap.util.JwIndicatorUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -102,7 +103,10 @@ public class JwBranchDataController extends BaseController {
         boolean hasAccess = false;
         try {
             hasAccess = accessService.hasBranchAccess(getUserId(), branch);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            logger.error("检查网点 {} 的权限时出错", branchId, e);
+            return error("权限检查失败，请稍后重试");
+        }
         if (!hasAccess) return error("暂无权限查看该网点详细数据");
 
         List<JwIndicatorConfig> leafConfigs = new ArrayList<>();
@@ -130,7 +134,7 @@ public class JwBranchDataController extends BaseController {
             item.put("indicatorType", cfg.getIndicatorType());
             item.put("parentCode", cfg.getParentCode());
 
-            String level1Code = findLevel1Code(code, configMap);
+            String level1Code = JwIndicatorUtils.findLevel1Code(code, configMap);
             item.put("level1Code", level1Code);
             if (level1Code != null) {
                 JwIndicatorConfig root = configMap.get(level1Code);
@@ -167,11 +171,15 @@ public class JwBranchDataController extends BaseController {
             .filter(b -> branch.getPrimaryBranch() != null && branch.getPrimaryBranch().equals(b.getPrimaryBranch()))
             .collect(Collectors.toList());
         int branchRank = -1, branchTotal = peerBranches.size();
+        List<Long> peerIds = peerBranches.stream().map(JwBranchInfo::getBranchId).collect(Collectors.toList());
         List<JwBranchScore> peerScores = new ArrayList<>();
-        for (JwBranchInfo b : peerBranches) {
-            List<JwBranchScore> scores = branchScoreMapper.selectByBranchAndYear(b.getBranchId(), year);
-            scores.stream().filter(s -> "overall".equals(s.getScoreCategory())).findFirst()
-                .ifPresent(peerScores::add);
+        if (!peerIds.isEmpty()) {
+            List<JwBranchScore> allPeerScores = branchScoreMapper.selectByBranchIdsAndYear(peerIds, year);
+            for (Long pid : peerIds) {
+                allPeerScores.stream()
+                    .filter(s -> pid.equals(s.getBranchId()) && "overall".equals(s.getScoreCategory()))
+                    .findFirst().ifPresent(peerScores::add);
+            }
         }
         peerScores.sort((a, b) -> Double.compare(
             b.getCategoryScore() != null ? b.getCategoryScore() : 0,
@@ -217,19 +225,4 @@ public class JwBranchDataController extends BaseController {
         return success(result);
     }
 
-    // ===== 辅助方法 =====
-
-    /** 沿 parentCode 链追溯指标所属的一级根节点 code */
-    private String findLevel1Code(String indicatorCode, Map<String, JwIndicatorConfig> configMap) {
-        JwIndicatorConfig config = configMap.get(indicatorCode);
-        if (config == null) return null;
-        String code = indicatorCode;
-        String parentCode = config.getParentCode();
-        while (parentCode != null && !parentCode.isEmpty()) {
-            code = parentCode;
-            JwIndicatorConfig parent = configMap.get(parentCode);
-            parentCode = parent != null ? parent.getParentCode() : null;
-        }
-        return code;
-    }
 }

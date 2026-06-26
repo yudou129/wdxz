@@ -146,10 +146,12 @@ export default {
     }
   },
   created() {
+    this._active = true
     this.fetchList()
     this.loadDeptTree()
   },
   beforeDestroy() {
+    this._active = false
     if (this._branchPollTimer) {
       clearTimeout(this._branchPollTimer)
       this._branchPollTimer = null
@@ -162,10 +164,10 @@ export default {
         // 等 deptTree 加载完成后自动填充
         let retries = 0
         const tryFill = () => {
-          if (this._isDestroyed) return
+          if (!this._active) return
           if (this.deptTree.length > 0) {
             resolveBranchDept(branchId).then(res => {
-              if (this._isDestroyed) return
+              if (!this._active) return
               const data = res.data || {}
               if (data.deptId) {
                 this.form.targetDeptId = data.deptId

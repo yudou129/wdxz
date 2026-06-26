@@ -67,7 +67,8 @@ public class JwExportController extends BaseController {
             response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
             excelExportService.exportGridDataRaw(city, response.getOutputStream());
         } catch (Exception e) {
-            throw new RuntimeException("导出失败：" + e.getMessage());
+            logger.error("网格数据表（原始）导出失败, city={}", city, e);
+            throw new RuntimeException("导出失败");
         }
     }
 
@@ -83,7 +84,8 @@ public class JwExportController extends BaseController {
             response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
             excelExportService.exportGridDataNormalized(city, response.getOutputStream());
         } catch (Exception e) {
-            throw new RuntimeException("导出失败：" + e.getMessage());
+            logger.error("网格归一化数据导出失败, city={}", city, e);
+            throw new RuntimeException("导出失败");
         }
     }
 
@@ -116,7 +118,8 @@ public class JwExportController extends BaseController {
             response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
             excelExportService.exportBranchCalcData(city, year, response.getOutputStream());
         } catch (Exception e) {
-            throw new RuntimeException("导出失败：" + e.getMessage());
+            logger.error("网点数据计算表导出失败, city={}, year={}", city, year, e);
+            throw new RuntimeException("导出失败");
         }
     }
 
@@ -133,7 +136,8 @@ public class JwExportController extends BaseController {
             response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
             excelExportService.exportBranchNormalized(city, year, response.getOutputStream());
         } catch (Exception e) {
-            throw new RuntimeException("导出失败：" + e.getMessage());
+            logger.error("网点归一化数据导出失败, city={}, year={}", city, year, e);
+            throw new RuntimeException("导出失败");
         }
     }
 }

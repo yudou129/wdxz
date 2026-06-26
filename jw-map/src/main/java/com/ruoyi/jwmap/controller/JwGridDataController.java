@@ -7,6 +7,7 @@ import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.jwmap.domain.*;
 import com.ruoyi.jwmap.mapper.*;
 import com.ruoyi.jwmap.service.IJwDataAccessService;
+import com.ruoyi.jwmap.util.JwIndicatorUtils;
 import com.ruoyi.system.mapper.SysDeptMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -137,7 +138,7 @@ public class JwGridDataController extends BaseController {
             item.put("indicatorType", cfg.getIndicatorType());
             item.put("parentCode", cfg.getParentCode());
 
-            String level1Code = findLevel1Code(code, configMap);
+            String level1Code = JwIndicatorUtils.findLevel1Code(code, configMap);
             item.put("level1Code", level1Code);
             if (level1Code != null) {
                 JwIndicatorConfig root = configMap.get(level1Code);
@@ -216,12 +217,14 @@ public class JwGridDataController extends BaseController {
                 if (b.getPrimaryBranch() != null) allDeptNames.add(b.getPrimaryBranch());
                 if (b.getSecondaryBranch() != null) allDeptNames.add(b.getSecondaryBranch());
             }
-            SysDept query = new SysDept();
+            // 批量加载部门映射（一次查询替代逐条查询）
+            SysDept queryAll = new SysDept();
+            List<SysDept> allDepts = sysDeptMapper.selectDeptList(queryAll);
             Map<String, Long> deptNameIdMap = new HashMap<>();
-            for (String name : allDeptNames) {
-                query.setDeptName(name);
-                List<SysDept> list = sysDeptMapper.selectDeptList(query);
-                if (!list.isEmpty()) deptNameIdMap.put(name, list.get(0).getDeptId());
+            for (SysDept d : allDepts) {
+                if (d.getDeptName() != null && allDeptNames.contains(d.getDeptName())) {
+                    deptNameIdMap.putIfAbsent(d.getDeptName(), d.getDeptId());
+                }
             }
             List<JwBranchInfo> filtered = allList.stream().filter(b -> {
                 if (b.getPrimaryBranch() != null) {
@@ -286,12 +289,13 @@ public class JwGridDataController extends BaseController {
 
         Map<String, Double> rootMaxes = new HashMap<>();
         for (String rc : rootCodes) rootMaxes.put(rc, 0.0);
-        for (JwGridMeta gm : gridMetaMapper.selectByCity(grid.getCity())) {
-            for (JwGridScore s : gridScoreMapper.selectScoresByGridCode(gm.getGridCode())) {
-                if (rootCodes.contains(s.getScoreCategory()) && s.getSiteScore() != null) {
-                    double val = s.getSiteScore();
-                    if (val > rootMaxes.get(s.getScoreCategory())) rootMaxes.put(s.getScoreCategory(), val);
-                }
+        List<JwGridMeta> cityGrids = gridMetaMapper.selectByCity(grid.getCity());
+        List<String> allGridCodes = cityGrids.stream().map(JwGridMeta::getGridCode).collect(Collectors.toList());
+        List<JwGridScore> allScores = allGridCodes.isEmpty() ? new ArrayList<>() : gridScoreMapper.selectScoresByGridCodes(allGridCodes);
+        for (JwGridScore s : allScores) {
+            if (rootCodes.contains(s.getScoreCategory()) && s.getSiteScore() != null) {
+                double val = s.getSiteScore();
+                if (val > rootMaxes.get(s.getScoreCategory())) rootMaxes.put(s.getScoreCategory(), val);
             }
         }
 
@@ -366,17 +370,4 @@ public class JwGridDataController extends BaseController {
         return scoreMap;
     }
 
-    /** 沿 parentCode 链追溯指标所属的一级根节点 code */
-    private String findLevel1Code(String indicatorCode, Map<String, JwIndicatorConfig> configMap) {
-        JwIndicatorConfig config = configMap.get(indicatorCode);
-        if (config == null) return null;
-        String code = indicatorCode;
-        String parentCode = config.getParentCode();
-        while (parentCode != null && !parentCode.isEmpty()) {
-            code = parentCode;
-            JwIndicatorConfig parent = configMap.get(parentCode);
-            parentCode = parent != null ? parent.getParentCode() : null;
-        }
-        return code;
-    }
 }

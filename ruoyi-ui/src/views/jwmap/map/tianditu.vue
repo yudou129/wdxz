@@ -82,7 +82,7 @@
     <QuadrantChart
       :visible="quadrant.visible"
       :data="quadrant.data"
-      @close="quadrant.visible = false"
+      @close="onQuadrantClose"
       @item-click="onQuadrantItemClick"
       @filter-quadrant="onFilterQuadrant" />
 

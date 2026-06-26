@@ -40,7 +40,7 @@ export default {
         this.ranking.items = this.ranking.page === 1 ? mapped : [...this.ranking.items, ...mapped]
         this.ranking.hasMore = rows.length >= pageSize
         this.ranking.title = isBranch ? '网点效能排名' : '网格选址排名'
-      } catch (e) { if (this.ranking.page === 1) this.ranking.items = [] }
+      } catch (e) { if (this.ranking.page === 1) this.ranking.items = []; this.ranking.hasMore = false }
       this.ranking.loading = false
     },
 
@@ -95,8 +95,12 @@ export default {
     async navigateToGrid(gridCode) {
       if (!this.currentCity) return
       try {
-        const res = await getGridScoreByCity(this.currentCity)
-        const list = res.data || []
+        // Use cached grid data if available to avoid redundant API call
+        let list = this.gridDataCache
+        if (!list || !Array.isArray(list)) {
+          const res = await getGridScoreByCity(this.currentCity)
+          list = res.data || []
+        }
         if (!Array.isArray(list)) return
         const found = list.find(d => d.gridCode === gridCode)
         if (found && found.latitude != null && found.longitude != null) {

@@ -106,7 +106,12 @@ export default {
     }
   },
   created() {
+    this._active = true
     this.checkReviewer()
+  },
+  beforeDestroy() {
+    this._active = false
+    if (this._reviewerTimer) { clearTimeout(this._reviewerTimer); this._reviewerTimer = null }
   },
   methods: {
     checkReviewer() {
@@ -120,8 +125,9 @@ export default {
           this.$message.warning('当前用户不是数据审核员，无审批权限')
         }
       }).catch(() => {
+        if (!this._active) return
         this.handleError({ message: '无法验证审核员身份' }, '验证身份', false)
-        setTimeout(() => this.checkReviewer(), 3000)
+        this._reviewerTimer = setTimeout(() => this.checkReviewer(), 3000)
       })
     },
     async fetchPendingList() {

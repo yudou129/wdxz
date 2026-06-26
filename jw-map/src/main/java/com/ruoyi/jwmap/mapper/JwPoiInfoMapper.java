@@ -18,6 +18,8 @@ public interface JwPoiInfoMapper {
 
     List<JwPoiInfo> selectByCity(@Param("city") String city);
 
+    int countByCity(@Param("city") String city);
+
     List<String> selectDistinctCities();
 
     int insertJwPoiInfo(JwPoiInfo poi);

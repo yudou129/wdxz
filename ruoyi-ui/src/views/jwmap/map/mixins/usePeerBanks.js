@@ -30,6 +30,10 @@ const PEER_BANK_AUTO_COLORS = [
 /**
  * 同业银行地标 mixin — 银行图标渲染、图例、附近银行
  */
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export default {
   methods: {
     getBankStyle(bankName) {
@@ -79,14 +83,16 @@ export default {
     buildPeerBankPopup(p) {
       const style = this.getBankStyle(p.bankName)
       const color = style.color || '#d40000'
-      const name = p.bankName || ''
+      const name = escapeHtml(p.bankName || '')
+      const orgName = escapeHtml(p.orgName || '')
+      const orgAddress = escapeHtml(p.orgAddress || '')
       return '<div style="font-size:13px;line-height:1.6;min-width:160px">'
         + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:' + color + '">'
         + '<span style="display:inline-block;width:18px;height:18px;border-radius:3px;border:2px solid '
         + color + ';text-align:center;font-size:10px;line-height:18px;margin-right:6px">'
         + style.text + '</span>' + (name || '同业银行') + '</div>'
-        + (p.orgName ? '<div style="color:#555;font-size:12px">' + p.orgName + '</div>' : '')
-        + (p.orgAddress ? '<div style="color:#888;font-size:11px;margin-top:2px">' + p.orgAddress + '</div>' : '')
+        + (orgName ? '<div style="color:#555;font-size:12px">' + orgName + '</div>' : '')
+        + (orgAddress ? '<div style="color:#888;font-size:11px;margin-top:2px">' + orgAddress + '</div>' : '')
         + '</div>'
     },
 

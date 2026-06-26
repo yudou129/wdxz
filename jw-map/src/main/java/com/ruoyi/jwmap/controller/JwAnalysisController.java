@@ -61,6 +61,15 @@ public class JwAnalysisController extends BaseController {
         Map<Double, Integer> siteRankMap = buildRankMap(siteScores);
         Map<Double, Integer> branchRankMap = buildRankMap(branchScores);
 
+        // 计算得分中位数（不是排名中位数）
+        List<Double> sortedSiteScores = new ArrayList<>(siteScores);
+        List<Double> sortedBranchScores = new ArrayList<>(branchScores);
+        Collections.sort(sortedSiteScores);
+        Collections.sort(sortedBranchScores);
+        double medianSiteScoreVal = sortedSiteScores.get(sortedSiteScores.size() / 2);
+        double medianBranchScoreVal = sortedBranchScores.get(sortedBranchScores.size() / 2);
+
+        // 计算排名中位数（继续用于象限划分）
         List<Integer> siteRanks = new ArrayList<>();
         List<Integer> branchRanks = new ArrayList<>();
         for (Map<String, Object> row : validRows) {
@@ -110,8 +119,8 @@ public class JwAnalysisController extends BaseController {
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("medianSiteScore", medianSiteRank);
-        result.put("medianBranchScore", medianBranchRank);
+        result.put("medianSiteScore", medianSiteScoreVal);
+        result.put("medianBranchScore", medianBranchScoreVal);
         result.put("medianSiteRank", medianSiteRank);
         result.put("medianBranchRank", medianBranchRank);
         result.put("totalBranches", allData.size());

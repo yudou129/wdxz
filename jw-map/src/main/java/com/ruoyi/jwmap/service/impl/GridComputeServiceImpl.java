@@ -52,7 +52,7 @@ public class GridComputeServiceImpl implements IGridComputeService {
     @Override
     @Transactional
     public int computeGridMeta(String city) {
-        List<String> allGridCodes = populationHeatMapper.selectDistinctGridCodes();
+        List<String> allGridCodes = populationHeatMapper.selectDistinctGridCodesByCity(city);
         if (allGridCodes == null || allGridCodes.isEmpty()) return 0;
 
         List<JwGridMeta> cityMetas = gridMetaMapper.selectByCity(city);
@@ -361,9 +361,7 @@ public class GridComputeServiceImpl implements IGridComputeService {
             }
         }
         if (!batchScores.isEmpty()) {
-            for (JwGridScore s : batchScores) {
-                gridScoreMapper.upsertGridScore(s);
-            }
+            gridScoreMapper.batchInsert(batchScores);
         }
         return metas.size();
     }
@@ -392,7 +390,7 @@ public class GridComputeServiceImpl implements IGridComputeService {
     public Map<String, Object> getCityDataStatus(String city) {
         Map<String, Object> status = new LinkedHashMap<>();
         status.put("city", city);
-        status.put("hasPoi", poiInfoMapper.selectByCity(city).size() > 0);
+        status.put("hasPoi", poiInfoMapper.countByCity(city) > 0);
         status.put("hasPopulation", populationHeatMapper.selectDistinctGridCodesByCity(city).size() > 0);
         List<JwIndicatorConfig> leaves = indicatorConfigMapper.selectLeavesByType("grid");
         status.put("hasWeight", !leaves.isEmpty());

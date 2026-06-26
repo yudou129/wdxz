@@ -55,6 +55,16 @@
         ORDER BY score_category
     </select>
 
+    <select id="selectByBranchIdsAndYear" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE branch_id IN
+        <foreach item="id" collection="branchIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND data_year = #{dataYear}
+        ORDER BY score_category
+    </select>
+
     <select id="selectByCityAndYear" resultMap="JwBranchScoreResult">
         <include refid="selectJwBranchScoreVo"/>
         WHERE city = #{city} AND data_year = #{dataYear}

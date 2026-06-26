@@ -134,11 +134,15 @@ export default {
     },
 
     async onYearChange(year) {
+      const _seq = (this._yearChangeSeq || 0) + 1
+      this._yearChangeSeq = _seq
       this.selectedYear = year
       if (this.sidebar.visible && this.sidebar.branchData.branchId) {
         await this.loadBranchScores(this.sidebar.branchData.branchId)
       }
+      if (this._yearChangeSeq !== _seq) return
       if (this.ranking.visible) this.loadRanking(this.ranking.type)
+      if (this._yearChangeSeq !== _seq) return
       if (this.comparePanel.branches.length > 0) {
         await this.refreshAllCompareData()
       }
@@ -172,6 +176,9 @@ export default {
         this.onAddCompareBranch(branch)
         return
       }
+      const _seq = (this._branchClickSeq || 0) + 1
+      this._branchClickSeq = _seq
+
       this.sidebar.mode = 'branch-only'; this.sidebar.width = 380
       this.sidebar.branchData = branch
       this.sidebar.visible = true
@@ -186,6 +193,7 @@ export default {
           this.branchAccess = false
         }
       }
+      if (this._branchClickSeq !== _seq) return
 
       await Promise.all([
         this.loadBranchScores(branch.branchId),
@@ -365,6 +373,16 @@ export default {
       })
     },
 
+    onQuadrantClose() {
+      this.quadrant.visible = false
+      // Re-apply active branch filter or show all when quadrant filter is cleared
+      if (this.currentFilter) {
+        this.onFilterBranch(this.currentFilter)
+      } else {
+        this.branchLayer.eachLayer(layer => { this.map.addLayer(layer) })
+      }
+    },
+
     onFilterQuadrant(quadrantCode) {
       if (!this.quadrant.data || !this.quadrant.data.quadrants) return
       const branches = this.quadrant.data.quadrants[quadrantCode] || []
@@ -384,7 +402,7 @@ export default {
       this.detailPanel.left = sidebarLeft + sidebarWidth + 8
       this.detailPanel.data = []
 
-      if (type === 'grid' || type === 'all') {
+      if (type === 'grid') {
         const indicators = this.sidebar.gridIndicators
         const maxVal = indicators.reduce((m, i) => {
           const v = parseFloat(i.value); return !isNaN(v) && v > m ? v : m
@@ -398,7 +416,7 @@ export default {
         this.detailPanel.visible = true
       }
 
-      if (type === 'branch' || type === 'all') {
+      if (type === 'branch') {
         this.detailPanel.data = []
         this.detailPanel.noAccess = false
         const branchId = this.sidebar.branchData.branchId

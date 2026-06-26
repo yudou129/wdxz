@@ -56,6 +56,11 @@
         WHERE city = #{city} AND (del_flag IS NULL OR del_flag = '0')
     </select>
 
+    <select id="countByCity" resultType="int">
+        SELECT COUNT(*) FROM jw_poi_info
+        WHERE city = #{city} AND (del_flag IS NULL OR del_flag = '0')
+    </select>
+
     <select id="selectDistinctCities" resultType="String">
         SELECT DISTINCT city FROM jw_poi_info
         WHERE (del_flag IS NULL OR del_flag = '0')
