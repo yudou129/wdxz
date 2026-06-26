@@ -5,7 +5,7 @@
              type="warning" show-icon style="margin-bottom:16px;" />
     <el-tabs v-model="activeTab">
       <el-tab-pane label="待审批" name="pending">
-        <el-table :data="pendingList" v-loading="pendingLoading" stripe size="small">
+        <el-table :data="pendingList" v-loading="loading.pendingList" stripe size="small">
           <el-table-column label="申请人" prop="applicantName" width="100" />
           <el-table-column label="目标支行" prop="targetDeptName" min-width="140" />
           <el-table-column label="事由" prop="reason" min-width="200" show-overflow-tooltip />
@@ -25,7 +25,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="已审批" name="reviewed">
-        <el-table :data="reviewedList" v-loading="reviewedLoading" stripe size="small">
+        <el-table :data="reviewedList" v-loading="loading.reviewedList" stripe size="small">
           <el-table-column label="申请人" prop="applicantName" width="100" />
           <el-table-column label="目标支行" prop="targetDeptName" min-width="140" />
           <el-table-column label="事由" prop="reason" min-width="200" show-overflow-tooltip />
@@ -71,9 +71,12 @@
 
 <script>
 import { getPendingRequestList, getReviewedRequestList, approveRequest, rejectRequest, checkIsReviewer } from '@/api/jwmap/data-access'
+import fetchStateMixin from '../mixins/fetchStateMixin'
+import errorHandlerMixin from '../mixins/errorHandlerMixin'
 
 export default {
   name: 'JwDataAccessApproval',
+  mixins: [fetchStateMixin, errorHandlerMixin],
   data() {
     return {
       notReviewer: false,
@@ -83,13 +86,11 @@ export default {
       pendingTotal: 0,
       pendingPageNum: 1,
       pendingPageSize: 10,
-      pendingLoading: false,
 
       reviewedList: [],
       reviewedTotal: 0,
       reviewedPageNum: 1,
       reviewedPageSize: 10,
-      reviewedLoading: false,
 
       showReviewDialog: false,
       reviewItem: null,
@@ -119,24 +120,25 @@ export default {
           this.$message.warning('当前用户不是数据审核员，无审批权限')
         }
       }).catch(() => {
-        // 网络或服务器错误时不锁定页面，显示提示并重试
-        this.$message.error('无法验证审核员身份，3秒后自动重试')
+        this.handleError({ message: '无法验证审核员身份' }, '验证身份', false)
         setTimeout(() => this.checkReviewer(), 3000)
       })
     },
-    fetchPendingList() {
-      this.pendingLoading = true
-      getPendingRequestList({ pageNum: this.pendingPageNum, pageSize: this.pendingPageSize }).then(res => {
+    async fetchPendingList() {
+      const res = await this.withAsyncState('pendingList', getPendingRequestList,
+        { pageNum: this.pendingPageNum, pageSize: this.pendingPageSize }, '加载待审批列表')
+      if (res) {
         this.pendingList = res.rows || []
         this.pendingTotal = res.total || 0
-      }).finally(() => { this.pendingLoading = false })
+      }
     },
-    fetchReviewedList() {
-      this.reviewedLoading = true
-      getReviewedRequestList({ pageNum: this.reviewedPageNum, pageSize: this.reviewedPageSize }).then(res => {
+    async fetchReviewedList() {
+      const res = await this.withAsyncState('reviewedList', getReviewedRequestList,
+        { pageNum: this.reviewedPageNum, pageSize: this.reviewedPageSize }, '加载已审批列表')
+      if (res) {
         this.reviewedList = res.rows || []
         this.reviewedTotal = res.total || 0
-      }).finally(() => { this.reviewedLoading = false })
+      }
     },
     handleReview(row) {
       this.reviewItem = row
@@ -153,7 +155,7 @@ export default {
           this.fetchReviewedList()
           this.$root.$emit('pending-count-changed')
         }).catch(err => {
-          this.$message.error(err.msg || '操作失败')
+          this.handleError(err, '审批通过')
         }).finally(() => { this.reviewLoading = false })
       }).catch(() => {})
     },
@@ -167,7 +169,7 @@ export default {
           this.fetchReviewedList()
           this.$root.$emit('pending-count-changed')
         }).catch(err => {
-          this.$message.error(err.msg || '操作失败')
+          this.handleError(err, '审批拒绝')
         }).finally(() => { this.reviewLoading = false })
       }).catch(() => {})
     }

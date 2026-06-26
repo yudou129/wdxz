@@ -1,11 +1,13 @@
 package com.ruoyi.jwmap.controller;
 
+import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.constant.UserConstants;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.domain.TreeSelect;
 import com.ruoyi.common.core.domain.entity.SysDept;
 import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.jwmap.domain.JwBranchInfo;
 import com.ruoyi.jwmap.domain.JwDataAccessRequest;
@@ -44,6 +46,7 @@ public class JwDataAccessController extends BaseController {
     /**
      * 提交数据查看申请
      */
+    @Log(title = "数据访问", businessType = BusinessType.INSERT)
     @PostMapping("/request/submit")
     public AjaxResult submit(@RequestBody JwDataAccessRequest req) {
         Long userId = safeGetUserId();
@@ -100,6 +103,7 @@ public class JwDataAccessController extends BaseController {
     /**
      * 撤销申请
      */
+    @Log(title = "数据访问", businessType = BusinessType.UPDATE)
     @PostMapping("/request/cancel/{requestId}")
     public AjaxResult cancel(@PathVariable Long requestId) {
         Long userId = safeGetUserId();
@@ -116,6 +120,7 @@ public class JwDataAccessController extends BaseController {
     /**
      * 申请详情（仅申请人或审核人可查看）
      */
+    @Log(title = "数据访问", businessType = BusinessType.OTHER)
     @GetMapping("/request/{requestId}")
     public AjaxResult detail(@PathVariable Long requestId) {
         Long userId = safeGetUserId();
@@ -172,6 +177,7 @@ public class JwDataAccessController extends BaseController {
     /**
      * 审批通过
      */
+    @Log(title = "数据访问", businessType = BusinessType.UPDATE)
     @PostMapping("/request/approve")
     public AjaxResult approve(@RequestBody JwDataAccessRequest req) {
         Long userId = safeGetUserId();
@@ -188,6 +194,7 @@ public class JwDataAccessController extends BaseController {
     /**
      * 审批拒绝
      */
+    @Log(title = "数据访问", businessType = BusinessType.UPDATE)
     @PostMapping("/request/reject")
     public AjaxResult reject(@RequestBody JwDataAccessRequest req) {
         Long userId = safeGetUserId();
@@ -206,6 +213,7 @@ public class JwDataAccessController extends BaseController {
     /**
      * 检查当前用户是否有权查看某网点详细数据
      */
+    @Log(title = "数据访问", businessType = BusinessType.OTHER)
     @GetMapping("/checkBranch/{branchId}")
     public AjaxResult checkBranchAccess(@PathVariable Long branchId) {
         Long userId = safeGetUserId();

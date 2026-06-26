@@ -5,7 +5,7 @@
         <el-row style="margin-bottom:12px;">
           <el-button type="primary" size="small" @click="showNewForm = true">新建申请</el-button>
         </el-row>
-        <el-table :data="requestList" v-loading="loading" stripe size="small">
+        <el-table :data="requestList" v-loading="tableLoading" stripe size="small">
           <el-table-column label="目标支行" prop="targetDeptName" min-width="140" />
           <el-table-column label="事由" prop="reason" min-width="200" show-overflow-tooltip />
           <el-table-column label="有效期" min-width="160">
@@ -105,10 +105,13 @@
 import { submitAccessRequest, getMyRequestList, cancelRequest, getRequestDetail, resolveBranchDept, getReviewers, getAccessDeptTree } from '@/api/jwmap/data-access'
 import Treeselect from '@riophae/vue-treeselect'
 import '@riophae/vue-treeselect/dist/vue-treeselect.css'
+import errorHandlerMixin from '../mixins/errorHandlerMixin'
+import fetchStateMixin from '../mixins/fetchStateMixin'
 
 export default {
   name: 'JwDataAccessRequest',
   components: { Treeselect },
+  mixins: [fetchStateMixin, errorHandlerMixin],
   data() {
     return {
       activeTab: 'myList',
@@ -116,7 +119,7 @@ export default {
       total: 0,
       pageNum: 1,
       pageSize: 10,
-      loading: false,
+      tableLoading: false,
 
       showNewForm: false,
       submitting: false,
@@ -191,28 +194,38 @@ export default {
     }
   },
   methods: {
-    fetchList() {
-      this.loading = true
-      getMyRequestList({ pageNum: this.pageNum, pageSize: this.pageSize }).then(res => {
+    async fetchList() {
+      this.tableLoading = true
+      try {
+        const res = await getMyRequestList({ pageNum: this.pageNum, pageSize: this.pageSize })
         this.requestList = res.rows || []
         this.total = res.total || 0
-      }).finally(() => { this.loading = false })
+      } catch (e) {
+        this.handleError(e, '加载申请列表')
+      } finally {
+        this.tableLoading = false
+      }
     },
-    loadDeptTree() {
-      // 用部门树接口获取省行-市行-支行的树形结构（绕过 DataScope 限制）
-      return getAccessDeptTree().then(res => {
+    async loadDeptTree() {
+      try {
+        const res = await getAccessDeptTree()
         this.deptTree = res.data || []
-      }).catch(() => {
+      } catch (e) {
+        this.handleError(e, '加载部门树', true) // 静默失败
         this.deptTree = []
-      })
+      }
     },
-    loadReviewers(targetDeptId) {
+    async loadReviewers(targetDeptId) {
       this.reviewersLoading = true
-      getReviewers(targetDeptId || null).then(res => {
+      try {
+        const res = await getReviewers(targetDeptId || null)
         this.reviewers = res.data || []
-      }).catch(() => {
+      } catch (e) {
+        this.handleError(e, '加载审核人', true)
         this.reviewers = []
-      }).finally(() => { this.reviewersLoading = false })
+      } finally {
+        this.reviewersLoading = false
+      }
     },
     handleSubmit() {
       this.$refs.formRef.validate(valid => {
@@ -225,7 +238,7 @@ export default {
           this.$nextTick(() => this.$refs.formRef.clearValidate())
           this.fetchList()
         }).catch(err => {
-          this.$message.error(err.msg || '提交失败')
+          this.handleError(err, '提交申请')
         }).finally(() => { this.submitting = false })
       })
     },
