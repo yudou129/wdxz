@@ -169,13 +169,13 @@ export default {
 }
 .sidebar-header { padding: 14px 16px; border-bottom: 1px solid rgba(79,110,246,0.08); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 .sidebar-title { font-weight: 700; font-size: 16px; color: #232845; }
-.close-btn { color: #666; }
+.close-btn { color: #444; }
 .close-btn:hover { color: #4f6ef6; }
 .sidebar-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
 .sidebar-body::-webkit-scrollbar { width: 4px; }
 .sidebar-body::-webkit-scrollbar-thumb { background: rgba(79,110,246,0.15); border-radius: 4px; }
 .year-picker { margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.year-picker .label { font-size: 13px; color: #555; font-weight: 500; }
+.year-picker .label { font-size: 13px; color: #444; font-weight: 500; }
 .thin-divider {
   margin: 10px 0; border: none; height: 1px;
   background: linear-gradient(90deg, rgba(79,110,246,0.25) 0%, rgba(79,110,246,0.06) 60%, transparent 100%) !important;
@@ -216,14 +216,14 @@ export default {
 .split-layout { display: flex; gap: 16px; }
 .split-col { flex: 1; min-width: 0; }
 .mode-badge {
-  font-size: 11px; font-weight: 600; color: #4f6ef6;
+  font-size: 12px; font-weight: 600; color: #4f6ef6;
   background: rgba(79,110,246,0.08); padding: 2px 10px; border-radius: 10px;
 }
 /* 周围网点 */
 .nb-section { margin-bottom: 0; }
 .nb-section .section-title { margin-bottom: 6px; }
 .ps-count {
-  font-size: 11px; font-weight: 400; color: #888; margin-left: auto;
+  font-size: 12px; font-weight: 400; color: #666; margin-left: auto;
 }
 .nb-row {
   display: flex; justify-content: space-between; align-items: center;
@@ -235,7 +235,7 @@ export default {
 .nb-name { color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-weight: 500; }
 .nb-dist {
   color: #4f6ef6; font-weight: 600; flex-shrink: 0; margin-left: 8px;
-  font-size: 12px; background: rgba(79, 110, 246, 0.06);
+  font-size: 13px; background: rgba(79, 110, 246, 0.06);
   padding: 1px 8px; border-radius: 10px; font-variant-numeric: tabular-nums;
 }
 .slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.25s ease; }

@@ -78,7 +78,7 @@ export default {
 }
 .seg-labels { display: flex; align-items: flex-end; margin-bottom: 3px; min-height: 20px; }
 .seg-label {
-  font-size: 11px; color: #555; text-align: center;
+  font-size: 12px; color: #444; text-align: center;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   line-height: 1.4; font-variant-numeric: tabular-nums;
 }
@@ -104,13 +104,13 @@ export default {
 }
 .tooltip-row {
   display: flex; align-items: center; gap: 8px;
-  padding: 3px 0; font-size: 12px;
+  padding: 3px 0; font-size: 13px;
 }
 .tip-dot {
   width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0;
 }
 .tip-name { flex: 1; color: #444; font-weight: 500; }
-.tip-val { width: 80px; text-align: right; color: #666; font-variant-numeric: tabular-nums; }
+.tip-val { width: 80px; text-align: right; color: #555; font-variant-numeric: tabular-nums; }
 .tip-pct { width: 40px; text-align: right; color: #4f6ef6; font-weight: 600; }
 
 /* 简约刻度线 */

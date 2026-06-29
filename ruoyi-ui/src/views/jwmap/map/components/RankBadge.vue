@@ -30,8 +30,8 @@ export default {
   margin-bottom: 2px;
 }
 .rb-label {
-  font-size: 12px;
-  color: #888;
+  font-size: 13px;
+  color: #555;
   font-weight: 500;
   letter-spacing: 0.5px;
 }
@@ -50,13 +50,13 @@ export default {
   line-height: 1.1;
 }
 .rb-number.na {
-  color: #ccc;
+  color: #888;
   font-weight: 400;
   font-size: 20px;
 }
 .rb-total {
   font-size: 14px;
-  color: #999;
+  color: #666;
   font-weight: 400;
 }
 </style>

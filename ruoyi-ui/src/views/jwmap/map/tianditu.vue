@@ -152,7 +152,7 @@ export default {
       peerBankAutoIndex: 0, peerBankAutoMap: {},
       selectedYear: 2024,
       sidebar: {
-        visible: false, mode: 'grid-only', width: 380,
+        visible: false, mode: 'grid-only', width: Math.min(380, Math.max(300, window.innerWidth * 0.28)),
         gridData: {}, gridRank: null, gridIndicators: [],
         gridRankMeta: { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 },
         branchData: {}, branchScores: [],

@@ -220,7 +220,7 @@ export default {
   right: 12px;
   bottom: 12px;
   z-index: 1000;
-  width: 320px;
+  width: min(320px, 90vw);
   background: rgba(255, 255, 255, 0.95);
   border-radius: 10px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
@@ -267,7 +267,7 @@ export default {
   justify-content: center;
   gap: 6px;
   padding: 20px 0;
-  color: #666;
+  color: #444;
   font-size: 13px;
   cursor: default;
 }
@@ -278,12 +278,12 @@ export default {
 .rsp-loading {
   text-align: center;
   padding: 16px 0;
-  color: #666;
+  color: #555;
   font-size: 13px;
 }
 .rsp-summary {
   font-size: 13px;
-  color: #555;
+  color: #444;
   padding: 8px 0 6px;
   border-bottom: 1px solid #f0f0f0;
   margin-bottom: 8px;
@@ -303,8 +303,8 @@ export default {
   border-left: 3px solid #409eff;
 }
 .rsp-type-card-name {
-  font-size: 13px;
-  color: #555;
+  font-size: 14px;
+  color: #444;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -348,7 +348,7 @@ export default {
   background: #f0f7ff;
 }
 .rsp-detail-type-tag {
-  font-size: 11px;
+  font-size: 12px;
   color: #fff;
   border-radius: 3px;
   padding: 1px 5px;
@@ -363,8 +363,8 @@ export default {
   flex: 1;
 }
 .rsp-detail-addr {
-  color: #666;
-  font-size: 12px;
+  color: #555;
+  font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -372,7 +372,7 @@ export default {
   flex-shrink: 0;
 }
 .rsp-empty {
-  color: #666;
+  color: #555;
   font-size: 13px;
   text-align: center;
   padding: 12px 0;

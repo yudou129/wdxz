@@ -60,8 +60,8 @@ export default {
 .tcol-header.ent i { color: #52c41a; }
 .tcol-header.biz i { color: #f0a050; }
 .tcol-num { font-size: 20px; font-weight: 700; color: #232845; margin: 6px 0 3px; font-variant-numeric: tabular-nums; }
-.tcol-sub { font-size: 13px; color: #555; margin-top: 2px; }
-.tcol-gap { font-size: 12px; color: #e6a23c; margin: 0 0 3px; }
+.tcol-sub { font-size: 13px; color: #444; margin-top: 2px; }
+.tcol-gap { font-size: 13px; color: #e6a23c; margin: 0 0 3px; }
 .tcol-gap span { font-weight: 600; font-variant-numeric: tabular-nums; }
 .tcol-gap.is-top { color: #52c41a; font-weight: 500; }
 </style>

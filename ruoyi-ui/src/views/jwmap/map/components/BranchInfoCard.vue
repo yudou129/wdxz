@@ -133,7 +133,7 @@ export default {
   line-height: 1.3;
 }
 .bi-tag {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   border-radius: 4px;
   line-height: 1.4;
@@ -177,8 +177,8 @@ export default {
   min-width: 0;
 }
 .bi-cell-label {
-  font-size: 10px;
-  color: #888;
+  font-size: 12px;
+  color: #555;
   text-transform: uppercase;
   letter-spacing: 0.3px;
   line-height: 1.3;
@@ -239,9 +239,9 @@ export default {
   user-select: none;
 }
 .bi-more-badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
-  color: #888;
+  color: #666;
   background: rgba(79, 110, 246, 0.06);
   padding: 0 8px;
   border-radius: 10px;
@@ -269,7 +269,7 @@ export default {
   border-bottom: none;
 }
 .bd-label {
-  color: #888;
+  color: #555;
   flex-shrink: 0;
 }
 .bd-value {
@@ -279,7 +279,7 @@ export default {
 }
 .bd-value small {
   font-weight: 400;
-  color: #888;
+  color: #666;
   margin-left: 2px;
 }
 </style>

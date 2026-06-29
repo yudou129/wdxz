@@ -232,7 +232,7 @@ export default {
 </script>
 <style scoped>
 .detail-panel {
-  position: absolute; top: 100px; bottom: 12px; width: 500px;
+  position: absolute; top: 100px; bottom: 12px; width: min(500px, 88vw);
   background: rgba(255,255,255,0.93);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   border-radius: 10px;
@@ -246,7 +246,7 @@ export default {
 }
 .detail-title { font-weight: 700; font-size: 14px; color: #232845; display: flex; align-items: center; gap: 6px; }
 .detail-title i { color: #4f6ef6; }
-.close-btn { color: #666; }
+.close-btn { color: #444; }
 .close-btn:hover { color: #4f6ef6; }
 .detail-body { flex: 1; overflow-y: auto; padding: 14px 18px; }
 .detail-body::-webkit-scrollbar { width: 4px; }
@@ -268,7 +268,7 @@ export default {
   display: flex; align-items: center; gap: 6px;
 }
 .l1-count {
-  font-size: 11px; font-weight: 400; color: #888;
+  font-size: 12px; font-weight: 400; color: #666;
   margin-left: auto;
 }
 
@@ -296,7 +296,7 @@ export default {
 .card-computed .card-header i { color: #a855f7; }
 .card-title { font-size: 14px; font-weight: 700; color: #232845; flex: 1; }
 .card-tag {
-  font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 8px;
+  font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 8px;
   letter-spacing: 0.3px; flex-shrink: 0;
 }
 .card-raw .card-tag { background: rgba(79,110,246,0.08); color: #4f6ef6; }
@@ -309,7 +309,7 @@ export default {
 .sub-head { border-left-color: #4f6ef6; background: linear-gradient(90deg, rgba(79,110,246,0.03), transparent); }
 .sub-tail { border-left-color: #f0a050; background: linear-gradient(90deg, rgba(240,160,80,0.03), transparent); }
 .sub-title {
-  font-size: 12px; font-weight: 600; color: #666; margin-bottom: 4px;
+  font-size: 13px; font-weight: 600; color: #444; margin-bottom: 4px;
   display: flex; align-items: center; gap: 4px;
 }
 .sub-title i { font-size: 12px; }
@@ -322,15 +322,15 @@ export default {
   border-bottom: 1px solid #f5f6fa;
 }
 .data-item:last-child { border-bottom: none; }
-.item-label { color: #555; flex: 1; padding-right: 12px; line-height: 1.4; }
+.item-label { color: #444; flex: 1; padding-right: 12px; line-height: 1.4; }
 .item-value {
   font-weight: 600; color: #232845;
   font-variant-numeric: tabular-nums; text-align: right; flex-shrink: 0;
   font-size: 14px;
 }
 .card-computed .item-value { color: #7c3aed; }
-.empty-hint { text-align: center; color: #666; padding: 40px 0; font-size: 14px; }
-.no-access { text-align: center; padding: 60px 20px; color: #666; }
+.empty-hint { text-align: center; color: #555; padding: 40px 0; font-size: 14px; }
+.no-access { text-align: center; padding: 60px 20px; color: #555; }
 .no-access p { margin: 8px 0 16px; font-size: 14px; }
 .panel-expand-enter-active, .panel-expand-leave-active {
   transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.25s;

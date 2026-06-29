@@ -60,12 +60,12 @@ export default {
   border-top: 1px solid rgba(79, 110, 246, 0.04);
 }
 .score-row.compact {
-  font-size: 12px;
+  font-size: 13px;
   padding: 4px 0;
 }
 .s-label {
   min-width: 48px;
-  color: #555;
+  color: #444;
   font-weight: 500;
   flex-shrink: 0;
   font-size: 14px;
@@ -107,7 +107,7 @@ export default {
   font-variant-numeric: tabular-nums;
 }
 .s-gap {
-  font-size: 11px;
+  font-size: 12px;
   color: #e6a23c;
   background: rgba(230, 162, 60, 0.1);
   padding: 0 6px;
@@ -118,7 +118,7 @@ export default {
   line-height: 18px;
 }
 .s-top {
-  font-size: 11px;
+  font-size: 12px;
   color: #52c41a;
   background: rgba(82, 196, 26, 0.1);
   padding: 0 6px;

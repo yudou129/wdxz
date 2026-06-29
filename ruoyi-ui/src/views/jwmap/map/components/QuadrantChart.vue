@@ -113,10 +113,17 @@ export default {
     if (this.chart) { this.chart.dispose(); this.chart = null }
   },
   methods: {
+    escapeHtml(str) {
+      const div = document.createElement('div')
+      div.appendChild(document.createTextNode(str || ''))
+      return div.innerHTML
+    },
     renderChart() {
       if (!this.$refs.chartEl) return
       if (this.chart) this.chart.dispose()
       this.chart = echarts.init(this.$refs.chartEl)
+
+      const escapeHtml = this.escapeHtml.bind(this)
 
       const allData = this.data.allData || []
       const total = allData.length || 1
@@ -142,7 +149,7 @@ export default {
             if (!d || !d.length) return ''
             const qLabel = QUADRANT_LABELS[p.seriesName] || p.seriesName
             return `<div style="font-size:13px;line-height:1.6">
-              <b style="font-size:14px;color:#232845">${d[2]}</b><br/>
+              <b style="font-size:14px;color:#232845">${escapeHtml(d[2])}</b><br/>
               <span style="color:#888">选址</span> #${d[0]}
               <span style="color:#888;margin-left:10px">得分</span> ${d[4] != null ? Number(d[4]).toFixed(4) : '-'}<br/>
               <span style="color:#888">网点</span> #${d[1]}
@@ -274,7 +281,7 @@ export default {
 
 <style scoped>
 .quadrant-panel {
-  position: absolute; right: 12px; top: 100px; bottom: 12px; width: 520px;
+  position: absolute; right: 12px; top: 100px; bottom: 12px; width: min(520px, 90vw);
   isolation: isolate; overflow: visible; border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.28);
   background: rgba(255,255,255,0.92);
@@ -295,7 +302,7 @@ export default {
 }
 .quadrant-title { font-weight: 700; font-size: 15px; color: #232845; display: flex; align-items: center; gap: 6px; }
 .quadrant-title i { color: #4f6ef6; }
-.close-btn { color: #666; }
+.close-btn { color: #444; }
 .close-btn:hover { color: #4f6ef6; }
 .quadrant-body { flex: 1; overflow-y: auto; padding: 12px 16px 16px; }
 .quadrant-body::-webkit-scrollbar { width: 4px; }
@@ -310,16 +317,16 @@ export default {
 }
 .qs-total { display: flex; align-items: baseline; gap: 4px; }
 .qs-num { font-size: 26px; font-weight: 700; color: #4f6ef6; font-variant-numeric: tabular-nums; line-height: 1; }
-.qs-unit { font-size: 12px; color: #888; }
+.qs-unit { font-size: 13px; color: #555; }
 .qs-dots { display: flex; gap: 12px; margin-left: auto; }
 .qs-dot-item {
   display: flex; align-items: center; gap: 4px;
-  font-size: 13px; font-weight: 600; color: #555;
+  font-size: 14px; font-weight: 600; color: #444;
 }
 .qs-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 /* ─── 图表 ─── */
-.quadrant-chart { width: 100%; height: 380px; flex-shrink: 0; }
+.quadrant-chart { width: 100%; height: min(380px, 45vh); flex-shrink: 0; }
 
 /* ─── 象限卡片 ─── */
 .qc-grid {
@@ -334,19 +341,19 @@ export default {
 .qcc-top { display: flex; align-items: center; gap: 6px; }
 .qcc-code { font-size: 15px; font-weight: 800; color: #232845; flex-shrink: 0; letter-spacing: 0.5px; }
 .qcc-label { font-size: 13px; font-weight: 500; color: #232845; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.qcc-count { font-size: 12px; font-weight: 600; color: #555; flex-shrink: 0; }
+.qcc-count { font-size: 13px; font-weight: 600; color: #444; flex-shrink: 0; }
 .qcc-pct { font-size: 18px; font-weight: 800; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .qcc-bar { height: 3px; background: #eef0f5; border-radius: 2px; overflow: hidden; margin-top: 5px; }
 .qcc-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
 
 /* ─── 底部 ─── */
 .qs-insight {
-  margin-top: 12px; padding: 8px 12px; font-size: 12px; color: #666;
+  margin-top: 12px; padding: 8px 12px; font-size: 13px; color: #555;
   background: rgba(79,110,246,0.04); border-radius: 6px;
   display: flex; align-items: center; gap: 6px;
 }
 .qs-insight i { color: #4f6ef6; font-size: 13px; }
-.qs-hint { margin-top: 8px; font-size: 11px; color: #bbb; text-align: center; }
+.qs-hint { margin-top: 8px; font-size: 12px; color: #888; text-align: center; }
 
 /* ─── 动画 ─── */
 .quad-slide-enter-active, .quad-slide-leave-active {

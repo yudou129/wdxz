@@ -155,6 +155,10 @@ src/
 
 ## 开发运行方式
 
+### 前置依赖
+- **MySQL**: 需要运行在 `localhost:3306`，数据库 `ry-vue`（配置见 `application-druid.yml`）
+- **Redis**: 需要运行在 `localhost:6379`
+
 ### 后端
 ```bash
 # 在项目根目录
@@ -163,6 +167,17 @@ cd ruoyi-admin
 mvn spring-boot:run
 # 默认端口 8080
 ```
+
+### macOS 适配说明
+项目原始配置针对 Windows/Linux 环境，macOS 上运行需修改以下路径：
+
+| 文件 | 配置项 | 原始值 | macOS 适配值 |
+|---|---|---|---|
+| `ruoyi-admin/.../logback.xml` | `log.path` | `/home/ruoyi/logs` | `./logs` |
+| `ruoyi-admin/.../application.yml` | `profile` (文件上传路径) | `D:/ruoyi/uploadPath` | `./uploadPath` |
+| `ruoyi-ui/vue.config.js` | `TILES_DIR` (百度瓦片) | `E:/.../mapfile/guizhou_baidu_tiles` | `../mapfile/guizhou_baidu_tiles` |
+| `ruoyi-ui/vue.config.js` | `TIANDITU_VEC_DIR` | `E:/.../mapfile/tianditu_vec/...` | `../mapfile/tianditu_vec/vec_guizhou-z9-17` |
+| `ruoyi-ui/vue.config.js` | `TIANDITU_CVA_DIR` | `E:/.../mapfile/tianditu_cva/...` | `../mapfile/tianditu_cva/cva_guizhou-z9-17` |
 
 ### 前端
 ```bash

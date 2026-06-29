@@ -25,6 +25,8 @@ export default {
 
     async fetchRanking() {
       if (!this.currentCity) return
+      if (!this._rankingSeq) this._rankingSeq = 0
+      const seq = ++this._rankingSeq
       this.ranking.loading = true
       try {
         const pageSize = 20
@@ -39,6 +41,7 @@ export default {
           score: r.siteScore || r.categoryScore || 0,
           type: this.ranking.type
         }))
+        if (seq !== this._rankingSeq) return
         this.ranking.items = this.ranking.page === 1 ? mapped : [...this.ranking.items, ...mapped]
         this.ranking.hasMore = rows.length >= pageSize
         this.ranking.title = isBranch ? '网点效能排名' : '网格选址排名'
@@ -65,11 +68,14 @@ export default {
 
     async fetchFocusRanking(category) {
       if (!this.currentCity) return
+      if (!this._focusSeq) this._focusSeq = 0
+      const seq = ++this._focusSeq
       this.ranking.loading = true
       try {
         const res = await getThreeFocusRanking(this.currentCity, this.selectedYear)
         const data = res.data || {}
         const list = data[category] || []
+        if (seq !== this._focusSeq) return
         this.ranking.items = list.map((r, i) => ({
           id: r.gridCode || ('f' + i),
           name: r.branchName || r.gridCode || '',
@@ -97,6 +103,8 @@ export default {
 
     async navigateToGrid(gridCode) {
       if (!this.currentCity) return
+      if (!this._navSeq) this._navSeq = 0
+      const seq = ++this._navSeq
       try {
         // Use cached grid data if available to avoid redundant API call
         let list = this.gridDataCache
@@ -106,6 +114,7 @@ export default {
         }
         if (!Array.isArray(list)) return
         const found = list.find(d => d.gridCode === gridCode)
+        if (seq !== this._navSeq) return
         if (found && found.latitude != null && found.longitude != null) {
           this.gridDataCache = list
           this.map.flyTo([found.latitude, found.longitude], 14)

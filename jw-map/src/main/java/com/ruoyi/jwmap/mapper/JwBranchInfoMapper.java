@@ -28,6 +28,8 @@ public interface JwBranchInfoMapper {
 
     int updateGridCode(@Param("branchId") Long branchId, @Param("gridCode") String gridCode);
 
+    int batchUpdateGridCode(@Param("list") List<JwBranchInfo> list);
+
     int deleteJwBranchInfoById(Long branchId);
 
     int deleteJwBranchInfoByIds(Long[] branchIds);

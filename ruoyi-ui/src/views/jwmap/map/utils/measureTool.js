@@ -66,7 +66,7 @@ export class MeasureTool {
         return div
       }
     })
-    new MeasureControl({ position: 'topleft' }).addTo(this.map)
+    new MeasureControl({ position: 'bottomleft' }).addTo(this.map)
   }
 
   _createCursorStyle() {

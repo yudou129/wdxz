@@ -17,9 +17,9 @@
         <el-col :span="6" v-for="item in cityStatusList" :key="item.city">
           <el-card :class="['status-card', item.ready ? 'ready' : 'incomplete']" shadow="never">
             <h4>{{ item.city }}</h4>
-            <div>POI: <el-tag :type="item.hasPoi ? 'success' : 'danger'" size="mini">{{ item.hasPoi ? '已导入' : '缺' }}</el-tag></div>
-            <div>人口热力: <el-tag :type="item.hasPopulation ? 'success' : 'danger'" size="mini">{{ item.hasPopulation ? '已导入' : '缺' }}</el-tag></div>
-            <div>权重: <el-tag :type="item.hasWeight ? 'success' : 'danger'" size="mini">{{ item.hasWeight ? '已配置' : '缺' }}</el-tag></div>
+            <div>POI: <el-tag :type="item.hasPoi ? 'success' : 'danger'" size="small">{{ item.hasPoi ? '已导入' : '缺' }}</el-tag></div>
+            <div>人口热力: <el-tag :type="item.hasPopulation ? 'success' : 'danger'" size="small">{{ item.hasPopulation ? '已导入' : '缺' }}</el-tag></div>
+            <div>权重: <el-tag :type="item.hasWeight ? 'success' : 'danger'" size="small">{{ item.hasWeight ? '已配置' : '缺' }}</el-tag></div>
             <div>网格数: <b>{{ item.gridCount || 0 }}</b> | 得分: <b>{{ item.hasScore ? '已计算' : '未计算' }}</b></div>
             <div class="status-badge">
               <el-tag :type="item.ready ? 'success' : 'warning'">{{ item.ready ? '就绪' : '待完善' }}</el-tag>
@@ -35,7 +35,7 @@
 
     <!-- Tab 区域 -->
     <el-card class="section-card" shadow="hover">
-      <el-tabs v-model="activeTab" type="border-card">
+      <el-tabs v-model="activeTab" class="dm-tabs">
         <!-- ========== 数据导入 Tab ========== -->
         <el-tab-pane label="数据导入" name="import">
           <el-collapse v-model="importCollapse">
@@ -77,14 +77,10 @@
               <el-card shadow="never">
                 <div slot="header"><i class="el-icon-s-grid" /> 网格数据计算</div>
                 <p>将POI信息和人口热力数据按1KM×1KM网格聚合，计算四至坐标、POI数量、TOPSIS选址得分。</p>
-                <el-select v-model="computeGridCity" placeholder="选择城市" style="width:160px;margin-right:8px">
+                <el-select v-model="computeGridCity" placeholder="选择城市" class="dm-select">
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
                 <el-button type="primary" @click="handleGridCompute" :loading="gridComputing">{{ gridComputing ? '计算中...' : '开始网格计算' }}</el-button>
-                <el-divider />
-                <p class="step-title">或分步执行：</p>
-                <el-button size="small" @click="handleGridMeta">仅计算网格元信息</el-button>
-                <el-button size="small" @click="handleGridScore">仅重算TOPSIS得分</el-button>
               </el-card>
             </el-col>
 
@@ -93,17 +89,15 @@
               <el-card shadow="never">
                 <div slot="header"><i class="el-icon-office-building" /> 网点效能计算</div>
                 <p>计算22个衍生指标（人均/单位面积/户均），执行归一化和五类TOPSIS评分（营收/指标/客户/运营/总分）。</p>
-                <el-select v-model="computeBranchCity" placeholder="选择城市" style="width:160px;margin-right:8px">
+                <el-select v-model="computeBranchCity" placeholder="选择城市" class="dm-select">
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
-                <el-select v-model="computeBranchYear" placeholder="选择年份" style="width:100px;margin-right:8px">
+                <el-select v-model="computeBranchYear" placeholder="选择年份" class="dm-select dm-select-sm">
                   <el-option label="2023" :value="2023" />
                   <el-option label="2024" :value="2024" />
                   <el-option label="2025" :value="2025" />
                 </el-select>
                 <el-button type="primary" @click="handleBranchCompute" :loading="branchComputing">{{ branchComputing ? '计算中...' : '开始网点计算' }}</el-button>
-                <el-divider />
-                <el-button size="small" @click="handleAssignGrid">网点归属网格</el-button>
               </el-card>
             </el-col>
           </el-row>
@@ -116,10 +110,10 @@
             <el-col :span="12">
               <el-card shadow="never">
                 <div slot="header">网格数据导出</div>
-                <el-select v-model="exportCity" placeholder="选择城市" style="width:160px;margin-right:8px">
+                <el-select v-model="exportCity" placeholder="选择城市" class="dm-select">
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
-                <el-divider />
+                <div class="step-gap"></div>
                 <el-button type="success" @click="handleExport('grid')" icon="el-icon-download">网格导出（原始数据+归一化得分）</el-button>
               </el-card>
             </el-col>
@@ -128,13 +122,13 @@
             <el-col :span="12">
               <el-card shadow="never">
                 <div slot="header">网点数据导出</div>
-                <el-select v-model="exportCity" placeholder="选择城市" style="width:160px;margin-right:8px">
+                <el-select v-model="exportCity" placeholder="选择城市" class="dm-select">
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
-                <el-select v-model="exportYear" placeholder="选择年份" style="width:100px;margin-right:8px">
+                <el-select v-model="exportYear" placeholder="选择年份" class="dm-select dm-select-sm">
                   <el-option label="2023" :value="2023" /><el-option label="2024" :value="2024" /><el-option label="2025" :value="2025" />
                 </el-select>
-                <el-divider />
+                <div class="step-gap"></div>
                 <el-button type="success" @click="handleExport('branch')" icon="el-icon-download">网点导出（基础数据+数据计算表+归一化）</el-button>
               </el-card>
             </el-col>
@@ -145,7 +139,7 @@
         <el-tab-pane label="数据查看" name="view">
           <el-tabs v-model="viewTab" type="card">
             <el-tab-pane label="网格数据" name="gridView">
-              <el-select v-model="viewCity" placeholder="选择城市" style="width:160px;margin-bottom:12px">
+              <el-select v-model="viewCity" placeholder="选择城市" class="dm-select" style="margin-bottom:12px">
                 <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
               </el-select>
               <div style="height:calc(100vh - 380px);min-height:400px">
@@ -154,10 +148,10 @@
             </el-tab-pane>
             <el-tab-pane label="网点数据" name="branchView">
               <div style="margin-bottom:12px">
-                <el-select v-model="viewCity" placeholder="选择城市" style="width:160px;margin-right:8px">
+                <el-select v-model="viewCity" placeholder="选择城市" class="dm-select">
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
-                <el-select v-model="branchViewYear" placeholder="选择年份" style="width:100px">
+                <el-select v-model="branchViewYear" placeholder="选择年份" class="dm-select dm-select-sm">
                   <el-option label="2023" :value="2023" />
                   <el-option label="2024" :value="2024" />
                   <el-option label="2025" :value="2025" />
@@ -168,10 +162,10 @@
               </div>
             </el-tab-pane>
             <el-tab-pane label="同业银行" name="peerBankView">
-              <el-select v-model="viewCity" placeholder="选择城市" @change="loadPeerBankList" style="width:160px;margin-bottom:12px">
+              <el-select v-model="viewCity" placeholder="选择城市" @change="loadPeerBankList" class="dm-select" style="margin-bottom:12px">
                 <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
               </el-select>
-              <el-table :data="peerBankList" border stripe max-height="400" v-loading="peerBankLoading">
+              <el-table :data="peerBankList" class="dm-table" v-loading="peerBankLoading">
                 <el-table-column prop="orgCode" label="机构编码" width="160" />
                 <el-table-column prop="orgName" label="机构名称" min-width="200" show-overflow-tooltip />
                 <el-table-column prop="bankName" label="银行名称" width="100" />
@@ -203,8 +197,7 @@ const GUIZHOU_CITIES = [
 ]
 
 import {
-  getAllCityStatus, computeGridData, computeGridScore, computeBranchData, assignGridToBranch,
-  getGridCities, getBranchList
+  getAllCityStatus, computeGridData, computeBranchData,
 } from '@/api/jwmap/data'
 import { importPoi, importPopulationHeat,
   importBranchInfo, importPeerBank } from '@/api/jwmap/data'
@@ -301,20 +294,6 @@ export default {
       } catch (e) { this.$message.error('计算失败：' + (e.message || '未知错误')) }
       finally { this.gridComputing = false }
     },
-    async handleGridMeta() {
-      if (!this.computeGridCity) { this.$message.warning('请选择城市'); return }
-      try {
-        const res = await computeGridData(this.computeGridCity) // uses the full pipeline; grid meta only via separate endpoint
-        this.$message.success(res.msg || '计算完成')
-      } catch (e) { this.$message.error('计算失败') }
-    },
-    async handleGridScore() {
-      if (!this.computeGridCity) { this.$message.warning('请选择城市'); return }
-      try {
-        const res = await computeGridScore(this.computeGridCity)
-        this.$message.success(res.msg || '得分重算完成')
-      } catch (e) { this.$message.error('计算失败：' + (e.message || '未知错误')) }
-    },
     async handleBranchCompute() {
       if (!this.computeBranchCity) { this.$message.warning('请选择城市'); return }
       this.branchComputing = true
@@ -323,13 +302,6 @@ export default {
         this.$message.success(res.msg || '计算完成')
       } catch (e) { this.$message.error('计算失败：' + (e.message || '未知错误')) }
       finally { this.branchComputing = false }
-    },
-    async handleAssignGrid() {
-      if (!this.computeBranchCity) { this.$message.warning('请选择城市'); return }
-      try {
-        const res = await assignGridToBranch(this.computeBranchCity)
-        this.$message.success(res.msg || '分配完成')
-      } catch (e) { this.$message.error('分配失败') }
     },
     async handleExport(type) {
       if (!this.exportCity) { this.$message.warning('请选择城市'); return }
@@ -389,9 +361,7 @@ export default {
   max-width: 1280px;
   margin: 0 auto;
 }
-.page-header {
-  margin-bottom: 16px;
-}
+.page-header { margin-bottom: 16px; }
 .page-header h2 {
   margin: 0;
   font-size: 22px;
@@ -400,25 +370,51 @@ export default {
   letter-spacing: -0.3px;
 }
 .subtitle {
-  color: #8c95a8;
-  font-size: 13px;
+  color: #888;
+  font-size: 14px;
   margin: 4px 0 0 0;
 }
+/* 卡片 */
 .section-card {
   margin-bottom: 18px;
-  border-radius: 10px;
-  border: 1px solid rgba(79, 110, 246, 0.08);
-  box-shadow: 0 2px 12px rgba(79, 110, 246, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(79, 110, 246, 0.06);
+  box-shadow: 0 2px 12px rgba(79, 110, 246, 0.04);
   transition: box-shadow 0.25s ease;
 }
 .section-card:hover {
-  box-shadow: 0 4px 20px rgba(79, 110, 246, 0.1);
+  box-shadow: 0 4px 20px rgba(79, 110, 246, 0.08);
 }
+/* Tab 容器 */
+.dm-tabs >>> .el-tabs__header {
+  margin: 0;
+  border-bottom: 1px solid rgba(79,110,246,0.06);
+}
+.dm-tabs >>> .el-tabs__nav-wrap { padding-left: 8px; }
+.dm-tabs >>> .el-tabs__item {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  padding: 0 18px;
+  height: 44px;
+  line-height: 44px;
+}
+.dm-tabs >>> .el-tabs__item.is-active {
+  color: #4f6ef6;
+}
+.dm-tabs >>> .el-tabs__active-bar {
+  background: #4f6ef6;
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+}
+.dm-tabs >>> .el-tabs__content { padding: 20px 0; }
+/* 城市状态卡 */
 .status-card {
   text-align: center;
-  font-size: 13px;
+  font-size: 14px;
   border-radius: 8px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  padding: 4px 0;
 }
 .status-card:hover {
   transform: translateY(-2px);
@@ -432,6 +428,20 @@ export default {
   border-left: 3px solid #f0a050;
   background: linear-gradient(135deg, #fffaf5 0%, #fff7ed 100%);
 }
-.status-badge { margin-top: 8px; }
-.step-title { color: #8c95a8; font-size: 13px; }
+.status-badge { margin-top: 10px; }
+/* 选择器统一 */
+.dm-select { width: 160px; }
+.dm-select-sm { width: 110px; }
+/* 表格 */
+.dm-table { width: 100%; }
+.dm-table >>> .el-table__header th {
+  background: #f8f9fd; color: #444; font-weight: 600; font-size: 14px;
+}
+.dm-table >>> .el-table__body td { font-size: 14px; padding: 10px 0; }
+/* 计算 Tab */
+.step-divider {
+  margin: 14px 0 10px; font-size: 13px; color: #888;
+  position: relative; padding-left: 10px; border-left: 2px solid #4f6ef6;
+}
+.step-gap { margin-top: 10px; }
 </style>

@@ -93,7 +93,7 @@ export default {
   border-left: 3px solid #4f6ef6; line-height: 1.3;
 }
 .category-title-l2 {
-  font-size: 12px; color: #555; display: block;
+  font-size: 13px; color: #444; display: block;
   margin: 6px 0 2px 8px; font-weight: 500;
   letter-spacing: 0.3px;
 }

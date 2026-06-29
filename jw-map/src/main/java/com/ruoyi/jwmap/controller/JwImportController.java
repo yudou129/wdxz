@@ -3,9 +3,12 @@ package com.ruoyi.jwmap.controller;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.jwmap.service.impl.ExcelImportService;
+import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Set;
 
 /**
  * 数据导入控制器
@@ -14,8 +17,26 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/jwmap/import")
 public class JwImportController extends BaseController {
 
+    private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    private static final Set<String> ALLOWED_EXTENSIONS = new java.util.HashSet<>(java.util.Arrays.asList("xls", "xlsx"));
+
     @Autowired
     private ExcelImportService excelImportService;
+
+    /** 校验文件 */
+    private AjaxResult validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return error("上传文件为空");
+        }
+        if (file.getSize() > MAX_FILE_SIZE) {
+            return error("文件大小超过限制（最大50MB）");
+        }
+        String ext = FilenameUtils.getExtension(file.getOriginalFilename());
+        if (ext == null || !ALLOWED_EXTENSIONS.contains(ext.toLowerCase())) {
+            return error("不支持的文件格式，仅支持 .xls / .xlsx");
+        }
+        return null;
+    }
 
     /**
      * 导入POI信息
@@ -24,6 +45,8 @@ public class JwImportController extends BaseController {
     public AjaxResult importPoi(
             @RequestParam("file") MultipartFile file,
             @RequestParam("city") String city) {
+        AjaxResult fileErr = validateFile(file);
+        if (fileErr != null) return fileErr;
         try {
             String username = getUsernameSafely();
             int count = excelImportService.importPoiInfo(file.getInputStream(), city, username);
@@ -41,6 +64,8 @@ public class JwImportController extends BaseController {
     public AjaxResult importPopulationHeat(
             @RequestParam("file") MultipartFile file,
             @RequestParam("city") String city) {
+        AjaxResult fileErr = validateFile(file);
+        if (fileErr != null) return fileErr;
         try {
             int count = excelImportService.importPopulationHeat(file.getInputStream(), city);
             return success("成功导入 " + count + " 条人口热力数据");
@@ -58,6 +83,8 @@ public class JwImportController extends BaseController {
             @RequestParam("file") MultipartFile file,
             @RequestParam("city") String city,
             @RequestParam(value = "dataSource", defaultValue = "网点信息") String dataSource) {
+        AjaxResult fileErr = validateFile(file);
+        if (fileErr != null) return fileErr;
         try {
             int count = excelImportService.importBranchInfo(file.getInputStream(), city, dataSource);
             return success("成功导入 " + count + " 条网点数据");
@@ -74,6 +101,8 @@ public class JwImportController extends BaseController {
     public AjaxResult importExistingBranch(
             @RequestParam("file") MultipartFile file,
             @RequestParam("city") String city) {
+        AjaxResult fileErr = validateFile(file);
+        if (fileErr != null) return fileErr;
         try {
             int count = excelImportService.importExistingBranch(file.getInputStream(), city);
             return success("成功导入 " + count + " 条存量网点数据");
@@ -90,6 +119,8 @@ public class JwImportController extends BaseController {
     public AjaxResult importPeerBank(
             @RequestParam("file") MultipartFile file,
             @RequestParam("city") String city) {
+        AjaxResult fileErr = validateFile(file);
+        if (fileErr != null) return fileErr;
         try {
             int count = excelImportService.importPeerBank(file.getInputStream(), city);
             return success("成功导入 " + count + " 条同业银行数据");

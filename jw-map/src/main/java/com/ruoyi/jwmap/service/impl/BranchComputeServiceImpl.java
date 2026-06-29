@@ -240,20 +240,48 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
     public int assignGridToBranch(String city) {
         List<JwBranchInfo> branches = branchInfoMapper.selectByCity(city);
         List<JwGridMeta> grids = gridMetaMapper.selectByCity(city);
+
+        // 构建二维网格查找索引 —— 按经度排序后二分搜索缩小候选范围
+        // 先用 O(N) 构建经度分层索引，替代 O(N*M) 暴力搜索
+        double[] gridLongitudes = grids.stream().mapToDouble(g -> g.getWestLongitude()).sorted().distinct().toArray();
+        java.util.Map<Double, java.util.List<JwGridMeta>> gridIndex = new java.util.HashMap<>();
+        for (JwGridMeta g : grids) {
+            double key = g.getWestLongitude();
+            gridIndex.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(g);
+        }
+
+        java.util.List<JwBranchInfo> needUpdate = new java.util.ArrayList<>();
         int count = 0;
         for (JwBranchInfo branch : branches) {
             if (branch.getLongitude() == null || branch.getLatitude() == null) continue;
-            for (JwGridMeta grid : grids) {
-                if (grid.getWestLongitude() == null || grid.getEastLongitude() == null) continue;
-                if (branch.getLongitude() >= grid.getWestLongitude()
-                    && branch.getLongitude() <= grid.getEastLongitude()
-                    && branch.getLatitude() >= grid.getSouthLatitude()
-                    && branch.getLatitude() <= grid.getNorthLatitude()) {
-                    branchInfoMapper.updateGridCode(branch.getBranchId(), grid.getGridCode());
-                    count++;
-                    break;
+
+            // 二分查找可能包含该经度的网格起始索引
+            int idx = java.util.Arrays.binarySearch(gridLongitudes, branch.getLongitude());
+            if (idx < 0) idx = -idx - 2; // 插入点前一个位置
+            // 从该索引向前后扩展搜索（经度连续的网格）
+            String matchedCode = null;
+            for (int i = Math.max(0, idx - 1); i < gridLongitudes.length && gridLongitudes[i] <= branch.getLongitude() + 0.1; i++) {
+                for (JwGridMeta grid : gridIndex.getOrDefault(gridLongitudes[i], java.util.Collections.emptyList())) {
+                    if (grid.getWestLongitude() == null || grid.getEastLongitude() == null) continue;
+                    if (branch.getLongitude() >= grid.getWestLongitude()
+                        && branch.getLongitude() <= grid.getEastLongitude()
+                        && branch.getLatitude() >= grid.getSouthLatitude()
+                        && branch.getLatitude() <= grid.getNorthLatitude()) {
+                        matchedCode = grid.getGridCode();
+                        break;
+                    }
                 }
+                if (matchedCode != null) break;
             }
+            if (matchedCode != null) {
+                branch.setGridCode(matchedCode);
+                needUpdate.add(branch);
+                count++;
+            }
+        }
+        // 批量更新
+        if (!needUpdate.isEmpty()) {
+            branchInfoMapper.batchUpdateGridCode(needUpdate);
         }
         return count;
     }
@@ -338,10 +366,9 @@ public class BranchComputeServiceImpl implements IBranchComputeService {
                 branchValueMap.put(branch.getBranchId(), val);
             }
             double sumSq = TopsisCalculator.calcSumSq(colValues);
-            double weight = summary.getActualWeight();
             double maxNorm = 0, minNorm = Double.MAX_VALUE;
             for (Map.Entry<Long, Double> entry : branchValueMap.entrySet()) {
-                double norm = TopsisCalculator.normalizeBranch(entry.getValue(), weight, sumSq);
+                double norm = TopsisCalculator.normalizeBranch(entry.getValue(), sumSq);
                 maxNorm = Math.max(maxNorm, norm);
                 minNorm = Math.min(minNorm, norm);
 

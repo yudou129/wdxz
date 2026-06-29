@@ -1,5 +1,7 @@
 package com.ruoyi.jwmap.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -8,6 +10,8 @@ import java.util.stream.Collectors;
  * 统一处理网格选址得分和网点效能得分的TOPSIS计算
  */
 public class TopsisCalculator {
+
+    private static final Logger log = LoggerFactory.getLogger(TopsisCalculator.class);
 
     /**
      * 归一化：网格公式 = value / SQRT(SUMSQ(column))
@@ -18,11 +22,12 @@ public class TopsisCalculator {
     }
 
     /**
-     * 归一化：网点公式 = value * weight / SQRT(SUMSQ(column))
+     * 归一化：网点公式 = value / SQRT(SUMSQ(column))
+     * 权重仅在 TOPSIS 距离计算时应用，归一化阶段不乘权重
      */
-    public static double normalizeBranch(double value, double weight, double sumSq) {
+    public static double normalizeBranch(double value, double sumSq) {
         if (sumSq <= 0) return 0;
-        return value * weight / Math.sqrt(sumSq);
+        return value / Math.sqrt(sumSq);
     }
 
     /**
@@ -45,18 +50,14 @@ public class TopsisCalculator {
     }
 
     /**
-     * 计算归一化值列表（网点模式，带权重）
+     * 计算归一化值列表（网点模式）
      * @param rawValues 原始值列表
-     * @param weights   对应权重列表
      */
-    public static List<Double> normalizeBranchColumn(List<Double> rawValues, List<Double> weights) {
+    public static List<Double> normalizeBranchColumn(List<Double> rawValues) {
         double sumSq = calcSumSq(rawValues);
-        List<Double> result = new ArrayList<>();
-        for (int i = 0; i < rawValues.size(); i++) {
-            double w = i < weights.size() ? weights.get(i) : 1.0;
-            result.add(rawValues.get(i) * w / Math.sqrt(sumSq));
-        }
-        return result;
+        return rawValues.stream()
+            .map(v -> normalizeBranch(v, sumSq))
+            .collect(Collectors.toList());
     }
 
     /**
@@ -73,7 +74,12 @@ public class TopsisCalculator {
             double min = minNorms.get(j);
             double w = j < weights.size() ? weights.get(j) : 0;
             double denom = max - min;
-            if (denom == 0) continue;
+            if (denom == 0) {
+                if (log.isWarnEnabled()) {
+                    log.warn("TOPSIS D+ 除零: index={}, max={}, min={}, 指标区分度为0", j, max, min);
+                }
+                continue;
+            }
             double term = (norm - max) / denom;
             sum += term * term * w;
         }
@@ -94,7 +100,12 @@ public class TopsisCalculator {
             double min = minNorms.get(j);
             double w = j < weights.size() ? weights.get(j) : 0;
             double denom = max - min;
-            if (denom == 0) continue;
+            if (denom == 0) {
+                if (log.isWarnEnabled()) {
+                    log.warn("TOPSIS D- 除零: index={}, max={}, min={}, 指标区分度为0", j, max, min);
+                }
+                continue;
+            }
             double term = (norm - min) / denom;
             sum += term * term * w;
         }

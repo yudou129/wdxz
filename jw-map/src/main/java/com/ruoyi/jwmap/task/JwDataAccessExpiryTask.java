@@ -1,6 +1,8 @@
 package com.ruoyi.jwmap.task;
 
 import com.ruoyi.jwmap.service.IJwDataAccessService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -12,13 +14,15 @@ import org.springframework.stereotype.Component;
 @Component("jwDataAccessExpiryTask")
 public class JwDataAccessExpiryTask {
 
+    private static final Logger log = LoggerFactory.getLogger(JwDataAccessExpiryTask.class);
+
     @Autowired
     private IJwDataAccessService accessService;
 
     public void batchExpire() {
         int count = accessService.batchExpire();
         if (count > 0) {
-            System.out.println("[JwDataAccessExpiryTask] 已过期 " + count + " 条申请");
+            log.info("已过期 {} 条申请", count);
         }
     }
 }

@@ -35,13 +35,6 @@ export function computeGridData(city) {
 export function computeBranchData(city, year) {
   return request({ url: '/jwmap/compute/branch/' + city + '/' + year, method: 'post', timeout: 600000 })
 }
-export function assignGridToBranch(city) {
-  return request({ url: '/jwmap/compute/branch/assignGrid/' + city, method: 'post', timeout: 600000 })
-}
-export function computeGridScore(city) {
-  return request({ url: '/jwmap/compute/grid/score/' + city, method: 'post', timeout: 600000 })
-}
-
 // ===== 导出（超时10分钟，大文件下载） =====
 export function exportGridCombined(city) {
   return request({ url: '/jwmap/export/grid/' + city, method: 'get', responseType: 'blob', timeout: 600000 })

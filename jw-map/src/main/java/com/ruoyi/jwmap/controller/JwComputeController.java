@@ -67,38 +67,10 @@ public class JwComputeController extends BaseController {
         }
     }
 
-    /**
-     * 仅计算网格元信息
-     */
-    @PostMapping("/grid/meta/{city}")
-    public AjaxResult computeGridMeta(@PathVariable String city) {
-        try {
-            int count = gridComputeService.computeGridMeta(city);
-            return success("成功计算 " + count + " 个网格元信息");
-        } catch (Exception e) {
-            logger.error("网格元信息计算失败, city={}", city, e);
-            return error("计算失败");
-        }
-    }
-
-    /**
-     * 仅计算网格得分
-     */
-    @PostMapping("/grid/score/{city}")
-    public AjaxResult computeGridScore(@PathVariable String city) {
-        try {
-            int count = gridComputeService.computeGridScore(city);
-            return success("成功计算 " + count + " 个网格得分");
-        } catch (Exception e) {
-            logger.error("网格得分计算失败, city={}", city, e);
-            return error("计算失败");
-        }
-    }
-
     // ===== 网点计算 =====
 
     /**
-     * 执行完整的网点数据计算（指定市+年）
+     * 执行完整的网点数据计算（指定市+年，包含网点归属网格、指标计算、TOPSIS评分）
      */
     @PostMapping("/branch/{city}/{year}")
     public AjaxResult computeBranchData(@PathVariable String city, @PathVariable Integer year) {
@@ -107,20 +79,6 @@ public class JwComputeController extends BaseController {
             return success("成功计算 " + count + " 个网点数据（" + year + "年）");
         } catch (Exception e) {
             logger.error("网点数据计算失败, city={}, year={}", city, year, e);
-            return error("计算失败");
-        }
-    }
-
-    /**
-     * 网点归属网格计算
-     */
-    @PostMapping("/branch/assignGrid/{city}")
-    public AjaxResult assignGridToBranch(@PathVariable String city) {
-        try {
-            int count = branchComputeService.assignGridToBranch(city);
-            return success("成功为 " + count + " 个网点分配网格");
-        } catch (Exception e) {
-            logger.error("网点关联网格失败, city={}", city, e);
             return error("计算失败");
         }
     }

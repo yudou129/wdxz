@@ -41,7 +41,7 @@ export default {
 </script>
 <style scoped>
 .dim-panel {
-  position: absolute; right: 12px; top: 100px; width: 300px;
+  position: absolute; right: 12px; top: 100px; width: min(300px, 85vw);
   isolation: isolate; overflow: visible; border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.28);
   background: linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0.08)), rgba(255,255,255,0.10);
@@ -52,7 +52,7 @@ export default {
 .dim-header { padding: 10px 14px; border-bottom: 1px solid rgba(79,110,246,0.08); display: flex; justify-content: space-between; align-items: center; }
 .dim-title { font-weight: 700; font-size: 14px; color: #232845; }
 .dim-title i { color: #4f6ef6; margin-right: 4px; }
-.close-btn { color: #666; }
+.close-btn { color: #444; }
 .dim-body { padding: 10px 14px; max-height: 55vh; overflow-y: auto; }
 .dim-list { margin-top: 10px; }
 .dim-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
@@ -60,6 +60,6 @@ export default {
 .dim-bar-wrap { flex: 1; height: 6px; background: #eef0f5; border-radius: 3px; overflow: hidden; }
 .dim-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #4f6ef6, #8fabff); }
 .dim-info { display: flex; gap: 8px; font-size: 13px; }
-.dim-count { color: #555; }
+.dim-count { color: #444; }
 .dim-avg { color: #4f6ef6; font-weight: 600; width: 50px; text-align: right; }
 </style>

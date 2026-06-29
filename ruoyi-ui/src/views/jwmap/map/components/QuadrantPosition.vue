@@ -37,8 +37,9 @@ export default {
 .qp-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  width: 200px;
-  height: 200px;
+  width: 100%;
+  max-width: 200px;
+  aspect-ratio: 1;
   gap: 3px;
   border-radius: 12px;
   overflow: hidden;
@@ -55,15 +56,15 @@ export default {
   transition: all 0.3s ease;
 }
 .qp-txt {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #bbb;
+  color: #666;
   line-height: 1.3;
 }
 .qp-sub {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
-  color: #ccc;
+  color: #888;
   line-height: 1.2;
 }
 .qp-cell.active {

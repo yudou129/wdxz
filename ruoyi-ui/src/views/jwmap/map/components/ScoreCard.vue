@@ -54,12 +54,12 @@ export default {
 }
 .sc-label {
   font-size: 13px;
-  color: #555;
+  color: #444;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
 .sc-gap {
-  font-size: 11px;
+  font-size: 12px;
   color: #e6a23c;
   font-weight: 500;
   background: rgba(230, 162, 60, 0.1);
@@ -79,8 +79,8 @@ export default {
   font-size: 24px;
 }
 .sc-rank {
-  font-size: 13px;
-  color: #555;
+  font-size: 14px;
+  color: #444;
   margin-top: 4px;
 }
 .rank-num {
