@@ -112,10 +112,10 @@ export default {
   padding: 10px 14px; border-bottom: 1px solid rgba(79,110,246,0.08);
   display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
 }
-.ranking-title { font-weight: 700; font-size: 13px; color: #232845; display: flex; align-items: center; gap: 6px; }
+.ranking-title { font-weight: 700; font-size: 14px; color: #232845; display: flex; align-items: center; gap: 6px; }
 .ranking-title i { color: #4f6ef6; }
 .header-right { display: flex; align-items: center; gap: 6px; }
-.close-btn { color: #8c95a8; padding: 2px 4px; }
+.close-btn { color: #666; padding: 2px 4px; }
 .close-btn:hover { color: #4f6ef6; }
 .ranking-body { flex: 1; overflow-y: auto; padding: 4px 0; }
 .ranking-body::-webkit-scrollbar { width: 4px; }
@@ -125,12 +125,12 @@ export default {
   transition: background 0.18s ease, padding-left 0.2s ease; border-left: 3px solid transparent;
 }
 .ranking-item:hover { background: rgba(79,110,246,0.04); border-left-color: #4f6ef6; }
-.rank-num { width: 28px; color: #a0a8ba; font-variant-numeric: tabular-nums; font-weight: 500; font-size: 12px; }
+.rank-num { width: 28px; color: #666; font-variant-numeric: tabular-nums; font-weight: 500; font-size: 13px; }
 .rank-num.rank-top { color: #4f6ef6; font-weight: 700; }
 .rank-name { flex: 1; color: #303651; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank-score { width: 50px; text-align: right; color: #4f6ef6; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 13px; }
 .load-more { width: 100%; text-align: center; font-size: 12px; color: #4f6ef6; padding: 8px; }
-.empty-hint { text-align: center; color: #a0a8ba; font-size: 13px; padding: 24px 0; }
+.empty-hint { text-align: center; color: #666; font-size: 13px; padding: 24px 0; }
 .rank-slide-enter-active, .rank-slide-leave-active {
   transition: transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.2s ease;
 }

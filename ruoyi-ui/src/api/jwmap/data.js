@@ -118,6 +118,9 @@ export function getQuadrantData(city, year) {
 export function getBranchInternalRanking(branchId, year) {
   return request({ url: '/jwmap/data/branch/ranking/internal/' + branchId + '/' + year, method: 'get' })
 }
+export function getBranchTopScores(city, year) {
+  return request({ url: '/jwmap/data/branch/topScores/' + city + '/' + year, method: 'get' })
+}
 export function getGridDistrictRanking(gridCode) {
   return request({ url: '/jwmap/data/grid/ranking/district/' + gridCode, method: 'get' })
 }

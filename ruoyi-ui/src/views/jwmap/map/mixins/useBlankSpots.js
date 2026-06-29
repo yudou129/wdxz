@@ -27,16 +27,28 @@ export default {
           this.blankSpotRanking.loading = false
           return
         }
+        // 计算得分范围用于颜色映射
+        const scores = this.blankSpotData.map(d => d.siteScore).filter(s => s != null)
+        const minScore = scores.length ? Math.min(...scores) : 0
+        const maxScore = scores.length ? Math.max(...scores) : 1
+        const range = maxScore - minScore || 1
+
         const group = L.featureGroup()
         for (const item of this.blankSpotData) {
           const bounds = [
             [item.southLatitude, item.westLongitude],
             [item.northLatitude, item.eastLongitude]
           ]
+          // 排名越高(得分越高)颜色越深——在 #00bbff 基础上加深 + 提高不透明度
+          const t = ((item.siteScore || 0) - minScore) / range
+          const darken = Math.round(t * 80)            // 加深量 0→80
+          const g = Math.round(187 - darken)            // 187→107
+          const b = Math.round(255 - darken)            // 255→175
+          const opacity = 0.4 + t * 0.4                 // 0.4→0.8
           const rect = L.rectangle(bounds, {
             stroke: false,
-            fillColor: '#00bbff',
-            fillOpacity: 0.6
+            fillColor: `rgb(0,${g},${b})`,
+            fillOpacity: opacity
           })
           rect.bindTooltip(
             `${item.gridCode}<br>得分: ${(item.siteScore || 0).toFixed(4)}<br>${item.district || ''}`,
@@ -80,8 +92,9 @@ export default {
       if (!data) return
       const center = L.latLng(data.latitude, data.longitude)
       this.map.flyTo(center, 13, { duration: 0.6 })
-      setTimeout(() => {
-        this.onGridClick(data.gridCode, data)
+      setTimeout(async () => {
+        await this.onGridClick(data.gridCode, data)
+        this.highlightGrid(data)
       }, 700)
     },
 

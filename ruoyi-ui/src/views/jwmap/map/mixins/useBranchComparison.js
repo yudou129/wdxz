@@ -6,6 +6,7 @@ import { getBranchScoreDetail, getBranchInternalRanking } from '@/api/jwmap/data
 export default {
   methods: {
     onToggleCompare() {
+      if (!this.currentCity) { this.$message.warning('请先选择城市'); return }
       this.compareMode = !this.compareMode
       if (this.compareMode) {
         this.comparePanel.visible = true

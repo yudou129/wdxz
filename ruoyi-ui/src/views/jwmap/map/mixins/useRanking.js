@@ -10,11 +10,13 @@ export default {
         this.ranking.visible = false
       } else if (this.currentCity) {
         this.loadRanking(this.ranking.type || 'grid')
+      } else {
+        this.$message.warning('请先选择城市')
       }
     },
 
     loadRanking(type, show) {
-      if (!this.currentCity) return
+      if (!this.currentCity) { this.$message.warning('请先选择城市'); return }
       this.ranking.type = type || 'grid'
       this.ranking.page = 1; this.ranking.hasMore = false
       if (show !== false) this.ranking.visible = true
@@ -32,7 +34,7 @@ export default {
           : await getGridRanking(this.currentCity, this.ranking.page, pageSize)
         const rows = res.rows || res.data || []
         const mapped = rows.map(r => ({
-          id: r.gridCode || r.branchId,
+          id: isBranch ? (r.branchId || r.gridCode) : (r.gridCode || r.branchId),
           name: r.gridCode || r.secondaryBranch || ('网点#' + r.branchId),
           score: r.siteScore || r.categoryScore || 0,
           type: this.ranking.type
@@ -85,6 +87,7 @@ export default {
           if (layer.branchData && layer.branchData.branchId === item.id) {
             this.map.flyTo([layer.branchData.latitude, layer.branchData.longitude], 14)
             this.onBranchClick(layer.branchData)
+            this.highlightBranch(layer.branchData)
           }
         })
       } else {
@@ -107,6 +110,7 @@ export default {
           this.gridDataCache = list
           this.map.flyTo([found.latitude, found.longitude], 14)
           await this.onGridClick(found.gridCode, found)
+          this.highlightGrid(found)
         }
       } catch (e) { console.error('[jwmap] navigateToGrid error:', e) }
     }

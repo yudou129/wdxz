@@ -27,16 +27,11 @@
           <div class="score-gap" v-if="gridRankMeta.scoreGap > 0">
             距全市最高分 <b>{{ gridRankMeta.scoreGap.toFixed(6) }}</b>
           </div>
-          <div class="pillar-gap-row">
-            <span class="pg-label">三聚集与全市最高差距</span>
-            <span>{{ popGapName }} {{ fmtGap(popGap) }}</span>
-            <span>{{ entGapName }} {{ fmtGap(entGap) }}</span>
-            <span>{{ bizGapName }} {{ fmtGap(bizGap) }}</span>
-          </div>
           <el-divider class="thin-divider" />
 
           <div class="section-title"><i class="el-icon-data-line" /> 三聚集指标</div>
-          <ThreeColumnCards :pop="pillar.population" :ent="pillar.enterprise" :biz="pillar.business" />
+          <ThreeColumnCards :pop="pillar.population" :ent="pillar.enterprise" :biz="pillar.business"
+            :popGap="popGap" :entGap="entGap" :bizGap="bizGap" />
 
           <div class="section-title"><i class="el-icon-s-data" /> 分项指标</div>
           <el-button type="text" class="detail-link" @click="$emit('view-detail', 'grid')">
@@ -50,28 +45,34 @@
         <template v-if="mode === 'branch-only' || mode === 'split'">
           <BranchInfoCard :branch="branchData" @zoom="$emit('zoom-branch')" />
 
-          <el-divider class="thin-divider" />
+          <ScoreCard :score="overallScore" :rank="branchRankMeta.cityRank" :gap="branchScoreGap" label="内部效能得分与排名" size="small"
+            :branch-rank="branchRankMeta.branchRank" :branch-total="branchRankMeta.branchTotal"
+            :city-rank="branchRankMeta.cityRank" :city-total="branchRankMeta.cityTotal" />
 
-          <div class="section-title"><i class="el-icon-trophy" /> 内部效能排名</div>
-          <RankBadge label="支行排名" :rank="branchRankMeta.branchRank" :total="branchRankMeta.branchTotal" />
-          <RankBadge label="分行排名" :rank="branchRankMeta.cityRank" :total="branchRankMeta.cityTotal" />
+          <div class="info-card">
+            <div class="section-title"><i class="el-icon-trophy" /> 四象限所在位置</div>
+            <div class="qp-block">
+              <QuadrantPosition :quadrant="branchQuadrant" />
+            </div>
+          </div>
 
-          <QuadrantPosition :quadrant="branchQuadrant" />
-          <el-divider class="thin-divider" />
+          <div class="info-card">
+            <div class="section-title"><i class="el-icon-s-data" /> 效能得分</div>
+            <BranchScores :scores="branchScores" />
+            <el-button type="text" class="detail-link" @click="$emit('view-detail', 'branch')">
+              <i class="el-icon-document" /> 查看详细指标数据
+            </el-button>
+          </div>
 
-          <div class="section-title"><i class="el-icon-s-data" /> 效能得分</div>
-          <BranchScores :scores="branchScores" />
-          <el-button type="text" class="detail-link" @click="$emit('view-detail', 'branch')">
-            <i class="el-icon-document" /> 查看详细指标数据
-          </el-button>
+          <div class="info-card">
+            <PeerBankSection :items="peerBanks" />
 
-          <PeerBankSection :items="peerBanks" />
-
-          <div v-if="nearbyBranches.length" class="peer-section">
-            <div class="section-title"><i class="el-icon-map-location" /> 周围网点 ({{ nearbyBranches.length }})</div>
-            <div v-for="(item, i) in nearbyBranches.slice(0, 5)" :key="i" class="peer-row">
-              <span class="peer-name">{{ item.branchName }}</span>
-              <span class="peer-dist">{{ item.distance }}km</span>
+            <div v-if="nearbyBranches.length" class="nb-section">
+              <div class="section-title"><i class="el-icon-map-location" /> 周围网点 <span class="ps-count">{{ nearbyBranches.length }}</span></div>
+              <div v-for="(item, i) in nearbyBranches.slice(0, 5)" :key="i" class="nb-row">
+                <span class="nb-name">{{ item.branchName }}</span>
+                <span class="nb-dist">{{ item.distance }}km</span>
+              </div>
             </div>
           </div>
         </template>
@@ -135,17 +136,17 @@ export default {
     bizGap() { return this.pillarGap && this.pillarGap.business ? this.pillarGap.business.gap : 0 },
     popGapName() { return (this.pillarGap && this.pillarGap.population && this.pillarGap.population.name) || '---' },
     entGapName() { return (this.pillarGap && this.pillarGap.enterprise && this.pillarGap.enterprise.name) || '---' },
-    bizGapName() { return (this.pillarGap && this.pillarGap.business && this.pillarGap.business.name) || '---' }
+    bizGapName() { return (this.pillarGap && this.pillarGap.business && this.pillarGap.business.name) || '---' },
+    branchScoreGap() {
+      return this.branchRankMeta ? (this.branchRankMeta.scoreGap || 0) : 0
+    }
   },
-  methods: {
-    fmtGap(v) { return typeof v === 'number' ? v.toFixed(4) : '-' }
-  }
 }
 </script>
 
 <style scoped>
 .sidebar-panel {
-  position: absolute; left: 12px; top: 60px; bottom: 12px;
+  position: absolute; left: 12px; top: 100px; bottom: 12px;
   isolation: isolate; overflow: visible; border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.28);
   background: linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0.08)), rgba(255,255,255,0.10);
@@ -167,21 +168,50 @@ export default {
   .sidebar-panel { background: rgba(255,255,255,0.94); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 .sidebar-header { padding: 14px 16px; border-bottom: 1px solid rgba(79,110,246,0.08); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-.sidebar-title { font-weight: 700; font-size: 15px; color: #232845; }
-.close-btn { color: #8c95a8; }
+.sidebar-title { font-weight: 700; font-size: 16px; color: #232845; }
+.close-btn { color: #666; }
 .close-btn:hover { color: #4f6ef6; }
 .sidebar-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
 .sidebar-body::-webkit-scrollbar { width: 4px; }
 .sidebar-body::-webkit-scrollbar-thumb { background: rgba(79,110,246,0.15); border-radius: 4px; }
 .year-picker { margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.year-picker .label { font-size: 13px; color: #6b7280; font-weight: 500; }
-.thin-divider { margin: 10px 0; }
-.section-title { font-size: 12px; font-weight: 600; color: #556; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+.year-picker .label { font-size: 13px; color: #555; font-weight: 500; }
+.thin-divider {
+  margin: 10px 0; border: none; height: 1px;
+  background: linear-gradient(90deg, rgba(79,110,246,0.25) 0%, rgba(79,110,246,0.06) 60%, transparent 100%) !important;
+}
+.section-title {
+  font-size: 14px; font-weight: 600; color: #333; margin-bottom: 6px;
+  display: flex; align-items: center; gap: 4px;
+  border-left: 3px solid #4f6ef6; padding-left: 8px;
+  background: linear-gradient(90deg, rgba(79,110,246,0.04) 0%, transparent 100%);
+}
 .section-title i { color: #4f6ef6; font-size: 13px; }
-.score-gap { font-size: 12px; color: #e6a23c; padding: 2px 0; }
-.score-gap b { color: #e6a23c; }
-.detail-link { margin-top: 2px; color: #4f6ef6; font-weight: 500; }
-.detail-link:hover { color: #3b54d4; }
+.info-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(79, 110, 246, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+.rank-row {
+  display: flex;
+  gap: 10px;
+}
+.qp-block {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 10px;
+}
+.detail-link {
+  display: block; width: 100%; text-align: center;
+  padding: 8px 0; margin-top: 4px;
+  background: rgba(79,110,246,0.04); border-radius: 6px;
+  color: #4f6ef6; font-weight: 500; font-size: 13px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.detail-link:hover { background: rgba(79,110,246,0.08); color: #3b54d4; }
 .full-width { width: 100%; text-align: center; }
 .split-layout { display: flex; gap: 16px; }
 .split-col { flex: 1; min-width: 0; }
@@ -189,15 +219,25 @@ export default {
   font-size: 11px; font-weight: 600; color: #4f6ef6;
   background: rgba(79,110,246,0.08); padding: 2px 10px; border-radius: 10px;
 }
-/* nearby branches + peer bank shared styles */
-.peer-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(79,110,246,0.08); }
-.section-title { font-size: 12px; font-weight: 600; color: #556; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
-.section-title i { color: #4f6ef6; font-size: 13px; }
-.peer-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
-.peer-name { color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.peer-dist { color: #4f6ef6; font-weight: 500; flex-shrink: 0; margin-left: 8px; }
-.pillar-gap-row { font-size: 11px; color: #888; display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 6px 0; }
-.pg-label { width: 100%; font-weight: 500; color: #666; }
+/* 周围网点 */
+.nb-section { margin-bottom: 0; }
+.nb-section .section-title { margin-bottom: 6px; }
+.ps-count {
+  font-size: 11px; font-weight: 400; color: #888; margin-left: auto;
+}
+.nb-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; font-size: 13px; border-radius: 6px;
+  transition: background 0.15s;
+}
+.nb-row + .nb-row { margin-top: 2px; }
+.nb-row:hover { background: rgba(79, 110, 246, 0.04); }
+.nb-name { color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-weight: 500; }
+.nb-dist {
+  color: #4f6ef6; font-weight: 600; flex-shrink: 0; margin-left: 8px;
+  font-size: 12px; background: rgba(79, 110, 246, 0.06);
+  padding: 1px 8px; border-radius: 10px; font-variant-numeric: tabular-nums;
+}
 .slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.25s ease; }
 .slide-enter, .slide-leave-to { transform: translateX(-20px); opacity: 0; }
 </style>

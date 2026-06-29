@@ -1,5 +1,6 @@
 import L from 'leaflet'
 import { getPeerBankDistance, getPeerBankList, getNearbyBranches } from '@/api/jwmap/data'
+import { getBankSvgUrl } from '../utils/bankSvgMap'
 
 // 同业银行品牌色映射表
 const PEER_BANK_STYLE_MAP = {
@@ -63,12 +64,15 @@ export default {
           if (p.longitude == null || p.latitude == null) continue
           const style = this.getBankStyle(p.bankName)
           bankNamesInCity.add(p.bankName || '未知')
+          const svgUrl = getBankSvgUrl(p.bankName)
           const className = 'peer-bank-icon' + (style.css ? ' ' + style.css : '')
           const icon = L.divIcon({
             className,
-            html: style.text,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
+            html: svgUrl
+              ? `<img src="${svgUrl}" class="peer-bank-icon-img">`
+              : style.text,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
           })
           const m = L.marker([p.latitude, p.longitude], { icon })
           m.bindPopup(this.buildPeerBankPopup(p), { closeButton: true, maxWidth: 280 })
@@ -89,15 +93,15 @@ export default {
       return '<div style="font-size:13px;line-height:1.6;min-width:160px">'
         + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:' + color + '">'
         + '<span style="display:inline-block;width:18px;height:18px;border-radius:3px;border:2px solid '
-        + color + ';text-align:center;font-size:10px;line-height:18px;margin-right:6px">'
+        + color + ';text-align:center;font-size:11px;line-height:18px;margin-right:6px">'
         + style.text + '</span>' + (name || '同业银行') + '</div>'
-        + (orgName ? '<div style="color:#555;font-size:12px">' + orgName + '</div>' : '')
-        + (orgAddress ? '<div style="color:#888;font-size:11px;margin-top:2px">' + orgAddress + '</div>' : '')
+        + (orgName ? '<div style="color:#555;font-size:13px">' + orgName + '</div>' : '')
+        + (orgAddress ? '<div style="color:#555;font-size:12px;margin-top:2px">' + orgAddress + '</div>' : '')
         + '</div>'
     },
 
     _showPeerBankLegend(bankNames) {
-      this._hidePeerBankLegend()
+      
       if (!bankNames || bankNames.length === 0) return
       const sorted = [...bankNames].sort()
       let itemsHtml = ''
@@ -107,15 +111,15 @@ export default {
         itemsHtml += '<div style="display:flex;align-items:center;gap:6px;padding:2px 0">'
           + '<span style="display:inline-flex;width:16px;height:16px;border-radius:3px;'
           + 'border:2px solid ' + dotColor + ';align-items:center;justify-content:center;'
-          + 'font-size:8px;font-weight:700;color:' + dotColor + ';flex-shrink:0">'
+          + 'font-size:10px;font-weight:700;color:' + dotColor + ';flex-shrink:0">'
           + style.text + '</span>'
-          + '<span style="font-size:11px;color:#333;white-space:nowrap">' + name + '</span>'
+          + '<span style="font-size:13px;color:#333;white-space:nowrap">' + name + '</span>'
           + '</div>'
       }
       const div = document.createElement('div')
       div.id = 'peer-bank-legend'
-      div.style.cssText = 'background:rgba(255,255,255,0.92);border-radius:6px;padding:8px 10px;font-size:11px;box-shadow:0 1px 6px rgba(0,0,0,0.15);max-height:260px;overflow-y:auto'
-      div.innerHTML = '<div style="font-weight:600;font-size:11px;color:#333;margin-bottom:4px;border-bottom:1px solid #eee;padding-bottom:4px">同业银行</div>'
+      div.style.cssText = 'background:rgba(255,255,255,0.92);border-radius:6px;padding:8px 10px;font-size:13px;box-shadow:0 1px 6px rgba(0,0,0,0.15);max-height:260px;overflow-y:auto'
+      div.innerHTML = '<div style="font-weight:600;font-size:13px;color:#333;margin-bottom:4px;border-bottom:1px solid #eee;padding-bottom:4px">同业银行</div>'
         + itemsHtml
       const bottomRight = this.map._controlCorners && this.map._controlCorners.bottomright
       if (bottomRight) {
@@ -135,13 +139,12 @@ export default {
     },
 
     onTogglePeerBank() {
+      if (!this.currentCity) { this.$message.warning('请先选择城市'); return }
       if (!this.peerBankLayer) return
       if (this.peerBankVisible) {
         this.map.removeLayer(this.peerBankLayer)
-        this._hidePeerBankLegend()
       } else {
         this.map.addLayer(this.peerBankLayer)
-        if (this.peerBankNames.length) this._showPeerBankLegend(this.peerBankNames)
       }
       this.peerBankVisible = !this.peerBankVisible
     },

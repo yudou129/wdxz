@@ -3,8 +3,8 @@
    - 白底 + 彩色边框 vs 网点纯色填充
    - 尺寸略小（22px vs 26px） */
 .peer-bank-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 4px;
   background: #fff;
   display: flex;
@@ -22,6 +22,11 @@
 .peer-bank-icon:hover {
   transform: scale(1.2);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+.peer-bank-icon-img {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 /* 银行品牌色映射 */

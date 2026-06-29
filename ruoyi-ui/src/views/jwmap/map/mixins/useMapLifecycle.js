@@ -1,14 +1,16 @@
 import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import { TiandituBd09Crs } from '../utils/tiandituCrs.js'
 import { BoundaryManager } from '../utils/boundaryManager.js'
 import { MeasureTool } from '../utils/measureTool.js'
 import { HeatmapLayer } from '../utils/heatmapLayer'
 import { getGridScoreByCity, getBranchList, getGridIndicators, getGridBranches,
          getGridDistrictRanking, getGridPillarScores, getBranchScoreDetail,
-         getBranchInternalRanking, getQuadrantData, getDimensionStats,
+         getBranchInternalRanking, getBranchTopScores, getQuadrantData, getDimensionStats,
          getPillarGap, getBranchIndicators } from '@/api/jwmap/data'
 import { checkBranchAccess, getPendingCount } from '@/api/jwmap/data-access'
 import '@/views/jwmap/map/assets/branch-icon.css'
+import { getOwnBankSvgUrl } from '../utils/bankSvgMap'
 
 /**
  * 地图生命周期 mixin — 地图初始化、工具栏、网点/网格点击编排、挂载/销毁
@@ -24,7 +26,7 @@ export default {
     if (this.measureTool) { this.measureTool._deactivate(); this.measureTool._clear() }
     if (this.rangeModeActive) this.unbindRangeEvents()
     if (this.blankSpotLayer) { this.map.removeLayer(this.blankSpotLayer); this.blankSpotLayer = null }
-    this._hidePeerBankLegend()
+    
     this.$root.$off('pending-count-changed', this.loadPendingCount)
     if (this.map) { this.map.remove(); this.map = null }
   },
@@ -74,11 +76,11 @@ export default {
         const div = L.DomUtil.create('div', '')
         div.style.cssText = 'background:rgba(255,255,255,0.9);border-radius:6px;padding:8px 10px;font-size:11px;box-shadow:0 1px 6px rgba(0,0,0,0.15);'
         div.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">'
-          + '<span style="color:#333;font-weight:600;font-size:10px">选址得分</span></div>'
+          + '<span style="color:#333;font-weight:600;font-size:13px">选址得分</span></div>'
           + '<div style="display:flex;align-items:stretch;gap:4px">'
-          + '<span style="font-size:10px;color:#888;line-height:1.2">低</span>'
+          + '<span style="font-size:13px;color:#555;line-height:1.2">低</span>'
           + '<div style="width:120px;height:14px;border-radius:3px;background:linear-gradient(90deg,#00ff00,#ffff00,#ff0000)"></div>'
-          + '<span style="font-size:10px;color:#888;line-height:1.2">高</span>'
+          + '<span style="font-size:13px;color:#555;line-height:1.2">高</span>'
           + '</div>'
         return div
       }
@@ -113,7 +115,7 @@ export default {
     },
 
     async onToggleHeatmap() {
-      if (!this.currentCity) return
+      if (!this.currentCity) { this.$message.warning('请先选择城市'); return }
       if (this.heatmapVisible) {
         this.heatmapLayer.hide(); this.heatmapVisible = false
         if (this.heatLegend) this.map.removeControl(this.heatLegend)
@@ -154,7 +156,9 @@ export default {
       this.branchLayer.clearLayers()
       const branches = res.data || []
       this.branchList = branches
-      const icon = L.divIcon({ className: 'branch-icon', html: '工', iconSize: [24, 24], iconAnchor: [12, 12] })
+      const svgUrl = getOwnBankSvgUrl()
+      const html = svgUrl ? `<img src="${svgUrl}" class="branch-icon-img">` : '行'
+      const icon = L.divIcon({ className: svgUrl ? 'branch-icon svg-mode' : 'branch-icon', html, iconSize: [34, 34], iconAnchor: [17, 17] })
       for (const b of branches) {
         if (b.longitude == null || b.latitude == null) continue
         const m = L.marker([b.latitude, b.longitude], { icon })
@@ -172,6 +176,7 @@ export default {
     },
 
     async onBranchClick(branch) {
+      this.clearHighlight()
       if (this.compareMode) {
         this.onAddCompareBranch(branch)
         return
@@ -222,9 +227,22 @@ export default {
     async loadBranchScores(branchId) {
       try {
         const res = await getBranchScoreDetail(branchId, this.selectedYear)
-        this.sidebar.branchScores = (res.data || [])
+        let scores = (res.data || [])
           .filter(s => !s.scoreCategory || !s.scoreCategory.toLowerCase().includes('_auto'))
           .map(s => ({ ...s, categoryName: this.indicatorNameMap[s.scoreCategory] || '' }))
+        // 获取各分项全市最高分并计算差距
+        if (this.currentCity) {
+          try {
+            const topRes = await getBranchTopScores(this.currentCity, this.selectedYear)
+            const topScores = topRes.data || {}
+            scores = scores.map(s => ({
+              ...s,
+              topScore: topScores[s.scoreCategory] != null ? topScores[s.scoreCategory] : null,
+              gap: topScores[s.scoreCategory] != null ? Math.max(0, topScores[s.scoreCategory] - s.categoryScore) : 0
+            }))
+          } catch (e) { /* 差距数据非关键，降级跳过 */ }
+        }
+        this.sidebar.branchScores = scores
       } catch (e) { this.sidebar.branchScores = [] }
     },
 
@@ -250,6 +268,7 @@ export default {
 
     // ==== 网格点击 ====
     async onGridClick(gridCode, data) {
+      this.clearHighlight()
       this.sidebar.visible = true
       this.sidebar.gridData = data
       const hd = this.heatmapLayer && this.heatmapLayer.getData()
@@ -327,7 +346,7 @@ export default {
       } catch (e) { this.gridDataCache = [] }
     },
 
-    closeSidebar() { this.sidebar.visible = false; this.detailPanel.visible = false; this.detailPanel.noAccess = false },
+    closeSidebar() { this.sidebar.visible = false; this.detailPanel.visible = false; this.detailPanel.noAccess = false; this.clearHighlight() },
 
     navigateToApplyAccess(branchId) {
       this.$router.push({ path: '/jwmap/access-request', query: { branchId } })
@@ -344,7 +363,7 @@ export default {
 
     // ==== 维度统计 ====
     async loadDimStats(dimension) {
-      if (!this.currentCity) return
+      if (!this.currentCity) { this.$message.warning('请先选择城市'); return }
       const dim = dimension || this.dimStats.dimension
       this.dimStats.dimension = dim
       try {
@@ -356,7 +375,7 @@ export default {
 
     // ==== 四象限 ====
     async loadQuadrant() {
-      if (!this.currentCity) return
+      if (!this.currentCity) { this.$message.warning('请先选择城市'); return }
       try {
         const res = await getQuadrantData(this.currentCity, this.selectedYear)
         this.quadrant.data = res.data || null
@@ -369,6 +388,7 @@ export default {
         if (layer.branchData && layer.branchData.branchId === item.branchId) {
           this.map.flyTo([layer.branchData.latitude, layer.branchData.longitude], 14)
           this.onBranchClick(layer.branchData)
+          this.highlightBranch(layer.branchData)
         }
       })
     },

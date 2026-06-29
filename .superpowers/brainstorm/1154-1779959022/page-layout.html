@@ -1,0 +1,68 @@
+<h2>页面整体布局确认</h2>
+<p class="subtitle">天地图页面 — 浮动侧边栏 + 顶部工具栏</p>
+
+<div class="mockup" style="max-width: 800px; margin: 0 auto;">
+  <div class="mockup-header">页面布局方案</div>
+  <div class="mockup-body" style="padding: 0;">
+    <!-- 顶部工具栏 -->
+    <div style="background: #f0f2f5; padding: 10px 16px; border-bottom: 1px solid #d9d9d9; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <span style="font-weight: 600; font-size: 14px; color: #333;">行政区：</span>
+      <span style="background: #fff; border: 1px solid #d9d9d9; padding: 4px 12px; border-radius: 4px; font-size: 13px; min-width: 100px;">贵州省 ▼</span>
+      <span style="font-weight: 600; font-size: 14px; color: #333; margin-left: 8px;">一级支行：</span>
+      <span style="background: #fff; border: 1px solid #d9d9d9; padding: 4px 12px; border-radius: 4px; font-size: 13px; min-width: 100px;">全部 ▼</span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 18px;">🔥</span>
+        <span style="font-size: 13px; color: #555;">热力图</span>
+      </div>
+    </div>
+
+    <!-- 地图区域 + 侧边栏 -->
+    <div style="display: flex; min-height: 400px; position: relative;">
+      <!-- 侧边栏（浮动覆盖） -->
+      <div style="position: absolute; left: 12px; top: 12px; bottom: 12px; width: 380px; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); z-index: 10; display: flex; flex-direction: column; overflow: hidden;">
+        <!-- 侧边栏头部 -->
+        <div style="padding: 16px 16px 12px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 600; font-size: 15px; color: #333;">网格信息</span>
+          <span style="color: #999; cursor: pointer; font-size: 18px;">✕</span>
+        </div>
+        <!-- 侧边栏内容 -->
+        <div style="padding: 16px; flex: 1; overflow-y: auto;">
+          <div style="background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+            <div style="font-size: 12px; color: #888; margin-bottom: 4px;">选址得分</div>
+            <div style="font-size: 28px; font-weight: 700; color: #52c41a;">0.85</div>
+            <div style="font-size: 12px; color: #888; margin-top: 4px;">全市排名：#42</div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="font-weight: 600; font-size: 13px; color: #333; margin-bottom: 8px;">分项指标</div>
+            <div style="font-size: 12px; color: #666; padding: 4px 0;">人口热力值：123</div>
+            <div style="font-size: 12px; color: #666; padding: 4px 0;">商业密度：中</div>
+            <div style="font-size: 12px; color: #666; padding: 4px 0;">POI总量：23</div>
+          </div>
+          <div style="font-size: 12px; color: #999; padding-top: 12px; border-top: 1px solid #f0f0f0;">
+            网格编码：G00123<br>
+            所属区县：南明区<br>
+            <a style="color: #1890ff; cursor: pointer;">查看详情 →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 地图背景模拟 -->
+      <div style="flex: 1; background: #e6f7ff; display: flex; align-items: center; justify-content: center; color: #999; font-size: 14px; min-height: 400px;">
+        <div style="text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 8px;">🗺️</div>
+          <div>天地图地图区域</div>
+          <div style="font-size: 12px; margin-top: 4px;">侧边栏浮动覆盖，不压缩地图</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>关键交互说明</h3>
+  <ul>
+    <li><strong>侧边栏浮动覆盖</strong> — 不压缩地图区域，滑入滑出 CSS transition</li>
+    <li><strong>380px / 600px</strong> — 纯网格/网点 380px，网格+网点对比模式自动切换 600px</li>
+    <li><strong>顶部工具栏固定</strong> — 位于地图顶部，行政区+支行+热力图开关</li>
+  </ul>
+</div>

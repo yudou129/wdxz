@@ -167,6 +167,17 @@ public class JwBranchDataController extends BaseController {
             if (cityScores.get(i).getBranchId().equals(branchId)) { cityRank = i + 1; break; }
         }
 
+        // 计算与全市最高分的差距
+        double myCityScore = 0;
+        double topCityScore = 0;
+        for (JwBranchScore s : cityScores) {
+            if (s.getCategoryScore() != null) {
+                if (s.getBranchId().equals(branchId)) myCityScore = s.getCategoryScore();
+                if (s.getCategoryScore() > topCityScore) topCityScore = s.getCategoryScore();
+            }
+        }
+        double scoreGap = Math.max(0, topCityScore - myCityScore);
+
         List<JwBranchInfo> peerBranches = branchInfoMapper.selectByCity(branch.getCity()).stream()
             .filter(b -> branch.getPrimaryBranch() != null && branch.getPrimaryBranch().equals(b.getPrimaryBranch()))
             .collect(Collectors.toList());
@@ -193,7 +204,22 @@ public class JwBranchDataController extends BaseController {
         result.put("cityTotal", cityTotal);
         result.put("branchRank", branchRank);
         result.put("branchTotal", branchTotal);
+        result.put("scoreGap", scoreGap);
         return success(result);
+    }
+
+    // ===== 各分项全市最高分（作为差距比较基准） =====
+
+    @GetMapping("/branch/topScores/{city}/{year}")
+    public AjaxResult getBranchCategoryTopScores(@PathVariable String city, @PathVariable Integer year) {
+        List<JwBranchScore> allScores = branchScoreMapper.selectByCityAndYear(city, year);
+        Map<String, Double> topScores = new HashMap<>();
+        for (JwBranchScore s : allScores) {
+            if (s.getScoreCategory() != null && s.getCategoryScore() != null) {
+                topScores.merge(s.getScoreCategory(), s.getCategoryScore(), Math::max);
+            }
+        }
+        return success(topScores);
     }
 
     // ===== 附近网点 =====

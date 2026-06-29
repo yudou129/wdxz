@@ -40,11 +40,19 @@
           </div>
         </div>
       </div>
+      <span style="margin-left:8px;border-left:1px solid rgba(0,0,0,0.1);padding-left:8px" />
+      <el-button size="small" @click="$emit('goto-access')">
+        <i class="el-icon-document" /> 我的申请
+      </el-button>
+      <el-button size="small" type="warning" @click="$emit('goto-approval')">
+        <i class="el-icon-bell" /> 审批管理
+        <el-badge v-if="pendingCount > 0" :value="pendingCount" class="toolbar-badge" />
+      </el-button>
     </div>
 
     <div class="toolbar-row toolbar-row-bottom">
       <el-button size="small" @click="$emit('toggle-quadrant')">
-        <i class="el-icon-s-data" /> 四象限
+        <i class="el-icon-s-data" /> 四象限综合分析
       </el-button>
       <el-button size="small" @click="$emit('toggle-dim-stats')">
         <i class="el-icon-pie-chart" /> 统计
@@ -52,22 +60,22 @@
       <el-button size="small" :type="heatmapActive ? 'danger' : 'default'"
                  :class="{ 'heatmap-on': heatmapActive }"
                  @click="$emit('toggle-heatmap')">
-        <i class="el-icon-data-board" /> 热力图
+        <i class="el-icon-data-board" /> 网格热力图
       </el-button>
       <el-button size="small" :type="blankSpotActive ? 'info' : 'default'"
                  :class="{ 'blankspot-on': blankSpotActive }"
                  @click="$emit('toggle-blank-spot')">
-        <i class="el-icon-view" /> 空白点
+        <i class="el-icon-view" /> 服务空白点
       </el-button>
       <el-button size="small" :type="peerBankActive ? 'primary' : 'default'"
                  :class="{ 'peerbk-on': peerBankActive }"
                  @click="$emit('toggle-peerbank')">
-        <i class="el-icon-office-building" /> 同业
+        <i class="el-icon-office-building" /> 同业网点
       </el-button>
       <el-button size="small" :type="rangeActive ? 'warning' : 'default'"
                  :class="{ 'range-on': rangeActive }"
                  @click="$emit('toggle-range')">
-        <i class="el-icon-rank" /> 范围
+        <i class="el-icon-rank" /> POI范围分析
       </el-button>
       <el-button size="small" :type="rankingActive ? 'success' : 'default'"
                  :class="{ 'ranking-on': rankingActive }"
@@ -77,15 +85,7 @@
       <el-button size="small" :type="compareActive ? 'warning' : 'default'"
                  :class="{ 'compare-on': compareActive }"
                  @click="$emit('toggle-compare')">
-        <i class="el-icon-data-analysis" /> {{ compareActive ? '退出对比' : '对比' }}
-      </el-button>
-      <span style="margin-left:8px;border-left:1px solid rgba(0,0,0,0.1);padding-left:8px" />
-      <el-button size="small" @click="$emit('goto-access')">
-        <i class="el-icon-document" /> 我的申请
-      </el-button>
-      <el-button size="small" type="warning" @click="$emit('goto-approval')">
-        <i class="el-icon-bell" /> 审批管理
-        <el-badge v-if="pendingCount > 0" :value="pendingCount" class="toolbar-badge" />
+        <i class="el-icon-data-analysis" /> {{ compareActive ? '退出对比' : '多网点对比分析' }}
       </el-button>
     </div>
   </div>
@@ -259,7 +259,7 @@ export default {
 }
 .toolbar-label {
   font-size: 13px;
-  color: #556;
+  color: #444;
   font-weight: 500;
   margin-right: 2px;
 }
@@ -273,7 +273,7 @@ export default {
 .search-icon {
   position: absolute;
   left: 8px;
-  color: #999;
+  color: #666;
   font-size: 13px;
   pointer-events: none;
   z-index: 1;
@@ -284,7 +284,7 @@ export default {
   border: 1px solid rgba(0,0,0,0.1);
   border-radius: 6px;
   padding: 0 8px 0 26px;
-  font-size: 12px;
+  font-size: 13px;
   outline: none;
   background: rgba(255,255,255,0.7);
   transition: border-color 0.2s, width 0.2s;
@@ -295,7 +295,7 @@ export default {
   background: rgba(255,255,255,0.95);
 }
 .search-input::placeholder {
-  color: #aaa;
+  color: #888;
 }
 .search-dropdown {
   position: absolute;
@@ -339,7 +339,7 @@ export default {
   flex: 1;
 }
 .add-compare-btn {
-  font-size: 11px;
+  font-size: 12px;
   color: #4f6ef6;
   flex-shrink: 0;
   padding: 0 4px;
@@ -348,8 +348,8 @@ export default {
   color: #3b54d4;
 }
 .search-item-parent {
-  font-size: 11px;
-  color: #999;
+  font-size: 13px;
+  color: #555;
   margin-top: 1px;
 }
 .heatmap-on {

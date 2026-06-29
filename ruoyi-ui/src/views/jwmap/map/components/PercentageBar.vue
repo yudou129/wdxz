@@ -23,8 +23,8 @@ export default {
 }
 </script>
 <style scoped>
-.pct-bar-row { position: relative; display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; }
-.pct-name { width: 72px; color: #666; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pct-bar-row { position: relative; display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 13px; }
+.pct-name { width: 72px; color: #555; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pct-track { flex: 1; height: 6px; background: #eef0f5; border-radius: 3px; overflow: hidden; }
 .pct-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #4f6ef6, #8fabff); transition: width 0.3s ease; }
 .pct-text { width: 36px; text-align: right; color: #333; font-weight: 500; font-variant-numeric: tabular-nums; }

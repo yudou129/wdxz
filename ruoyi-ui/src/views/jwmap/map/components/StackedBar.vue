@@ -1,12 +1,14 @@
 <template>
   <div class="stacked-block">
     <div class="stacked-header">{{ label }}</div>
-    <!-- 分段标签行 -->
+    <!-- 分段标签行（窄段智能显示数值缩写） -->
     <div class="seg-labels">
       <span v-for="(seg, i) in segments" :key="i"
             class="seg-label"
+            :title="seg.name"
             :style="{ width: seg.pct + '%' }">
-        {{ seg.name }}
+        <template v-if="seg.pct < 10 && seg.displayValue">{{ seg.displayValue }}</template>
+        <template v-else>{{ seg.name }}</template>
       </span>
     </div>
     <!-- 堆叠百分比条 -->
@@ -29,9 +31,13 @@
         </div>
       </transition>
     </div>
-    <!-- 百分比刻度 -->
+    <!-- 简约刻度线 -->
     <div class="seg-scale">
-      <span>0%</span><span>20%</span><span>40%</span><span>60%</span><span>80%</span><span>100%</span>
+      <span class="seg-scale-tick"></span>
+      <span class="seg-scale-tick"></span>
+      <span class="seg-scale-tick"></span>
+      <span class="seg-scale-tick"></span>
+      <span class="seg-scale-tick"></span>
     </div>
   </div>
 </template>
@@ -67,23 +73,28 @@ export default {
 <style scoped>
 .stacked-block { margin-bottom: 18px; }
 .stacked-header {
-  font-size: 12px; font-weight: 600; color: #556;
+  font-size: 13px; font-weight: 600; color: #444;
   margin-bottom: 6px; padding-left: 2px;
 }
 .seg-labels { display: flex; align-items: flex-end; margin-bottom: 3px; min-height: 20px; }
 .seg-label {
-  font-size: 10px; color: #666; text-align: center;
+  font-size: 11px; color: #555; text-align: center;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  line-height: 1.4;
+  line-height: 1.4; font-variant-numeric: tabular-nums;
 }
 .stacked-track {
   height: 22px; background: #eef0f5; border-radius: 4px;
   overflow: visible; display: flex; position: relative;
 }
-.stacked-seg { height: 100%; transition: width 0.3s ease; }
+.stacked-seg { height: 100%; position: relative; transition: width 0.3s ease; overflow: hidden; }
 .stacked-seg:first-child { border-radius: 4px 0 0 4px; }
 .stacked-seg:last-child { border-radius: 0 4px 4px 0; }
 .stacked-seg:only-child { border-radius: 4px; }
+.stacked-seg::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 44%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 100%);
+  border-radius: 4px 4px 0 0; pointer-events: none;
+}
 
 .stacked-tooltip {
   position: absolute; bottom: calc(100% + 6px); left: -4px; right: -4px;
@@ -102,8 +113,17 @@ export default {
 .tip-val { width: 80px; text-align: right; color: #666; font-variant-numeric: tabular-nums; }
 .tip-pct { width: 40px; text-align: right; color: #4f6ef6; font-weight: 600; }
 
-.seg-scale { display: flex; justify-content: space-between; margin-top: 2px; padding: 0 2px; }
-.seg-scale span { font-size: 9px; color: #aaa; }
+/* 简约刻度线 */
+.seg-scale {
+  display: flex; justify-content: space-between; margin-top: 2px; padding: 0 1px;
+  height: 4px;
+}
+.seg-scale-tick {
+  display: block; width: 1px; height: 4px; background: #d0d3dc;
+}
+.seg-scale-tick:first-child, .seg-scale-tick:last-child {
+  background: transparent;
+}
 .tip-enter-active, .tip-leave-active { transition: opacity 0.15s, transform 0.15s; }
 .tip-enter, .tip-leave-to { opacity: 0; transform: translateY(4px); }
 </style>

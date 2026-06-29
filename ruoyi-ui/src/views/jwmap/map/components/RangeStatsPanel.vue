@@ -216,11 +216,11 @@ export default {
 <style scoped>
 .range-stats-panel {
   position: absolute;
-  top: 80px;
+  top: 100px;
   right: 12px;
   bottom: 12px;
   z-index: 1000;
-  width: 280px;
+  width: 320px;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 10px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
@@ -256,8 +256,8 @@ export default {
   gap: 8px;
 }
 .rsp-label {
-  font-size: 12px;
-  color: #666;
+  font-size: 13px;
+  color: #444;
   white-space: nowrap;
   min-width: 32px;
 }
@@ -267,7 +267,7 @@ export default {
   justify-content: center;
   gap: 6px;
   padding: 20px 0;
-  color: #999;
+  color: #666;
   font-size: 13px;
   cursor: default;
 }
@@ -278,7 +278,7 @@ export default {
 .rsp-loading {
   text-align: center;
   padding: 16px 0;
-  color: #999;
+  color: #666;
   font-size: 13px;
 }
 .rsp-summary {
@@ -303,8 +303,8 @@ export default {
   border-left: 3px solid #409eff;
 }
 .rsp-type-card-name {
-  font-size: 11px;
-  color: #888;
+  font-size: 13px;
+  color: #555;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -322,8 +322,8 @@ export default {
 .rsp-detail-header {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: #666;
+  font-size: 13px;
+  color: #444;
   cursor: pointer;
   padding: 4px 0;
   user-select: none;
@@ -342,13 +342,13 @@ export default {
   padding: 5px 4px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
 }
 .rsp-detail-item:hover {
   background: #f0f7ff;
 }
 .rsp-detail-type-tag {
-  font-size: 10px;
+  font-size: 11px;
   color: #fff;
   border-radius: 3px;
   padding: 1px 5px;
@@ -363,8 +363,8 @@ export default {
   flex: 1;
 }
 .rsp-detail-addr {
-  color: #aaa;
-  font-size: 11px;
+  color: #666;
+  font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -372,14 +372,14 @@ export default {
   flex-shrink: 0;
 }
 .rsp-empty {
-  color: #bbb;
-  font-size: 12px;
+  color: #666;
+  font-size: 13px;
   text-align: center;
   padding: 12px 0;
 }
 .rsp-err-msg {
   color: #e6a23c;
-  font-size: 12px;
+  font-size: 13px;
   text-align: center;
   padding: 12px 0;
   display: flex;

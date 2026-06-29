@@ -88,17 +88,17 @@ export default {
 }
 .category-group { margin-bottom: 2px; }
 .category-title-l1 {
-  font-size: 12px; font-weight: 600; color: #556;
+  font-size: 13px; font-weight: 600; color: #444;
   margin: 10px 0 4px; padding-left: 8px;
   border-left: 3px solid #4f6ef6; line-height: 1.3;
 }
 .category-title-l2 {
-  font-size: 11px; color: #8c95a8; display: block;
+  font-size: 12px; color: #555; display: block;
   margin: 6px 0 2px 8px; font-weight: 500;
-  letter-spacing: 0.3px; text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 .indicator-row { display: flex; align-items: baseline; padding: 5px 0; font-size: 13px; }
 .indicator-row.compact { font-size: 12px; padding: 3px 0; }
-.indicator-name { color: #556; flex: 1; padding-right: 8px; }
+.indicator-name { color: #444; flex: 1; padding-right: 8px; }
 .indicator-value { color: #303651; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 </style>

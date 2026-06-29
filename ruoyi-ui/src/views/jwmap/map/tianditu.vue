@@ -133,6 +133,7 @@ import useMapLifecycle from './mixins/useMapLifecycle'
 import usePeerBanks from './mixins/usePeerBanks'
 import useIndicatorTree from './mixins/useIndicatorTree'
 import useBlankSpots from './mixins/useBlankSpots'
+import useHighlight from './mixins/useHighlight'
 import useRangeStats from './mixins/useRangeStats'
 import useRanking from './mixins/useRanking'
 import useBranchComparison from './mixins/useBranchComparison'
@@ -140,7 +141,7 @@ import useBranchComparison from './mixins/useBranchComparison'
 export default {
   name: 'JwMapTianditu',
   components: { TopToolbar, SidebarPanel, RankingList, QuadrantChart, DetailPanel, DimensionStats, RangeStatsPanel, ComparisonPanel },
-  mixins: [useMapLifecycle, usePeerBanks, useIndicatorTree, useBlankSpots, useRangeStats, useRanking, useBranchComparison],
+  mixins: [useMapLifecycle, usePeerBanks, useIndicatorTree, useBlankSpots, useRangeStats, useRanking, useBranchComparison, useHighlight],
   data() {
     return {
       map: null, boundaryMgr: null, measureTool: null,
@@ -198,4 +199,46 @@ export default {
 <style scoped>
 .jw-map-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
 #jwmap-tianditu { width: 100%; height: 100%; }
+</style>
+
+<style>
+/* 高亮网格 tooltip — 网格编码居中显示 */
+.highlight-grid-tooltip {
+  background: rgba(255, 215, 0, 0.85) !important;
+  color: #8B6914 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  padding: 2px 8px !important;
+  border: 1px solid #FFD700 !important;
+  border-radius: 3px !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25) !important;
+  white-space: nowrap !important;
+}
+.highlight-grid-tooltip::before {
+  display: none !important;
+}
+
+/* 高亮网点 tooltip — 网点名称在标记上方 */
+.highlight-branch-tooltip {
+  background: rgba(255, 215, 0, 0.9) !important;
+  color: #8B6914 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 3px 10px !important;
+  border: 1px solid #FFD700 !important;
+  border-radius: 4px !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.3) !important;
+  white-space: nowrap !important;
+}
+.highlight-branch-tooltip::before {
+  display: none !important;
+}
+
+/* 空白服务点 tooltip */
+.blankspot-tooltip {
+  font-size: 13px !important;
+  color: #333 !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+}
 </style>

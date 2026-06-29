@@ -6,12 +6,14 @@ import L from 'leaflet'
 export default {
   methods: {
     onToggleRangeStats() {
-      if (!this.rangeModeActive && !this.currentCity) {
-        this.$message.warning('请先在工具栏选择城市')
-        return
-      }
-      this.rangeModeActive = !this.rangeModeActive
+      if (!this.currentCity) { this.$message.warning('请先选择城市'); return }
       if (this.rangeModeActive) {
+        this.unbindRangeEvents()
+        this.rangeStats.visible = false
+        this.clearRangeShape()
+        this.map.dragging.enable()
+        this.map.getContainer().style.cursor = ''
+      } else {
         this.rangeStats.visible = true
         this.map.dragging.disable()
         this.map.getContainer().style.cursor = 'crosshair'
@@ -19,13 +21,8 @@ export default {
         this.map.on('mousemove', this.onRangeDrawMove)
         this.map.on('mouseup', this.onRangeDrawEnd)
         this.$message.info('在地图上按住拖拽划定范围')
-      } else {
-        this.unbindRangeEvents()
-        this.rangeStats.visible = false
-        this.clearRangeShape()
-        this.map.dragging.enable()
-        this.map.getContainer().style.cursor = ''
       }
+      this.rangeModeActive = !this.rangeModeActive
     },
 
     onCloseRangeStats() {

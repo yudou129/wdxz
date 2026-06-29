@@ -1,6 +1,6 @@
 .branch-icon {
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: #d40000;
   display: flex;
@@ -18,4 +18,16 @@
 .branch-icon:hover {
   transform: scale(1.15);
   box-shadow: 0 3px 10px rgba(212, 0, 0, 0.45);
+}
+.branch-icon-img {
+  width: 28px;
+  height: 28px;
+  display: block;
+  border-radius: 2px;
+}
+/* SVG图标模式：直接显示原始SVG，无边框背景 */
+.branch-icon.svg-mode {
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
