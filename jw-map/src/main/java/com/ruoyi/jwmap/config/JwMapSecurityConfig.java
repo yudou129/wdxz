@@ -16,30 +16,9 @@ public class JwMapSecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain jwmapSecurityFilterChain(HttpSecurity http) throws Exception {
-        String[] PUBLIC_POST = {
-            "/jwmap/import/**",
-            "/jwmap/compute/**",
-            "/jwmap/data/branch/indicators/**",
-            "/jwmap/data/branch/score/detail/**",
-            "/jwmap/data/branch/ranking/**",
-            "/jwmap/data/branch/topScores/**",
-            "/jwmap/data/branch/pillar/**",
-            "/jwmap/data/branch/summary/**",
-            "/jwmap/data/grid/score/**",
-            "/jwmap/data/grid/indicators/**",
-            "/jwmap/data/quadrant/**",
-            "/jwmap/data/dimension/stats/**",
-            "/jwmap/data/ranking/threeFocus/**",
-            "/jwmap/data/peerBank/**",
-            "/jwmap/data/poi/**",
-        };
         http.antMatcher("/jwmap/**")
             .authorizeRequests()
-                .antMatchers(org.springframework.http.HttpMethod.POST, "/jwmap/import/**").authenticated()
-                .antMatchers(org.springframework.http.HttpMethod.POST, "/jwmap/compute/**").authenticated()
-                .antMatchers(org.springframework.http.HttpMethod.GET, PUBLIC_POST).authenticated()
-                .antMatchers("/jwmap/data/access/**").authenticated()
-                .anyRequest().denyAll()
+                .anyRequest().permitAll()
                 .and()
             .headers().frameOptions().sameOrigin()
                 .and()
