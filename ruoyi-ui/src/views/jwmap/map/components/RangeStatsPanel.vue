@@ -6,7 +6,15 @@
     </div>
 
     <div class="rsp-body">
-      <!-- 形状 + 半径 选择 -->
+      <!-- 模式切换 -->
+      <div class="rsp-mode-row">
+        <el-radio-group v-model="mode" size="mini" @change="onModeChange">
+          <el-radio-button label="drag">自由拖拽</el-radio-button>
+          <el-radio-button label="center">定点选择</el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <!-- 形状 + 半径 -->
       <div class="rsp-controls">
         <div class="rsp-control-row">
           <span class="rsp-label">形状</span>
@@ -25,32 +33,33 @@
             <el-radio-button :label="2000">2km</el-radio-button>
           </el-radio-group>
         </div>
+        <!-- 拖拽模式下显示当前半径 -->
+        <div v-if="mode === 'drag' && placed" class="rsp-current-range">
+          当前圈选半径: <strong>{{ radius >= 1000 ? (radius / 1000).toFixed(1) + 'km' : radius + 'm' }}</strong>
+        </div>
       </div>
 
-      <!-- 放置提示 / 统计结果 -->
+      <!-- 放置提示 -->
       <div v-if="!placed" class="rsp-place-hint">
         <i class="el-icon-map-location" />
-        <span>在地图上按住拖拽划定范围</span>
+        <span v-if="mode === 'drag'">在地图上按住拖拽划定范围</span>
+        <span v-else>在地图上点击选定中心点</span>
       </div>
 
       <template v-if="placed">
-        <!-- 加载中 -->
         <div v-if="loading" class="rsp-loading">
           <i class="el-icon-loading" /> 查询中...
         </div>
-
-        <!-- 错误提示 -->
         <div v-if="errMsg && !loading" class="rsp-err-msg">
           <i class="el-icon-warning" /> {{ errMsg }}
         </div>
-
-        <!-- 统计结果 -->
         <template v-if="!loading">
           <div class="rsp-summary">
             共 <strong>{{ totalCount }}</strong> 个POI点
+            <span class="rsp-summary-range" v-if="placed">
+              范围: {{ radius >= 1000 ? (radius / 1000).toFixed(1) + 'km' : radius + 'm' }}
+            </span>
           </div>
-
-          <!-- 分类统计卡片 -->
           <div class="rsp-type-cards" v-if="typeStats.length > 0">
             <div class="rsp-type-card" v-for="st in typeStats" :key="st.type"
                  :style="{ borderLeftColor: st.color }">
@@ -58,8 +67,6 @@
               <div class="rsp-type-card-count">{{ st.count }}</div>
             </div>
           </div>
-
-          <!-- 明细列表 -->
           <div class="rsp-detail-section">
             <div class="rsp-detail-header" @click="detailExpanded = !detailExpanded">
               <span>明细列表 ({{ poiList.length }})</span>
@@ -86,7 +93,6 @@
 <script>
 import { getPoiWithinRange } from '@/api/jwmap/data'
 
-// 分类色盘
 const TYPE_COLORS = [
   '#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399',
   '#9b59b6', '#1abc9c', '#e74c3c', '#3498db', '#2ecc71',
@@ -101,6 +107,7 @@ export default {
   },
   data() {
     return {
+      mode: 'drag',
       shapeType: 'circle',
       radius: 500,
       placed: false,
@@ -120,12 +127,8 @@ export default {
     }
   },
   watch: {
-    visible(v) {
-      if (!v) this.reset()
-    },
-    currentCity() {
-      this.reset()
-    }
+    visible(v) { if (!v) this.reset() },
+    currentCity() { this.reset() }
   },
   methods: {
     reset() {
@@ -139,7 +142,6 @@ export default {
       this.errMsg = ''
       this.detailExpanded = true
     },
-    // 设置中心点和半径（拖拽绘制后调用）
     setCenter(lat, lng, drawnRadius) {
       this.centerLat = lat
       this.centerLng = lng
@@ -148,6 +150,10 @@ export default {
       }
       this.placed = true
       this.loadData()
+    },
+    onModeChange() {
+      this.reset()
+      this.$emit('mode-change', this.mode)
     },
     onParamChange() {
       if (this.placed && this.centerLat != null) {
@@ -189,7 +195,6 @@ export default {
         const t = p.poiType || '未知'
         map[t] = (map[t] || 0) + 1
       }
-      // 按数量降序排列
       const entries = Object.entries(map).sort((a, b) => b[1] - a[1])
       let ci = 0
       this.typeStats = entries.map(([type, count]) => {
@@ -204,7 +209,6 @@ export default {
       return this.typeColorMap[type] || '#909399'
     },
     onItemClick(item) {
-      // 点击定位到 POI 位置
       if (item.latitude && item.longitude) {
         this.$emit('locate', [item.latitude, item.longitude])
       }
@@ -245,6 +249,11 @@ export default {
   overflow-y: auto;
   flex: 1;
 }
+.rsp-mode-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
 .rsp-controls {
   display: flex;
   flex-direction: column;
@@ -260,6 +269,12 @@ export default {
   color: #444;
   white-space: nowrap;
   min-width: 32px;
+}
+.rsp-current-range {
+  font-size: 12px;
+  color: #409eff;
+  text-align: center;
+  padding: 2px 0;
 }
 .rsp-place-hint {
   display: flex;
@@ -287,6 +302,12 @@ export default {
   padding: 8px 0 6px;
   border-bottom: 1px solid #f0f0f0;
   margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+.rsp-summary-range {
+  color: #409eff;
+  font-weight: 500;
 }
 .rsp-type-cards {
   display: flex;

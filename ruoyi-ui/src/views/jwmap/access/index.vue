@@ -53,7 +53,9 @@
             <template slot-scope="{ row }">
               <el-button v-if="row.status === '0'" type="text" class="pa-act-cancel"
                          @click="handleCancel(row.requestId)">撤销</el-button>
-              <el-button v-else type="text" class="pa-act-detail"
+              <el-button v-if="row.status === '1'" type="text" class="pa-act-export"
+                         @click="handleExport(row)">导出</el-button>
+              <el-button type="text" class="pa-act-detail"
                          @click="showDetail(row)">详情</el-button>
             </template>
           </el-table-column>
@@ -123,7 +125,7 @@
 </template>
 
 <script>
-import { submitAccessRequest, getMyRequestList, cancelRequest, getRequestDetail, resolveBranchDept, getReviewers, getAccessDeptTree } from '@/api/jwmap/data-access'
+import { submitAccessRequest, getMyRequestList, cancelRequest, getRequestDetail, resolveBranchDept, getReviewers, getAccessDeptTree, exportApprovedData } from '@/api/jwmap/data-access'
 import Treeselect from '@riophae/vue-treeselect'
 import '@riophae/vue-treeselect/dist/vue-treeselect.css'
 import errorHandlerMixin from '../mixins/errorHandlerMixin'
@@ -195,8 +197,8 @@ export default {
                 this.showNewForm = true
               }
             }).catch(() => {})
-          } else if (retries++ < 30) {
-            this._branchPollTimer = setTimeout(tryFill, 100)
+          } else if (retries++ < 120) {
+            this._branchPollTimer = setTimeout(tryFill, 200)
           }
         }
         tryFill()
@@ -222,6 +224,24 @@ export default {
     rejectedCount() { return this.requestList.filter(r => r.status === '2').length }
   },
   methods: {
+    async handleExport(row) {
+      try {
+        const blob = await exportApprovedData(row.requestId)
+        const header = await blob.slice(0, 1).text()
+        if (header === '{') {
+          const errText = await blob.text()
+          try { const err = JSON.parse(errText); this.$message.error(err.msg || '导出失败') } catch (e) { this.$message.error('导出失败') }
+          return
+        }
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = '网点数据_' + (row.targetDeptName || 'export') + '.xlsx'
+        a.click()
+        window.URL.revokeObjectURL(url)
+        this.$message.success('导出成功')
+      } catch (e) { this.$message.error('导出失败：' + (e.message || '未知错误')) }
+    },
     statusClass(s) {
       const map = { '0': 'pill-pending', '1': 'pill-approved', '2': 'pill-rejected', '3': 'pill-cancelled', '4': 'pill-expired' }
       return map[s] || ''
@@ -349,6 +369,8 @@ export default {
 .pa-act-cancel { color: #f56c6c; font-size: 14px; }
 .pa-act-cancel:hover { color: #e04040; }
 .pa-act-detail { color: #4f6ef6; font-size: 14px; }
+.pa-act-export { color: #52c41a; font-size: 14px; }
+.pa-act-export:hover { color: #389e0d; }
 /* 对话框 */
 .pa-dialog >>> .el-dialog__header { padding: 20px 24px 16px; border-bottom: 1px solid #f0f0f0; }
 .pa-dialog >>> .el-dialog__title { font-size: 17px; font-weight: 700; color: #232845; }

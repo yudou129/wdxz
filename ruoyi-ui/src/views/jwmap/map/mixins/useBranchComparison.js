@@ -1,7 +1,7 @@
-import { getBranchScoreDetail, getBranchInternalRanking } from '@/api/jwmap/data'
+import { getBranchScoreDetail, getBranchInternalRanking, getBranchIndicators } from '@/api/jwmap/data'
 
 /**
- * 网点对比 mixin — 对比模式开关、添加/移除网点、数据加载刷新
+ * 网点对比 mixin — 对比模式开关、添加/移除网点、数据加载刷新（含具体指标）
  */
 export default {
   methods: {
@@ -41,21 +41,31 @@ export default {
         this.$message.info('该网点已在对比列表中')
         return
       }
+      // 新增：区分一级支行和二级支行以判断权限
+      const access = this.checkBranchAccess(branch)
       this.comparePanel.branches.push({
         branchId: branch.branchId,
         branchData: branch,
         scores: [],
-        rankMeta: {}
+        indicators: [],
+        rankMeta: {},
+        access
       })
       this.loadBranchCompareData(branch.branchId)
+    },
+
+    /** 检查网点的数据访问权限 */
+    checkBranchAccess(branch) {
+      return this.branchAccess !== false
     },
 
     async loadBranchCompareData(branchId) {
       this.comparePanel.loading = true
       try {
-        const [scoresRes, rankRes] = await Promise.all([
+        const [scoresRes, rankRes, indRes] = await Promise.all([
           getBranchScoreDetail(branchId, this.selectedYear),
-          getBranchInternalRanking(branchId, this.selectedYear)
+          getBranchInternalRanking(branchId, this.selectedYear),
+          this.fetchBranchIndicatorsSafe(branchId)
         ])
         const idx = this.comparePanel.branches.findIndex(b => b.branchId === branchId)
         if (idx === -1) return
@@ -64,6 +74,7 @@ export default {
           scores: (scoresRes.data || [])
             .filter(s => !s.scoreCategory || !s.scoreCategory.toLowerCase().includes('_auto'))
             .map(s => ({ ...s, categoryName: this.indicatorNameMap[s.scoreCategory] || '' })),
+          indicators: indRes || [],
           rankMeta: rankRes.data || { branchRank: 0, branchTotal: 0, cityRank: 0, cityTotal: 0 }
         })
       } catch (e) {
@@ -73,21 +84,39 @@ export default {
       this.comparePanel.loading = false
     },
 
+    async fetchBranchIndicatorsSafe(branchId) {
+      try {
+        const res = await getBranchIndicators(branchId, this.selectedYear)
+        const list = res.data || res || []
+        if (!Array.isArray(list)) return []
+        return list.map(i => ({
+          code: i.indicatorCode,
+          name: this.indicatorNameMap[i.indicatorCode] || i.indicatorCode,
+          value: i.indicatorValue,
+          categoryLevel1: i.level1Name,
+          categoryLevel2: i.level2Name || i.level1Name,
+          level1Code: i.level1Code,
+        }))
+      } catch (e) { return [] }
+    },
+
     async refreshAllCompareData() {
       const ids = this.comparePanel.branches.map(b => b.branchId)
       if (!ids.length) return
       this.comparePanel.loading = true
       try {
         const results = await Promise.all(ids.map(async (id) => {
-          const [scoresRes, rankRes] = await Promise.all([
+          const [scoresRes, rankRes, indRes] = await Promise.all([
             getBranchScoreDetail(id, this.selectedYear),
-            getBranchInternalRanking(id, this.selectedYear)
+            getBranchInternalRanking(id, this.selectedYear),
+            this.fetchBranchIndicatorsSafe(id)
           ])
           return {
             branchId: id,
             scores: (scoresRes.data || [])
               .filter(s => !s.scoreCategory || !s.scoreCategory.toLowerCase().includes('_auto'))
               .map(s => ({ ...s, categoryName: this.indicatorNameMap[s.scoreCategory] || '' })),
+            indicators: indRes || [],
             rankMeta: rankRes.data || { branchRank: 0, branchTotal: 0, cityRank: 0, cityTotal: 0 }
           }
         }))
@@ -97,6 +126,7 @@ export default {
             this.$set(this.comparePanel.branches, idx, {
               ...this.comparePanel.branches[idx],
               scores: r.scores,
+              indicators: r.indicators,
               rankMeta: r.rankMeta
             })
           }

@@ -3,6 +3,7 @@ import { getGridTopWithoutBranch } from '@/api/jwmap/data'
 
 /**
  * 空白服务点 mixin — 高潜力空白网格的加载、渲染、排名
+ * 支持按数量限制和行政区筛选
  */
 export default {
   methods: {
@@ -20,10 +21,12 @@ export default {
     async loadBlankSpotData() {
       this.blankSpotRanking.loading = true
       try {
-        const res = await getGridTopWithoutBranch(this.currentCity)
+        const limit = this.blankSpotLimit || 100
+        const district = this.currentDistrict !== 'all' && this.currentDistrict ? this.currentDistrict : undefined
+        const res = await getGridTopWithoutBranch(this.currentCity, { limit, district })
         this.blankSpotData = res.data || []
         if (!this.blankSpotData.length) {
-          this.$message.info('该城市暂无空白服务点')
+          this.$message.info('该范围内暂无空白服务点')
           this.blankSpotRanking.loading = false
           return
         }
@@ -39,12 +42,11 @@ export default {
             [item.southLatitude, item.westLongitude],
             [item.northLatitude, item.eastLongitude]
           ]
-          // 排名越高(得分越高)颜色越深——在 #00bbff 基础上加深 + 提高不透明度
           const t = ((item.siteScore || 0) - minScore) / range
-          const darken = Math.round(t * 80)            // 加深量 0→80
-          const g = Math.round(187 - darken)            // 187→107
-          const b = Math.round(255 - darken)            // 255→175
-          const opacity = 0.4 + t * 0.4                 // 0.4→0.8
+          const darken = Math.round(t * 80)
+          const g = Math.round(187 - darken)
+          const b = Math.round(255 - darken)
+          const opacity = 0.4 + t * 0.4
           const rect = L.rectangle(bounds, {
             stroke: false,
             fillColor: `rgb(0,${g},${b})`,
@@ -54,7 +56,7 @@ export default {
             `${item.gridCode}<br>得分: ${(item.siteScore || 0).toFixed(4)}<br>${item.district || ''}`,
             { direction: 'center', className: 'blankspot-tooltip' }
           )
-          const gridItem = item
+          const gridItem = { ...item, blankSpot: true }
           rect.on('click', () => {
             this.onGridClick(gridItem.gridCode, gridItem)
           })
@@ -75,6 +77,18 @@ export default {
         this.$message.error('加载空白服务点数据失败')
       }
       this.blankSpotRanking.loading = false
+    },
+
+    /** 空白点参数变更（数量/行政区），重新加载 */
+    onBlankSpotParamsChange(params) {
+      if (params.limit != null || params.district !== undefined) {
+        this.blankSpotLimit = params.limit
+        this.currentDistrict = params.district
+      }
+      if (this.blankSpotActive) {
+        this.removeBlankSpotLayer()
+        this.loadBlankSpotData()
+      }
     },
 
     removeBlankSpotLayer() {

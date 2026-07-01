@@ -40,6 +40,10 @@ public interface JwBranchInfoMapper {
 
     List<JwBranchInfo> selectByGridCode(@Param("gridCode") String gridCode);
 
+    List<JwBranchInfo> selectByPrimaryBranch(@Param("primaryBranch") String primaryBranch);
+
+    List<JwBranchInfo> selectByDeptName(@Param("deptName") String deptName);
+
     /** 四象限分析：JOIN grid_score + branch_score 获取选址得分和网点得分 */
     List<java.util.Map<String, Object>> selectQuadrantData(@Param("city") String city,
                                                             @Param("year") Integer year);

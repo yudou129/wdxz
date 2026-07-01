@@ -103,6 +103,18 @@
         ORDER BY branch_id
     </select>
 
+    <select id="selectByPrimaryBranch" parameterType="String" resultMap="JwBranchInfoResult">
+        <include refid="selectJwBranchInfoVo"/>
+        WHERE primary_branch = #{primaryBranch} AND (del_flag IS NULL OR del_flag = '0')
+        ORDER BY branch_id
+    </select>
+
+    <select id="selectByDeptName" parameterType="String" resultMap="JwBranchInfoResult">
+        <include refid="selectJwBranchInfoVo"/>
+        WHERE (primary_branch = #{deptName} OR secondary_branch = #{deptName}) AND (del_flag IS NULL OR del_flag = '0')
+        ORDER BY branch_id
+    </select>
+
     <select id="selectDistinctCities" resultType="String">
         SELECT DISTINCT city FROM jw_branch_info
         WHERE (del_flag IS NULL OR del_flag = '0')
@@ -175,10 +187,16 @@
     </update>
 
     <update id="batchUpdateGridCode" parameterType="java.util.List">
-        <foreach item="item" collection="list" separator=";">
-            UPDATE jw_branch_info
-            SET grid_code = #{item.gridCode}, update_time = sysdate()
-            WHERE branch_id = #{item.branchId}
+        UPDATE jw_branch_info
+        SET grid_code = CASE branch_id
+        <foreach item="item" collection="list">
+            WHEN #{item.branchId} THEN #{item.gridCode}
+        </foreach>
+        END,
+        update_time = sysdate()
+        WHERE branch_id IN
+        <foreach item="item" collection="list" open="(" close=")" separator=",">
+            #{item.branchId}
         </foreach>
     </update>
 

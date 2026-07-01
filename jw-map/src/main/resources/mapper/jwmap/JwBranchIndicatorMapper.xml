@@ -59,6 +59,17 @@
         ORDER BY i.branch_id, i.indicator_code
     </select>
 
+    <select id="selectByCityAndYearRange" resultMap="JwBranchIndicatorResult">
+        SELECT i.indicator_id, i.branch_id, i.data_year, i.sheet_type, i.indicator_code, i.indicator_value, i.create_time
+        FROM jw_branch_indicator i
+        JOIN jw_branch_info b ON i.branch_id = b.branch_id
+        WHERE b.city = #{city} AND i.data_year BETWEEN #{startYear} AND #{endYear}
+        <if test="sheetType != null and sheetType != ''">
+            AND i.sheet_type = #{sheetType}
+        </if>
+        ORDER BY i.branch_id, i.indicator_code
+    </select>
+
     <select id="selectByCityAndSheetType" resultMap="JwBranchIndicatorResult">
         SELECT i.indicator_id, i.branch_id, i.data_year, i.sheet_type, i.indicator_code, i.indicator_value, i.create_time
         FROM jw_branch_indicator i

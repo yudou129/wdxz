@@ -11,9 +11,11 @@
       :compareActive="compareMode"
       :branchList="branchList"
       :blankSpotActive="blankSpotActive"
+      :blankSpotLimit="blankSpotLimit"
       @toggle-blank-spot="onToggleBlankSpot"
       @select-city="onSelectCity"
       @select-district="onSelectDistrict"
+      @blank-spot-params="onBlankSpotParamsChange"
       @toggle-heatmap="onToggleHeatmap"
       @toggle-peerbank="onTogglePeerBank"
       @toggle-range="onToggleRangeStats"
@@ -44,6 +46,7 @@
       :peerBanks="peerBanks"
       :nearbyBranches="nearbyBranches"
       :pillarGap="sidebar.pillarGap"
+      :nearestBranch="sidebar.nearestBranch"
       :years="availableYears"
       :year="selectedYear"
       @close="closeSidebar"
@@ -108,7 +111,8 @@
       :currentCity="currentCity"
       @close="onCloseRangeStats"
       @locate="onRangeItemLocate"
-      @param-change="onRangeParamChange" />
+      @param-change="onRangeParamChange"
+      @mode-change="onRangeModeChange" />
 
     <ComparisonPanel
       :visible="comparePanel.visible"
@@ -154,12 +158,13 @@ export default {
       sidebar: {
         visible: false, mode: 'grid-only', width: Math.min(380, Math.max(300, window.innerWidth * 0.28)),
         gridData: {}, gridRank: null, gridIndicators: [],
-        gridRankMeta: { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 },
+        gridRankMeta: { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0, topScore: 0, districtTopScore: 0, districtScoreGap: 0 },
         branchData: {}, branchScores: [],
         branchRankMeta: { branchRank: 0, branchTotal: 0, cityRank: 0, cityTotal: 0 },
         branchQuadrant: '',
         pillar: { population: { score: 0, count: 0 }, enterprise: { score: 0, count: 0 }, business: { score: 0, count: 0 } },
-        pillarGap: { population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }
+        pillarGap: { population: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' }, enterprise: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' }, business: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' } },
+        nearestBranch: null
       },
       ranking: { visible: false, title: '', items: [], page: 1, hasMore: false, loading: false, type: 'grid' },
       quadrant: { visible: false, data: null },
@@ -167,7 +172,7 @@ export default {
       peerBanks: [],
       nearbyBranches: [],
       gridDataCache: null,
-      currentCity: null, currentFilter: null, currentAdcode: null,
+      currentCity: null, currentFilter: null, currentAdcode: null, currentDistrict: 'all',
       branchList: [],
       detailPanel: { visible: false, data: [], mode: 'branch', left: 400, branchId: null, noAccess: false },
       rangeStats: { visible: false },
@@ -182,6 +187,7 @@ export default {
       },
       branchAccess: true, // 当前选中网点的数据访问权限
       blankSpotActive: false,
+      blankSpotLimit: 100,
       blankSpotData: [],
       blankSpotLayer: null,
       blankSpotRanking: { visible: false, items: [], page: 1, hasMore: false, loading: false },

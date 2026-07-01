@@ -19,6 +19,10 @@ public interface JwBranchSummaryMapper {
     List<JwBranchSummary> selectByCityAndYear(@Param("city") String city,
                                                @Param("dataYear") Integer dataYear);
 
+    List<JwBranchSummary> selectByCityAndYearRange(@Param("city") String city,
+                                                    @Param("startYear") Integer startYear,
+                                                    @Param("endYear") Integer endYear);
+
     int insertJwBranchSummary(JwBranchSummary s);
 
     int insertBranchSummary(JwBranchSummary s);

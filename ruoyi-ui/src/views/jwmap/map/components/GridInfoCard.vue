@@ -1,6 +1,15 @@
 <template>
   <div class="grid-info-card">
-    <div class="grid-code">{{ grid.gridCode || '-' }}</div>
+    <div class="gic-top">
+      <div class="gic-code">
+        <span class="gic-tag">网格</span>
+        {{ grid.gridCode || '-' }}
+      </div>
+      <div class="gic-score">
+        <span class="gic-score-label">选址得分</span>
+        <span class="gic-score-val">{{ fmtScore(score) }}</span>
+      </div>
+    </div>
     <div class="coord-row">
       <span>经度 {{ formatCoord(grid.longitude) }}</span>
       <span>纬度 {{ formatCoord(grid.latitude) }}</span>
@@ -10,9 +19,13 @@
 <script>
 export default {
   name: 'GridInfoCard',
-  props: { grid: Object },
+  props: {
+    grid: Object,
+    score: { type: Number, default: 0 }
+  },
   methods: {
-    formatCoord(v) { return typeof v === 'number' ? v.toFixed(6) : '-' }
+    formatCoord(v) { return typeof v === 'number' ? v.toFixed(6) : '-' },
+    fmtScore(v) { return typeof v === 'number' ? v.toFixed(3) : '0.000' }
   }
 }
 </script>
@@ -22,20 +35,24 @@ export default {
   border: 1px solid rgba(79, 110, 246, 0.12);
   border-radius: 10px;
   padding: 14px 16px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   box-shadow: 0 2px 8px rgba(79, 110, 246, 0.06);
 }
-.grid-code {
-  font-size: 16px;
+.gic-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.gic-code {
+  font-size: 15px;
   font-weight: 700;
   color: #232845;
-  margin-bottom: 6px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.grid-code::before {
-  content: '网格';
+.gic-tag {
   font-size: 11px;
   font-weight: 600;
   color: #4f6ef6;
@@ -44,11 +61,27 @@ export default {
   border-radius: 4px;
   line-height: 1.4;
 }
+.gic-score {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.gic-score-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+.gic-score-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: #4f6ef6;
+  font-variant-numeric: tabular-nums;
+}
 .coord-row {
   display: flex;
   gap: 16px;
-  font-size: 13px;
-  color: #555;
+  font-size: 12px;
+  color: #888;
   font-family: 'Courier New', monospace;
 }
 </style>

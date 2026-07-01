@@ -141,8 +141,11 @@ export function getNearbyBranches(branchId, radius) {
 export function getPillarGap(gridCode) {
   return request({ url: '/jwmap/data/grid/pillar/gap/' + gridCode, method: 'get' })
 }
-export function getGridTopWithoutBranch(city) {
-  return request({ url: '/jwmap/data/grid/topWithoutBranch/' + city, method: 'get' })
+export function getGridTopWithoutBranch(city, params) {
+  return request({ url: '/jwmap/data/grid/topWithoutBranch/' + city, method: 'get', params })
+}
+export function getGridNearestBranch(gridCode) {
+  return request({ url: '/jwmap/data/grid/nearestBranch/' + gridCode, method: 'get' })
 }
 
 // ===== POI 范围统计 =====

@@ -1,7 +1,9 @@
 import L from 'leaflet'
 
 /**
- * 范围统计 mixin — 地图拖拽绘制圆形/方形范围、清除重绘
+ * 范围统计 mixin — 支持两种模式：
+ * 1. drag: 地图拖拽绘制圆形/方形范围
+ * 2. center: 点击地图选择中心点 + 面板选半径
  */
 export default {
   methods: {
@@ -9,17 +11,16 @@ export default {
       if (!this.currentCity) { this.$message.warning('请先选择城市'); return }
       if (this.rangeModeActive) {
         this.unbindRangeEvents()
+        this.unbindCenterClick()
         this.rangeStats.visible = false
         this.clearRangeShape()
+        this.clearCenterMarker()
         this.map.dragging.enable()
         this.map.getContainer().style.cursor = ''
       } else {
         this.rangeStats.visible = true
-        this.map.dragging.disable()
         this.map.getContainer().style.cursor = 'crosshair'
-        this.map.on('mousedown', this.onRangeDrawStart)
-        this.map.on('mousemove', this.onRangeDrawMove)
-        this.map.on('mouseup', this.onRangeDrawEnd)
+        this.bindDragEvents()
         this.$message.info('在地图上按住拖拽划定范围')
       }
       this.rangeModeActive = !this.rangeModeActive
@@ -29,7 +30,9 @@ export default {
       this.rangeModeActive = false
       this.rangeStats.visible = false
       this.unbindRangeEvents()
+      this.unbindCenterClick()
       this.clearRangeShape()
+      this.clearCenterMarker()
       this.map.dragging.enable()
       this.map.getContainer().style.cursor = ''
     },
@@ -39,6 +42,60 @@ export default {
       this.map.off('mousemove', this.onRangeDrawMove)
       this.map.off('mouseup', this.onRangeDrawEnd)
       this._drawing = null
+    },
+
+    // ===== 自由拖拽模式 =====
+    bindDragEvents() {
+      this.unbindCenterClick()
+      this.map.dragging.disable()
+      this.map.on('mousedown', this.onRangeDrawStart)
+      this.map.on('mousemove', this.onRangeDrawMove)
+      this.map.on('mouseup', this.onRangeDrawEnd)
+    },
+
+    // ===== 定点选择模式 =====
+    bindCenterClick() {
+      this.unbindRangeEvents()
+      this.map.dragging.disable()
+      this.map.getContainer().style.cursor = 'crosshair'
+      this.map.on('click', this.onCenterClick)
+    },
+    unbindCenterClick() {
+      this.map.off('click', this.onCenterClick)
+    },
+    onCenterClick(e) {
+      if (!this.rangeModeActive) return
+      const center = e.latlng
+      this.clearCenterMarker()
+      // 标记中心点
+      this._centerMarker = L.circleMarker([center.lat, center.lng], {
+        radius: 6, color: '#409eff', fillColor: '#fff', fillOpacity: 1, weight: 3
+      }).addTo(this.map)
+      this.map.flyTo(center, 14)
+      const shapeType = this.$refs.rangeStats ? this.$refs.rangeStats.shapeType : 'circle'
+      const radius = this.$refs.rangeStats ? this.$refs.rangeStats.radius : 500
+      this.drawRangeShape(center.lat, center.lng, radius, shapeType)
+      if (this.$refs.rangeStats) {
+        this.$refs.rangeStats.setCenter(center.lat, center.lng)
+      }
+    },
+    clearCenterMarker() {
+      if (this._centerMarker) { this.map.removeLayer(this._centerMarker); this._centerMarker = null }
+    },
+
+    // ===== 模式切换 =====
+    onRangeModeChange(mode) {
+      this.clearRangeShape()
+      this.clearCenterMarker()
+      if (this.$refs.rangeStats) {
+        if (mode === 'center') {
+          this.bindCenterClick()
+          this.$message.info('在地图上点击选定中心点')
+        } else {
+          this.bindDragEvents()
+          this.$message.info('在地图上按住拖拽划定范围')
+        }
+      }
     },
 
     onRangeDrawStart(e) {

@@ -816,6 +816,13 @@ public class ExcelExportService {
     // 分类边界 (startIndex inclusive, endIndex exclusive)
     private static final int[] CAT_BOUNDARIES = {0, 2, 12, 19, 22}; // revenue, indicator, customer, operation
 
+    private static int safeCompare(String a, String b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+        return a.compareTo(b);
+    }
+
     // 基础数据指标编码→中文名称（BRANCH_INDICATOR_MAP 的逆映射，用于导出时展示中文列名）
     private static final Map<String, String> BASE_INDICATOR_NAME_MAP = new LinkedHashMap<>();
     static {
@@ -872,6 +879,7 @@ public class ExcelExportService {
 
     /**
      * 导出网点组合数据：基础数据 + 数据计算表 + 归一化处理（含TOPSIS得分）
+     * dataYear 为终点年份，往前取三年（含终点年）
      */
     public void exportBranchCombined(String city, Integer dataYear, OutputStream outputStream) throws IOException {
         List<JwBranchInfo> branches;
@@ -888,6 +896,41 @@ public class ExcelExportService {
             return;
         }
 
+        // 从配置表动态加载 branch 类型的叶子指标，按层级排序
+        List<JwIndicatorConfig> branchLeaves = indicatorConfigMapper.selectLeavesByType("branch");
+        // 构建 code→config 映射用于查 parent chain
+        Map<String, JwIndicatorConfig> allConfigMap = new LinkedHashMap<>();
+        for (JwIndicatorConfig cfg : indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig())) {
+            if (cfg.getIndicatorCode() != null) allConfigMap.put(cfg.getIndicatorCode(), cfg);
+        }
+        // 按 (祖父名, 父名, sort_order) 排序
+        branchLeaves.sort((a, b) -> {
+            String ga = getRootName(a, allConfigMap);
+            String gb = getRootName(b, allConfigMap);
+            if (ga == null) ga = "";
+            if (gb == null) gb = "";
+            int cmp = ga.compareTo(gb);
+            if (cmp != 0) return cmp;
+            String pa = a.getParentCode() != null ? allConfigMap.getOrDefault(a.getParentCode(),
+                new JwIndicatorConfig()).getIndicatorName() : "";
+            String pb = b.getParentCode() != null ? allConfigMap.getOrDefault(b.getParentCode(),
+                new JwIndicatorConfig()).getIndicatorName() : "";
+            if (pa == null) pa = "";
+            if (pb == null) pb = "";
+            cmp = pa.compareTo(pb);
+            if (cmp != 0) return cmp;
+            Integer sa = a.getSortOrder() != null ? a.getSortOrder() : 0;
+            Integer sb = b.getSortOrder() != null ? b.getSortOrder() : 0;
+            return sa.compareTo(sb);
+        });
+        List<String> calcCodeList = new ArrayList<>();
+        for (JwIndicatorConfig cfg : branchLeaves) {
+            if (cfg.getIndicatorCode() != null) calcCodeList.add(cfg.getIndicatorCode());
+        }
+
+        int startYear = dataYear != null ? dataYear - 2 : 2023;
+        int endYear = dataYear != null ? dataYear : 2025;
+
         List<JwBranchIndicator> baseIndicators;
         List<JwBranchIndicator> calcIndicators;
         List<JwBranchIndicator> normIndicators;
@@ -895,18 +938,19 @@ public class ExcelExportService {
         List<JwBranchScore> scores;
         try {
             baseIndicators = branchIndicatorMapper.selectByCityAndSheetType(city, "基础数据");
-            calcIndicators = branchIndicatorMapper.selectByCityAndYear(city, dataYear, "数据计算表");
-            normIndicators = branchIndicatorMapper.selectByCityAndYear(city, dataYear, "数据计算表归一化");
-            summaries = branchSummaryMapper.selectByCityAndYear(city, dataYear);
-            scores = branchScoreMapper.selectByCityAndYear(city, dataYear);
-            log.info("网点导出数据加载完成: baseIndicators={}, calc={}, norm={}, summaries={}, scores={}",
+            calcIndicators = branchIndicatorMapper.selectByCityAndYearRange(city, startYear, endYear, "数据计算表");
+            normIndicators = branchIndicatorMapper.selectByCityAndYearRange(city, startYear, endYear, "数据计算表归一化");
+            summaries = branchSummaryMapper.selectByCityAndYearRange(city, startYear, endYear);
+            scores = branchScoreMapper.selectByCityAndYearRange(city, startYear, endYear);
+            log.info("网点导出数据加载完成({}-{}): baseIndicators={}, calc={}, norm={}, summaries={}, scores={}",
+                    startYear, endYear,
                     baseIndicators != null ? baseIndicators.size() : 0,
                     calcIndicators != null ? calcIndicators.size() : 0,
                     normIndicators != null ? normIndicators.size() : 0,
                     summaries != null ? summaries.size() : 0,
                     scores != null ? scores.size() : 0);
         } catch (Exception e) {
-            log.error("获取网点指标数据失败 city={}, year={}", city, dataYear, e);
+            log.error("获取网点指标数据失败 city={}, year={}-{}", city, startYear, endYear, e);
             throw e;
         }
 
@@ -915,7 +959,7 @@ public class ExcelExportService {
         if (baseIndicators != null) baseIndicators.forEach(i -> allCodes.add(i.getIndicatorCode()));
         if (calcIndicators != null) calcIndicators.forEach(i -> allCodes.add(i.getIndicatorCode()));
         if (normIndicators != null) normIndicators.forEach(i -> allCodes.add(i.getIndicatorCode()));
-        allCodes.addAll(ALL_CALC_INDICATORS);
+        allCodes.addAll(calcCodeList);
         Map<String, String> nameMap = new LinkedHashMap<>();
         for (String code : allCodes) {
             JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
@@ -937,16 +981,43 @@ public class ExcelExportService {
 
         XSSFWorkbook workbook = new XSSFWorkbook();
         try {
-            // Sheet 1: 基础数据
+            // Sheet 1: 基础数据（从数据中动态提取指标列）
             writeBranchBaseSheet(workbook.createSheet("基础数据"), branches, baseIndicators, nameMap);
 
-            // Sheet 2: 数据计算表
-            writeBranchCalcSheet(workbook.createSheet("数据计算表"), branches, calcIndicators,
-                    summaryMap, nameMap, dataYear, false, null);
+            // Sheet 2-4: 数据计算表（每年一个sheet）
+            for (int yr = startYear; yr <= endYear; yr++) {
+                final int year = yr;
+                String sheetName = "数据计算表_" + year;
+                List<JwBranchIndicator> yrCalc = calcIndicators != null
+                    ? calcIndicators.stream().filter(i -> i.getDataYear() != null && i.getDataYear() == year).collect(Collectors.toList())
+                    : new ArrayList<>();
+                Map<String, JwBranchSummary> yrSummaryMap = summaries != null
+                    ? summaries.stream().filter(s -> s.getDataYear() != null && s.getDataYear() == year)
+                        .collect(Collectors.toMap(JwBranchSummary::getIndicatorCode, s -> s, (a, b) -> a))
+                    : new HashMap<>();
+                writeBranchCalcSheet(workbook.createSheet(sheetName), branches, yrCalc,
+                        yrSummaryMap, nameMap, year, false, null, calcCodeList);
+            }
 
-            // Sheet 3: 数据计算表（归一化处理）
-            writeBranchCalcSheet(workbook.createSheet("数据计算表（归一化处理）"), branches, normIndicators,
-                    summaryMap, nameMap, dataYear, true, scoreMap);
+            // Sheet 5-7: 归一化处理（每年一个sheet）
+            for (int yr = startYear; yr <= endYear; yr++) {
+                final int year = yr;
+                String sheetName = "归一化处理_" + year;
+                List<JwBranchIndicator> yrNorm = normIndicators != null
+                    ? normIndicators.stream().filter(i -> i.getDataYear() != null && i.getDataYear() == year).collect(Collectors.toList())
+                    : new ArrayList<>();
+                Map<String, JwBranchSummary> yrSummaryMap = summaries != null
+                    ? summaries.stream().filter(s -> s.getDataYear() != null && s.getDataYear() == year)
+                        .collect(Collectors.toMap(JwBranchSummary::getIndicatorCode, s -> s, (a, b) -> a))
+                    : new HashMap<>();
+                Map<Long, Map<String, JwBranchScore>> yrScoreMap = scores != null
+                    ? scores.stream().filter(s -> s.getDataYear() != null && s.getDataYear() == year)
+                        .collect(Collectors.groupingBy(JwBranchScore::getBranchId,
+                            Collectors.toMap(JwBranchScore::getScoreCategory, s -> s, (a, b) -> a)))
+                    : new HashMap<>();
+                writeBranchCalcSheet(workbook.createSheet(sheetName), branches, yrNorm,
+                        yrSummaryMap, nameMap, year, true, yrScoreMap, calcCodeList);
+            }
 
             workbook.write(outputStream);
         } finally {
@@ -998,34 +1069,59 @@ public class ExcelExportService {
             {24, 24}, {25, 25}, {26, 26}
         };
 
-        // ===== 指标列定义 =====
-        // {code, row0Cat, row1SubCat, isOpCategory}
-        // isOpCategory=true: 业务运营类，子分类即指标名，Row1跨Row2合并
-        String[][] indicatorDefs = {
-            {"interest_income", "经营情况", "营业收入", null},
-            {"fee_income", "经营情况", "营业收入", null},
-            {"total_asset_balance", "业绩表现", "全量个人金融资产", null},
-            {"total_asset_growth", "业绩表现", "全量个人金融资产", null},
-            {"saving_balance", "业绩表现", "储蓄存款", null},
-            {"saving_growth", "业绩表现", "储蓄存款", null},
-            {"corp_dep_balance", "业绩表现", "公司客户存款", null},
-            {"corp_dep_growth", "业绩表现", "公司客户存款", null},
-            {"inst_dep_balance", "业绩表现", "机构客户存款", null},
-            {"inst_dep_growth", "业绩表现", "机构客户存款", null},
-            {"inclusive_loan_amount", "业绩表现", "普惠贷款", null},
-            {"personal_loan_amount", "业绩表现", "个人贷款", null},
-            {"pcust_t1", "客户发展", "个人客户", null},
-            {"pcust_t2", "客户发展", "个人客户", null},
-            {"pcust_t3", "客户发展", "个人客户", null},
-            {"ccust_h", "客户发展", "对公客户", null},
-            {"ccust_l", "客户发展", "对公客户", null},
-            {"icust_h", "客户发展", "机构客户", null},
-            {"icust_l", "客户发展", "机构客户", null},
-            {"inclusive_cust_total", "客户发展", "普惠客户", null},
-            {"counter_txn", "业务运营", "柜台日均交易笔数", "op"},
-            {"terminal_txn", "业务运营", "自助终端日均交易笔数", "op"},
-            {"atm_txn", "业务运营", "附行式、网点自助ATM日均交易笔数", "op"},
-        };
+        // ===== 指标列定义（从数据中动态提取，再从配置表查分类层级） =====
+        // 从实际数据中收集所有唯一的 indicator_code
+        Set<String> uniqueCodes = new LinkedHashSet<>();
+        if (indicators != null) indicators.forEach(i -> {
+            if (i.getIndicatorCode() != null) uniqueCodes.add(i.getIndicatorCode());
+        });
+        // 批量查配置表获取名称和层级
+        Map<String, JwIndicatorConfig> dataCodeConfigMap = new LinkedHashMap<>();
+        for (String code : uniqueCodes) {
+            JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
+            if (cfg != null) dataCodeConfigMap.put(code, cfg);
+        }
+        // 构建 indicatorDefs: {code, row0Cat(大类), row1SubCat(子类), null}
+        List<String[]> indicatorDefsList = new ArrayList<>();
+        for (String code : uniqueCodes) {
+            JwIndicatorConfig cfg = dataCodeConfigMap.get(code);
+            String row1SubCat = code;
+            String row0Cat = code;
+            if (cfg != null) {
+                row1SubCat = cfg.getIndicatorName() != null ? cfg.getIndicatorName() : code;
+                if (cfg.getParentCode() != null && !cfg.getParentCode().isEmpty()) {
+                    JwIndicatorConfig parent = indicatorConfigMapper.selectByCode(cfg.getParentCode());
+                    if (parent != null) {
+                        row1SubCat = parent.getIndicatorName() != null ? parent.getIndicatorName() : row1SubCat;
+                        if (parent.getParentCode() != null && !parent.getParentCode().isEmpty()) {
+                            JwIndicatorConfig grandparent = indicatorConfigMapper.selectByCode(parent.getParentCode());
+                            if (grandparent != null && grandparent.getIndicatorName() != null) {
+                                row0Cat = grandparent.getIndicatorName();
+                            } else {
+                                row0Cat = row1SubCat;
+                            }
+                        } else {
+                            row0Cat = row1SubCat;
+                        }
+                    }
+                }
+            } else {
+                row1SubCat = BASE_INDICATOR_NAME_MAP.getOrDefault(code, code);
+                row0Cat = row1SubCat;
+            }
+            indicatorDefsList.add(new String[]{code, row0Cat, row1SubCat, null});
+        }
+        String[][] indicatorDefs = indicatorDefsList.toArray(new String[0][]);
+
+        // 按 row0Cat(大类) -> row1SubCat(子类) 排序，使同类指标相邻
+        Arrays.sort(indicatorDefs, (a, b) -> {
+            int cmp0 = a[0].compareTo(b[0]); // fallback by code
+            int cmpCat = safeCompare(a[1], b[1]); // row0Cat
+            if (cmpCat != 0) return cmpCat;
+            int cmpSub = safeCompare(a[2], b[2]); // row1SubCat
+            if (cmpSub != 0) return cmpSub;
+            return cmp0;
+        });
 
         // ===== 提取数据 =====
         Set<Integer> years = new TreeSet<>();
@@ -1136,7 +1232,10 @@ public class ExcelExportService {
             }
             if (!isOp) {
                 String displayName = BASE_INDICATOR_SHORT_NAMES.get(code);
-                if (displayName == null) displayName = nameMap.getOrDefault(code, code);
+                if (displayName == null) {
+                    JwIndicatorConfig cfg = dataCodeConfigMap.get(code);
+                    displayName = (cfg != null && cfg.getIndicatorName() != null) ? cfg.getIndicatorName() : code;
+                }
                 row2.getCell(col).setCellValue(displayName);
             }
             col += yearsPerIndicator;
@@ -1248,21 +1347,35 @@ public class ExcelExportService {
         if (value != null) cell.setCellValue(value);
     }
 
-    // Map indicator code to category name
-    private String catForIndicatorCode(String code) {
-        int idx = ALL_CALC_INDICATORS.indexOf(code);
+    // Map indicator code to category name (using dynamic code list)
+    private String catForIndicatorCode(String code, List<String> codeList) {
+        int idx = codeList != null ? codeList.indexOf(code) : -1;
         if (idx >= 0) {
-            if (idx < 2) return "经营情况";
-            if (idx < 12) return "业绩表现";
-            if (idx < 19) return "客户发展";
-            return "业务运营";
+            // 从配置表 parent chain 获取分类
+            JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
+            if (cfg != null) {
+                JwIndicatorConfig parent = null;
+                if (cfg.getParentCode() != null && !cfg.getParentCode().isEmpty()) {
+                    parent = indicatorConfigMapper.selectByCode(cfg.getParentCode());
+                }
+                if (parent != null && parent.getParentCode() != null && !parent.getParentCode().isEmpty()) {
+                    JwIndicatorConfig grandparent = indicatorConfigMapper.selectByCode(parent.getParentCode());
+                    if (grandparent != null) return grandparent.getIndicatorName();
+                }
+                if (parent != null) return parent.getIndicatorName();
+                // 基础数据兜底
+            }
+            // 按 code 前缀映射兜底
+            if (code.equals("interest_income") || code.equals("fee_income")) return "经营情况";
+            if (code.startsWith("pcust_") || code.startsWith("ccust_") || code.startsWith("icust_")
+                || code.equals("inclusive_cust_total")) return "客户发展";
         }
-        // 基础数据指标编码 → 分类映射
+        // 按 code 前缀兜底
         if (code.equals("interest_income") || code.equals("fee_income")) return "经营情况";
         if (code.equals("counter_txn") || code.equals("terminal_txn") || code.equals("atm_txn")) return "业务运营";
         if (code.startsWith("pcust_") || code.startsWith("ccust_") || code.startsWith("icust_")
             || code.equals("inclusive_cust_total")) return "客户发展";
-        return "业绩表现"; // default for non-matching codes
+        return "业绩表现";
     }
 
     /**
@@ -1278,7 +1391,8 @@ public class ExcelExportService {
                                        Map<String, String> nameMap,
                                        Integer dataYear,
                                        boolean isNormalized,
-                                       Map<Long, Map<String, JwBranchScore>> scoreMap) {
+                                       Map<Long, Map<String, JwBranchScore>> scoreMap,
+                                       List<String> calcCodeList) {
         CellStyle headerStyle = createHeaderStyle(sheet.getWorkbook());
         CellStyle weightStyle = createWeightStyle(sheet.getWorkbook());
         CellStyle maxMinStyle = createMaxMinStyle(sheet.getWorkbook());
@@ -1294,7 +1408,7 @@ public class ExcelExportService {
         int[][] fixedR1 = {{1, 1, 3, 4}};
         String[] fixedR1Labels = {"地理位置"};
 
-        List<String> codeList = new ArrayList<>(ALL_CALC_INDICATORS);
+        List<String> codeList = new ArrayList<>(calcCodeList != null ? calcCodeList : new ArrayList<>());
 
         // 构建 branchId -> code -> value 映射
         Map<Long, Map<String, Double>> branchValueMap = new LinkedHashMap<>();
@@ -1305,16 +1419,46 @@ public class ExcelExportService {
             }
         }
 
-        // 指标分类布局: startIdx, endIdx(EXCLUSIVE), spansBothRows
-        int[] catStart = {0, 2, 12, 19};
-        int[] catEnd   = {2, 12, 19, 22};
-        boolean[] catSpan = {true, false, false, true};
-        String[] catNames = {"经营情况", "业绩表现", "客户发展", "业务运营"};
+        // 指标分类布局: 从配置表动态获取
+        // 按(大分类, 子分类)分组
+        Map<String, Map<String, List<String>>> dynamicCats = new LinkedHashMap<>();
+        for (String code : codeList) {
+            JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
+            String cat = "其他";
+            String subCat = code;
+            if (cfg != null) {
+                subCat = cfg.getIndicatorName() != null ? cfg.getIndicatorName() : code;
+                if (cfg.getParentCode() != null && !cfg.getParentCode().isEmpty()) {
+                    JwIndicatorConfig parent = indicatorConfigMapper.selectByCode(cfg.getParentCode());
+                    if (parent != null) {
+                        subCat = parent.getIndicatorName() != null ? parent.getIndicatorName() : subCat;
+                        if (parent.getParentCode() != null && !parent.getParentCode().isEmpty()) {
+                            JwIndicatorConfig gp = indicatorConfigMapper.selectByCode(parent.getParentCode());
+                            if (gp != null) cat = gp.getIndicatorName();
+                            else cat = parent.getIndicatorName();
+                        } else {
+                            cat = parent.getIndicatorName();
+                        }
+                    }
+                }
+            }
+            dynamicCats.computeIfAbsent(cat, k -> new LinkedHashMap<>())
+                .computeIfAbsent(subCat, k -> new ArrayList<>()).add(code);
+        }
 
-        // Row1子分类(仅spansBothRows=false的分类需要)
-        int[][] subRange = {{2,4}, {4,6}, {6,8}, {8,10}, {10,11}, {11,12}, {12,15}, {15,17}, {17,19}};
-        String[] subNames = {"全量个人金融资产", "储蓄存款", "公司客户存款", "机构客户存款",
-                             "普惠贷款", "个人贷款", "个人客户", "对公客户", "机构客户"};
+        // 构建分类/子分类布局
+        List<String> catNames = new ArrayList<>(dynamicCats.keySet());
+        List<int[]> subRanges = new ArrayList<>();
+        List<String> subNames = new ArrayList<>();
+        int idx = 0;
+        for (Map.Entry<String, Map<String, List<String>>> catEntry : dynamicCats.entrySet()) {
+            for (Map.Entry<String, List<String>> subEntry : catEntry.getValue().entrySet()) {
+                int subCount = subEntry.getValue().size();
+                subRanges.add(new int[]{idx, idx + subCount});
+                subNames.add(subEntry.getKey());
+                idx += subCount;
+            }
+        }
 
         // TOPSIS得分区(仅归一化sheet)
         String[] scoreCats = {"overall", "revenue", "indicator", "customer", "operation"};
@@ -1337,22 +1481,26 @@ public class ExcelExportService {
         sheet.addMergedRegion(new CellRangeAddress(0, 1, 0, 2));  // 网点信息 A-C
         sheet.addMergedRegion(new CellRangeAddress(0, 0, 3, 4));  // 基础信息 D-E
 
-        // 指标分类区域
-        for (int ci = 0; ci < catNames.length; ci++) {
-            int start = fixedCols + catStart[ci];
-            int end = fixedCols + catEnd[ci] - 1;
-            for (int i = start; i <= end; i++) {
+        // 指标分类区域（动态布局）
+        int r0Idx = 0;
+        int catIdx = 0;
+        for (Map.Entry<String, Map<String, List<String>>> catEntry : dynamicCats.entrySet()) {
+            int catStart = fixedCols + r0Idx;
+            int catEnd = catStart;
+            for (Map.Entry<String, List<String>> subEntry : catEntry.getValue().entrySet()) {
+                catEnd += subEntry.getValue().size();
+            }
+            catEnd -= 1;
+            for (int i = catStart; i <= catEnd; i++) {
                 Cell c = row0.createCell(i);
-                c.setCellValue(i == start ? catNames[ci] : "");
+                c.setCellValue(i == catStart ? catEntry.getKey() : "");
                 c.setCellStyle(headerStyle);
             }
-            if (end >= start) {
-                if (catSpan[ci]) {
-                    sheet.addMergedRegion(new CellRangeAddress(0, 1, start, end));
-                } else {
-                    sheet.addMergedRegion(new CellRangeAddress(0, 0, start, end));
-                }
+            if (catEnd >= catStart) {
+                sheet.addMergedRegion(new CellRangeAddress(0, 0, catStart, catEnd));
             }
+            r0Idx = catEnd - fixedCols + 1;
+            catIdx++;
         }
 
         // TOPSIS得分分类(Row0): 每个分类合并4列
@@ -1382,17 +1530,21 @@ public class ExcelExportService {
         row1.createCell(4).setCellStyle(headerStyle);
         sheet.addMergedRegion(new CellRangeAddress(1, 1, 3, 4));
 
-        // 指标子分类
-        for (int si = 0; si < subNames.length; si++) {
-            int start = fixedCols + subRange[si][0];
-            int end = fixedCols + subRange[si][1] - 1;
-            for (int i = start; i <= end; i++) {
-                Cell c = row1.createCell(i);
-                c.setCellValue(i == start ? subNames[si] : "");
-                c.setCellStyle(headerStyle);
-            }
-            if (end > start) {
-                sheet.addMergedRegion(new CellRangeAddress(1, 1, start, end));
+        // 指标子分类（动态）
+        int r1Idx = 0;
+        for (Map.Entry<String, Map<String, List<String>>> catEntry : dynamicCats.entrySet()) {
+            for (Map.Entry<String, List<String>> subEntry : catEntry.getValue().entrySet()) {
+                int start = fixedCols + r1Idx;
+                int end = start + subEntry.getValue().size() - 1;
+                for (int i = start; i <= end; i++) {
+                    Cell c = row1.createCell(i);
+                    c.setCellValue(i == start ? subEntry.getKey() : "");
+                    c.setCellStyle(headerStyle);
+                }
+                if (end > start) {
+                    sheet.addMergedRegion(new CellRangeAddress(1, 1, start, end));
+                }
+                r1Idx += subEntry.getValue().size();
             }
         }
 

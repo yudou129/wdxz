@@ -21,7 +21,7 @@ export default {
 <style scoped>
 .rank-badge {
   text-align: center;
-  padding: 8px 6px;
+  padding: 6px 6px 4px;
   background: rgba(255, 255, 255, 0.6);
   border-radius: 8px;
   flex: 1;

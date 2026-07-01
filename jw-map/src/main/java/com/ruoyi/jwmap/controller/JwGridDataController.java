@@ -192,6 +192,16 @@ public class JwGridDataController extends BaseController {
         double gap = (myScore != null && myScore.getSiteScore() != null)
             ? topScore - myScore.getSiteScore() : 0;
 
+        // — 行政区最高分 —
+        double districtTopScore = 0;
+        for (JwGridScore s : cityScores) {
+            if (districtCodes.contains(s.getGridCode()) && s.getSiteScore() != null) {
+                districtTopScore = Math.max(districtTopScore, s.getSiteScore());
+            }
+        }
+        double districtGap = (myScore != null && myScore.getSiteScore() != null)
+            ? districtTopScore - myScore.getSiteScore() : 0;
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("cityRank", cityRank);
         result.put("cityTotal", cityTotal);
@@ -199,6 +209,8 @@ public class JwGridDataController extends BaseController {
         result.put("districtTotal", districtTotal);
         result.put("topScore", topScore);
         result.put("scoreGap", gap);
+        result.put("districtTopScore", districtTopScore);
+        result.put("districtScoreGap", districtGap);
         return success(result);
     }
 
@@ -287,26 +299,47 @@ public class JwGridDataController extends BaseController {
             if (s.getSiteScore() != null) myTopsis.put(s.getScoreCategory(), s.getSiteScore());
         }
 
-        Map<String, Double> rootMaxes = new HashMap<>();
-        for (String rc : rootCodes) rootMaxes.put(rc, 0.0);
+        // — 全市最高分 —
+        Map<String, Double> cityMaxes = new HashMap<>();
+        for (String rc : rootCodes) cityMaxes.put(rc, 0.0);
         List<JwGridMeta> cityGrids = gridMetaMapper.selectByCity(grid.getCity());
         List<String> allGridCodes = cityGrids.stream().map(JwGridMeta::getGridCode).collect(Collectors.toList());
         List<JwGridScore> allScores = allGridCodes.isEmpty() ? new ArrayList<>() : gridScoreMapper.selectScoresByGridCodes(allGridCodes);
         for (JwGridScore s : allScores) {
             if (rootCodes.contains(s.getScoreCategory()) && s.getSiteScore() != null) {
                 double val = s.getSiteScore();
-                if (val > rootMaxes.get(s.getScoreCategory())) rootMaxes.put(s.getScoreCategory(), val);
+                if (val > cityMaxes.get(s.getScoreCategory())) cityMaxes.put(s.getScoreCategory(), val);
+            }
+        }
+
+        // — 行政区最高分 —
+        Map<String, Double> districtMaxes = new HashMap<>();
+        for (String rc : rootCodes) districtMaxes.put(rc, 0.0);
+        List<JwGridMeta> districtGrids = cityGrids.stream()
+            .filter(g -> grid.getDistrict() != null && grid.getDistrict().equals(g.getDistrict()))
+            .collect(Collectors.toList());
+        Set<String> districtGridCodes = districtGrids.stream().map(JwGridMeta::getGridCode).collect(Collectors.toSet());
+        for (JwGridScore s : allScores) {
+            if (districtGridCodes.contains(s.getGridCode())
+                && rootCodes.contains(s.getScoreCategory()) && s.getSiteScore() != null) {
+                double val = s.getSiteScore();
+                if (val > districtMaxes.get(s.getScoreCategory())) districtMaxes.put(s.getScoreCategory(), val);
             }
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
         for (JwIndicatorConfig root : roots) {
             double my = myTopsis.getOrDefault(root.getIndicatorCode(), 0.0);
-            double max = rootMaxes.getOrDefault(root.getIndicatorCode(), 0.0);
+            double cityMax = cityMaxes.getOrDefault(root.getIndicatorCode(), 0.0);
+            double distMax = districtMaxes.getOrDefault(root.getIndicatorCode(), 0.0);
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("my", my);
-            entry.put("max", max);
-            entry.put("gap", max - my);
+            entry.put("max", cityMax);              // 保留向后兼容
+            entry.put("gap", cityMax - my);          // 保留向后兼容
+            entry.put("maxCity", cityMax);
+            entry.put("gapCity", cityMax - my);
+            entry.put("maxDistrict", distMax);
+            entry.put("gapDistrict", distMax - my);
             entry.put("name", root.getIndicatorName());
             result.put(root.getIndicatorCode(), entry);
         }
@@ -324,8 +357,11 @@ public class JwGridDataController extends BaseController {
     // ===== 空白高潜力网格 =====
 
     @GetMapping("/grid/topWithoutBranch/{city}")
-    public AjaxResult gridTopWithoutBranch(@PathVariable String city) {
-        List<String> codes = gridScoreMapper.selectTopCodesWithoutBranch(city, 100);
+    public AjaxResult gridTopWithoutBranch(@PathVariable String city,
+                                           @RequestParam(required = false, defaultValue = "100") Integer limit,
+                                           @RequestParam(required = false) String district) {
+        List<String> codes = gridScoreMapper.selectTopCodesWithoutBranch(city,
+            district != null && !district.isEmpty() ? district : null, limit);
         if (codes.isEmpty()) return success(new ArrayList<>());
 
         Set<String> codeSet = new HashSet<>(codes);
@@ -357,6 +393,52 @@ public class JwGridDataController extends BaseController {
             return sb.compareTo(sa);
         });
         return success(result);
+    }
+
+    // ===== 空白点：最近网点 =====
+
+    @GetMapping("/grid/nearestBranch/{gridCode}")
+    public AjaxResult getNearestBranch(@PathVariable String gridCode) {
+        JwGridMeta grid = gridMetaMapper.selectByGridCode(gridCode);
+        if (grid == null) return error("网格不存在");
+        if (grid.getLatitude() == null || grid.getLongitude() == null)
+            return success(new HashMap<String, Object>() {{ put("name", "无坐标"); put("distance", -1); }});
+
+        List<JwBranchInfo> branches = branchInfoMapper.selectByCity(grid.getCity());
+        if (branches == null || branches.isEmpty())
+            return success(new HashMap<String, Object>() {{ put("name", "无关联网点"); put("distance", -1); }});
+
+        double gridLat = grid.getLatitude();
+        double gridLng = grid.getLongitude();
+        JwBranchInfo nearest = null;
+        double minDist = Double.MAX_VALUE;
+
+        for (JwBranchInfo b : branches) {
+            if (b.getLatitude() == null || b.getLongitude() == null) continue;
+            double dist = haversineKm(gridLat, gridLng, b.getLatitude(), b.getLongitude());
+            if (dist < minDist) { minDist = dist; nearest = b; }
+        }
+
+        if (nearest == null)
+            return success(new HashMap<String, Object>() {{ put("name", "未找到"); put("distance", -1); }});
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("branchName", nearest.getSecondaryBranch() != null ? nearest.getSecondaryBranch() : nearest.getPrimaryBranch());
+        result.put("primaryBranch", nearest.getPrimaryBranch());
+        result.put("distance", Math.round(minDist * 10.0) / 10.0); // 保留1位小数
+        return success(result);
+    }
+
+    /** Haversine 公式计算两点间距离（km） */
+    private double haversineKm(double lat1, double lng1, double lat2, double lng2) {
+        double R = 6371.0; // 地球平均半径 km
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                 * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 
     // ===== 辅助方法 =====

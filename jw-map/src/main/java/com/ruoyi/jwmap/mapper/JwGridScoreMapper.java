@@ -34,7 +34,9 @@ public interface JwGridScoreMapper {
 
     int deleteJwGridScoreByGridCodes(String[] gridCodes);
 
-    List<String> selectTopCodesWithoutBranch(@Param("city") String city, @Param("limit") int limit);
+    List<String> selectTopCodesWithoutBranch(@Param("city") String city,
+                                              @Param("district") String district,
+                                              @Param("limit") int limit);
 
     int deleteByCity(@Param("city") String city);
 

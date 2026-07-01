@@ -12,7 +12,9 @@ import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.jwmap.domain.JwBranchInfo;
 import com.ruoyi.jwmap.domain.JwDataAccessRequest;
 import com.ruoyi.jwmap.mapper.JwBranchInfoMapper;
+import com.ruoyi.jwmap.mapper.JwDataAccessRequestMapper;
 import com.ruoyi.jwmap.service.IJwDataAccessService;
+import com.ruoyi.jwmap.service.impl.ExcelExportService;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.ServletUtils;
 import com.ruoyi.system.mapper.SysDeptMapper;
@@ -21,6 +23,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletResponse;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,6 +44,12 @@ public class JwDataAccessController extends BaseController {
 
     @Autowired
     private SysDeptMapper sysDeptMapper;
+
+    @Autowired
+    private JwDataAccessRequestMapper accessRequestMapper;
+
+    @Autowired
+    private ExcelExportService excelExportService;
 
     // ===== 申请提交 =====
 
@@ -275,6 +285,55 @@ public class JwDataAccessController extends BaseController {
     /**
      * 获取全量部门树（不受 DataScope 限制，用于申请页选择目标支行）
      */
+    // ===== 审批通过记录 — 网点数据导出 =====
+
+    @GetMapping("/export/{requestId}")
+    public void exportApproved(@PathVariable Long requestId, HttpServletResponse response) {
+        try {
+            JwDataAccessRequest req = accessRequestMapper.selectJwDataAccessRequestById(requestId);
+            if (req == null) {
+                response.setContentType("application/json;charset=utf-8");
+                response.getWriter().write("{\"msg\":\"申请记录不存在\"}");
+                return;
+            }
+            if (!"1".equals(req.getStatus())) {
+                response.setContentType("application/json;charset=utf-8");
+                response.getWriter().write("{\"msg\":\"仅审批通过的记录可导出\"}");
+                return;
+            }
+            // 查部门名称
+            SysDept dept = sysDeptMapper.selectDeptById(req.getTargetDeptId());
+            String deptName = (dept != null) ? dept.getDeptName() : null;
+            if (deptName == null) {
+                response.setContentType("application/json;charset=utf-8");
+                response.getWriter().write("{\"msg\":\"未找到对应部门\"}");
+                return;
+            }
+            // 查该部门下的网点（同时匹配一级和二级支行名称）
+            List<JwBranchInfo> branches = branchInfoMapper.selectByDeptName(deptName);
+            if (branches.isEmpty()) {
+                response.setContentType("application/json;charset=utf-8");
+                response.getWriter().write("{\"msg\":\"该部门下无网点数据\"}");
+                return;
+            }
+            // 取第一个网点的城市，年份取前一年(数据已含三年范围)
+            String city = branches.get(0).getCity();
+            int year = java.time.LocalDate.now().getYear() - 1;
+
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setCharacterEncoding("utf-8");
+            String fileName = URLEncoder.encode("网点数据_" + deptName + "_" + year + ".xlsx", "UTF-8");
+            response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
+            excelExportService.exportBranchCombined(city, year, response.getOutputStream());
+        } catch (Exception e) {
+            logger.error("审批导出失败", e);
+            try {
+                response.setContentType("application/json;charset=utf-8");
+                response.getWriter().write("{\"msg\":\"导出失败\"}");
+            } catch (Exception ignored) {}
+        }
+    }
+
     @GetMapping("/deptTree")
     public AjaxResult deptTree() {
         SysDept query = new SysDept();

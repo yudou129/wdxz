@@ -25,6 +25,10 @@ public interface JwBranchScoreMapper {
     List<JwBranchScore> selectByCityAndYear(@Param("city") String city,
                                              @Param("dataYear") Integer dataYear);
 
+    List<JwBranchScore> selectByCityAndYearRange(@Param("city") String city,
+                                                  @Param("startYear") Integer startYear,
+                                                  @Param("endYear") Integer endYear);
+
     List<JwBranchScore> selectByCityAndYearAndCategory(@Param("city") String city,
                                                         @Param("dataYear") Integer dataYear,
                                                         @Param("category") String category);

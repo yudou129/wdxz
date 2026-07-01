@@ -93,9 +93,7 @@
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
                 <el-select v-model="computeBranchYear" placeholder="选择年份" class="dm-select dm-select-sm">
-                  <el-option label="2023" :value="2023" />
-                  <el-option label="2024" :value="2024" />
-                  <el-option label="2025" :value="2025" />
+                  <el-option v-for="y in yearOptions" :key="y" :label="String(y)" :value="y" />
                 </el-select>
                 <el-button type="primary" @click="handleBranchCompute" :loading="branchComputing">{{ branchComputing ? '计算中...' : '开始网点计算' }}</el-button>
               </el-card>
@@ -126,7 +124,7 @@
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
                 <el-select v-model="exportYear" placeholder="选择年份" class="dm-select dm-select-sm">
-                  <el-option label="2023" :value="2023" /><el-option label="2024" :value="2024" /><el-option label="2025" :value="2025" />
+                  <el-option v-for="y in yearOptions" :key="y" :label="String(y)" :value="y" />
                 </el-select>
                 <div class="step-gap"></div>
                 <el-button type="success" @click="handleExport('branch')" icon="el-icon-download">网点导出（基础数据+数据计算表+归一化）</el-button>
@@ -152,9 +150,7 @@
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
                 <el-select v-model="branchViewYear" placeholder="选择年份" class="dm-select dm-select-sm">
-                  <el-option label="2023" :value="2023" />
-                  <el-option label="2024" :value="2024" />
-                  <el-option label="2025" :value="2025" />
+                  <el-option v-for="y in yearOptions" :key="y" :label="String(y)" :value="y" />
                 </el-select>
               </div>
               <div style="height:calc(100vh - 380px);min-height:400px">
@@ -229,21 +225,27 @@ export default {
       // 计算
       computeGridCity: '',
       computeBranchCity: '',
-      computeBranchYear: 2024,
+      computeBranchYear: new Date().getFullYear() - 1,
       gridComputing: false,
       branchComputing: false,
       // 导出
       exportCity: '',
-      exportYear: 2024,
+      exportYear: new Date().getFullYear() - 1,
       // 查看
       viewCity: '',
-      branchViewYear: 2024,
+      branchViewYear: new Date().getFullYear() - 1,
       branchList: [], branchLoading: false,
       peerBankList: [], peerBankLoading: false
     }
   },
   created() {
     this.refreshCityStatus()
+  },
+  computed: {
+    yearOptions() {
+      const cur = new Date().getFullYear()
+      return [cur - 3, cur - 2, cur - 1]
+    }
   },
   methods: {
     async refreshCityStatus() {

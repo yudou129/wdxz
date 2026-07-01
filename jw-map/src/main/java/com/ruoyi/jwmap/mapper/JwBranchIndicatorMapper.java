@@ -29,6 +29,11 @@ public interface JwBranchIndicatorMapper {
                                                  @Param("dataYear") Integer dataYear,
                                                  @Param("sheetType") String sheetType);
 
+    List<JwBranchIndicator> selectByCityAndYearRange(@Param("city") String city,
+                                                      @Param("startYear") Integer startYear,
+                                                      @Param("endYear") Integer endYear,
+                                                      @Param("sheetType") String sheetType);
+
     List<JwBranchIndicator> selectByCityAndSheetType(@Param("city") String city,
                                                       @Param("sheetType") String sheetType);
 

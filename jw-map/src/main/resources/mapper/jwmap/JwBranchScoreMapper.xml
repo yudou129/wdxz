@@ -71,6 +71,12 @@
         ORDER BY score_category, rank_num
     </select>
 
+    <select id="selectByCityAndYearRange" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE city = #{city} AND data_year BETWEEN #{startYear} AND #{endYear}
+        ORDER BY score_category, rank_num
+    </select>
+
     <select id="selectByCityAndYearAndCategory" resultMap="JwBranchScoreResult">
         <include refid="selectJwBranchScoreWithNameVo"/>
         WHERE s.city = #{city} AND s.data_year = #{dataYear} AND s.score_category = #{category}

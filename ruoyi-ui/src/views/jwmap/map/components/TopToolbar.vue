@@ -14,7 +14,6 @@
         <el-option v-for="d in districts" :key="d.properties.adcode"
                    :label="d.properties.name" :value="d.properties.adcode" />
       </el-select>
-
       <span class="toolbar-label" style="margin-left:12px;">一级支行</span>
       <el-select v-model="selectedBranch" size="small" placeholder="全部" @change="onBranchChange">
         <el-option label="全部" value="all" />
@@ -67,6 +66,15 @@
                  @click="$emit('toggle-blank-spot')">
         <i class="el-icon-view" /> 服务空白点
       </el-button>
+      <span v-if="blankSpotActive" class="blank-spot-params">
+        <el-select v-model="blankSpotLimit" size="mini"
+                   @change="$emit('blank-spot-params', { limit: blankSpotLimit })">
+          <el-option label="前50个" :value="50" />
+          <el-option label="前100个" :value="100" />
+          <el-option label="前200个" :value="200" />
+          <el-option label="前500个" :value="500" />
+        </el-select>
+      </span>
       <el-button size="small" :type="peerBankActive ? 'primary' : 'default'"
                  :class="{ 'peerbk-on': peerBankActive }"
                  @click="$emit('toggle-peerbank')">
@@ -104,6 +112,7 @@ export default {
     rankingActive: { type: Boolean, default: false },
     compareActive: { type: Boolean, default: false },
     blankSpotActive: { type: Boolean, default: false },
+    blankSpotLimit: { type: Number, default: 100 },
     branchList: { type: Array, default: () => [] },
     pendingCount: { type: Number, default: 0 }
   },
@@ -138,9 +147,7 @@ export default {
       this.searchResults = this.branchList.filter(b => {
         const name = (b.secondaryBranch || b.primaryBranch || '').toLowerCase()
         const parent = (b.primaryBranch || '').toLowerCase()
-        const addr = (b.address || '').toLowerCase()
-        const district = (b.districtName || '').toLowerCase()
-        return name.includes(q) || parent.includes(q) || addr.includes(q) || district.includes(q)
+        return name.includes(q) || parent.includes(q)
       }).slice(0, 20) // 最多显示20条
     },
     selectBranch(b) {
@@ -405,6 +412,25 @@ export default {
 .blankspot-on:hover {
   background: #0891b2;
   border-color: #0891b2;
+}
+.blank-spot-params {
+  display: inline-flex;
+  align-items: center;
+}
+.blank-spot-params .el-select {
+  width: 90px;
+}
+.filter-hint {
+  font-size: 11px;
+  color: #999;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.04);
+}
+.filter-hint-active {
+  color: #409eff;
+  background: rgba(64,158,255,0.08);
 }
 .toolbar-badge {
   margin-left: 2px;

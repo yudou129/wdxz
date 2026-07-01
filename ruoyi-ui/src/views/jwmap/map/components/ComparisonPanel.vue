@@ -57,6 +57,10 @@
                   <span class="rc-score">{{ fmtScore(overallScore(b)) }}</span>
                   <span class="rc-sub">综合得分</span>
                 </div>
+                <el-button type="text" size="mini" class="rc-remove"
+                  @click.stop="$emit('remove-branch', b.branchId)">
+                  <i class="el-icon-close" />
+                </el-button>
               </div>
             </div>
           </div>
@@ -67,13 +71,14 @@
             <div ref="radarEl" class="radar-chart"></div>
           </div>
 
-          <!-- 各项得分对比 -->
+          <!-- 各项得分对比（含具体指标展开） -->
           <div class="cp-card" v-if="hasScores">
             <div class="cpc-title"><i class="el-icon-s-marketing" /> 各项得分对比</div>
             <div v-for="cat in scoreCategories" :key="cat.key" class="sc-group">
-              <div class="sc-header">
+              <div class="sc-header" @click="toggleIndicators(cat.key)">
                 <span class="sc-label">{{ cat.label }}</span>
                 <span class="sc-insight" v-if="categoryInsight(cat.key)">{{ categoryInsight(cat.key) }}</span>
+                <span class="sc-toggle">{{ expandedIndicators[cat.key] ? '收起▲' : '展开▼' }}</span>
               </div>
               <div v-for="b in sortedByScore(cat.key)" :key="b.branchId" class="sc-row">
                 <span class="scr-name">{{ getBranchName(b) }}</span>
@@ -83,6 +88,25 @@
                 <span class="scr-val">{{ fmtScore(getScoreVal(b, cat.key)) }}</span>
                 <span class="scr-best" v-if="isBest(b, cat.key)">🏆</span>
                 <span class="scr-gap" v-else-if="getGap(b, cat.key) > 0">-{{ getGap(b, cat.key).toFixed(2) }}</span>
+              </div>
+              <!-- 展开后的具体指标对比表 -->
+              <div v-if="expandedIndicators[cat.key]" class="sc-detail">
+                <div v-if="indicatorAccess" class="scd-table">
+                  <div class="scd-row scd-header">
+                    <span class="scd-dim">指标</span>
+                    <span v-for="b in branches" :key="b.branchId" class="scd-val">{{ getBranchName(b) }}</span>
+                  </div>
+                  <div v-for="ind in categoryIndicators(cat.key)" :key="ind.code" class="scd-row">
+                    <span class="scd-dim">{{ ind.name || ind.code }}</span>
+                    <span v-for="b in branches" :key="b.branchId"
+                      :class="['scd-val', { 'scd-best': isBestIndicatorValue(b, ind.code) }]">
+                      {{ getIndicatorValue(b, ind.code) }}
+                    </span>
+                  </div>
+                </div>
+                <div v-else class="scd-locked">
+                  <i class="el-icon-lock" /> 无权访问该网点的详细指标数据
+                </div>
               </div>
             </div>
           </div>
@@ -169,7 +193,7 @@ export default {
     loading: { type: Boolean, default: false }
   },
   data() {
-    return { collapsed: false, showInfo: true, radarChart: null }
+    return { collapsed: false, showInfo: true, radarChart: null, expandedIndicators: {} }
   },
   watch: {
     visible(v) {
@@ -197,12 +221,10 @@ export default {
         key: s.scoreCategory,
         label: s.categoryName || CATEGORY_NAME_FALLBACK[s.scoreCategory] || s.scoreCategory
       }))
-      cats.sort((a, b) => {
-        if (a.key === 'overall') return -1
-        if (b.key === 'overall') return 1
-        return a.label.localeCompare(b.label, 'zh-CN')
-      })
-      return cats
+      // 过滤掉综合(total/overall)类别
+      const filtered = cats.filter(c => c.key !== 'overall' && c.key !== 'total')
+      filtered.sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
+      return filtered
     },
     rankedBranches() {
       return [...this.branches].sort((a, b) => {
@@ -213,6 +235,10 @@ export default {
     },
     medals() {
       return ['🥇', '🥈', '🥉', '④']
+    },
+    /** 任意一个对比网点有指标数据则展示；至少所有网点都有权限才展示具体数据 */
+    indicatorAccess() {
+      return this.branches.every(b => b.access !== false)
     },
   },
   methods: {
@@ -271,10 +297,6 @@ export default {
       return Math.max(0, Math.max(...vals) - val)
     },
 categoryInsight(catKey) {
-      if (catKey === 'overall') {
-        const best = this.rankedBranches[0]
-        return best ? `🏆 ${this.getBranchName(best)} 最优` : ''
-      }
       const best = this.sortedByScore(catKey)[0]
       if (!best || !this.isBest(best, catKey)) return ''
       return `💡 ${this.getBranchName(best)} 优势项`
@@ -327,6 +349,36 @@ categoryInsight(catKey) {
     },
     destroyRadar() {
       if (this.radarChart) { this.radarChart.dispose(); this.radarChart = null }
+    },
+
+    // ─── 展开/收起具体指标对比 ───
+    toggleIndicators(catKey) {
+      this.$set(this.expandedIndicators, catKey, !this.expandedIndicators[catKey])
+    },
+
+    /** 获取某个分项下的所有具体指标（去重） */
+    categoryIndicators(catKey) {
+      const seen = new Set()
+      return this.branches.flatMap(b => (b.indicators || []))
+        .filter(i => i.level1Code === catKey && !seen.has(i.code) && seen.add(i.code))
+    },
+
+    /** 获取某个网点某个指标的值 */
+    getIndicatorValue(b, indCode) {
+      if (!b.indicators) return '--'
+      const ind = b.indicators.find(i => i.code === indCode)
+      return ind != null && ind.value != null ? ind.value : '--'
+    },
+
+    /** 判断某网点是否为该指标的最优值（对所有网点取 max） */
+    isBestIndicatorValue(b, indCode) {
+      const vals = this.branches.map(br => {
+        const ind = br.indicators ? br.indicators.find(i => i.code === indCode) : null
+        return ind && ind.value != null ? parseFloat(ind.value) : null
+      }).filter(v => v != null && !isNaN(v))
+      if (!vals.length) return false
+      const myVal = this.getIndicatorValue(b, indCode)
+      return myVal !== '--' && parseFloat(myVal) >= Math.max(...vals)
     }
   }
 }
@@ -433,7 +485,7 @@ categoryInsight(catKey) {
 .rank-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .rank-row.rank-count-1 { grid-template-columns: 1fr; }
 .rank-card {
-  display: flex; align-items: center; gap: 14px;
+  position: relative; display: flex; align-items: center; gap: 14px;
   border-radius: 12px; padding: 18px 20px;
   border: 1px solid rgba(0,0,0,0.05);
   transition: transform 0.2s, box-shadow 0.2s;
@@ -455,6 +507,11 @@ categoryInsight(catKey) {
 .rc-score-wrap { text-align: right; flex-shrink: 0; }
 .rc-score { font-size: 30px; font-weight: 800; color: #4f6ef6; display: block; line-height: 1.1; letter-spacing: -0.8px; }
 .rc-sub { font-size: 12px; color: #666; }
+.rc-remove {
+  position: absolute; top: 6px; right: 6px;
+  font-size: 14px; color: #ccc; padding: 2px;
+}
+.rc-remove:hover { color: #f56c6c; background: rgba(245,108,108,0.06); border-radius: 4px; }
 
 /* ===== 雷达图 ===== */
 .radar-chart { width: 100%; height: 320px; }
@@ -519,4 +576,29 @@ categoryInsight(catKey) {
   background: rgba(255,255,255,0.6); backdrop-filter: blur(2px);
   border-radius: 12px; font-size: 14px; color: #555; gap: 8px;
 }
+/* ===== 具体指标对比表格 ===== */
+.sc-detail { margin-top: 8px; border-top: 1px dashed #e5e7f0; padding-top: 6px; }
+.scd-table { font-size: 13px; }
+.scd-row {
+  display: flex; padding: 6px 4px; border-bottom: 1px solid #f5f6fa;
+  align-items: center;
+}
+.scd-header { font-weight: 600; color: #666; border-bottom: 1px solid #e0e3ef; }
+.scd-dim { flex: 1; color: #444; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scd-val {
+  flex: 1; text-align: right; font-variant-numeric: tabular-nums;
+  color: #333; font-weight: 500; padding: 0 4px;
+}
+.scd-header .scd-val { color: #666; font-weight: 600; }
+.scd-best { color: #52c41a; font-weight: 700; }
+.scd-locked {
+  text-align: center; padding: 12px; color: #999; font-size: 12px;
+}
+.scd-locked i { margin-right: 4px; }
+.sc-toggle {
+  margin-left: auto; font-size: 12px; color: #4f6ef6;
+  cursor: pointer; font-weight: 500; padding: 2px 8px;
+  border-radius: 4px; user-select: none;
+}
+.sc-toggle:hover { background: rgba(79,110,246,0.06); }
 </style>

@@ -17,26 +17,35 @@
         <!-- ===== 网格内容 ===== -->
         <div :class="{ 'split-col': mode === 'split' }">
         <template v-if="mode === 'grid-only' || mode === 'split'">
-          <GridInfoCard :grid="gridData" />
-          <ScoreCard :score="gridData.siteScore" :rank="gridRank" label="选址得分" size="small" />
-          <el-divider class="thin-divider" />
+          <!-- 合并头卡：网格编号 + 坐标 + 得分 -->
+          <GridInfoCard :grid="gridData" :score="gridScore" />
 
+          <!-- 得分排名：RankBadge 水平并列 + 进度条 -->
           <div class="section-title"><i class="el-icon-trophy" /> 得分排名</div>
-          <RankBadge label="全市排名" :rank="gridRankMeta.cityRank" :total="gridRankMeta.cityTotal" />
-          <RankBadge label="区县排名" :rank="gridRankMeta.districtRank" :total="gridRankMeta.districtTotal" />
-          <div class="score-gap" v-if="gridRankMeta.scoreGap > 0">
-            距全市最高分 <b>{{ gridRankMeta.scoreGap.toFixed(6) }}</b>
+          <div class="rank-row">
+            <RankBadge label="全市排名" :rank="gridRankMeta.cityRank" :total="gridRankMeta.cityTotal" />
+            <RankBadge label="区县排名" :rank="gridRankMeta.districtRank" :total="gridRankMeta.districtTotal" />
           </div>
-          <el-divider class="thin-divider" />
+          <ScoreProgressBar
+            :myScore="gridScore"
+            :districtTopScore="gridRankMeta.districtTopScore"
+            :cityTopScore="gridRankMeta.topScore" />
 
+          <!-- 三聚集指标：雷达图 + 得分表 + 入口链接 -->
           <div class="section-title"><i class="el-icon-data-line" /> 三聚集指标</div>
-          <ThreeColumnCards :pop="pillar.population" :ent="pillar.enterprise" :biz="pillar.business"
-            :popGap="popGap" :entGap="entGap" :bizGap="bizGap" />
+          <PillarRadar :pillar="pillar" :pillarGap="pillarGap" :compact="mode === 'split'"
+            @view-detail="$emit('view-detail', 'grid')" />
 
-          <div class="section-title"><i class="el-icon-s-data" /> 分项指标</div>
-          <el-button type="text" class="detail-link" @click="$emit('view-detail', 'grid')">
-            <i class="el-icon-document" /> 查看具体指标数据
-          </el-button>
+          <!-- 空白服务点：最近网点 -->
+          <div v-if="nearestBranch && nearestBranch.distance > 0" class="nb-section">
+            <div class="section-title"><i class="el-icon-map-location" /> 最近网点</div>
+            <div class="nb-card">
+              <div class="nb-card-name">{{ nearestBranch.branchName || nearestBranch.primaryBranch }}</div>
+              <div class="nb-card-dist">
+                <i class="el-icon-location-outline" /> 距离网格中心 {{ nearestBranch.distance }}km
+              </div>
+            </div>
+          </div>
         </template>
         </div>
 
@@ -85,20 +94,20 @@
 
 <script>
 import ScoreCard from './ScoreCard'
-import IndicatorSection from './IndicatorSection'
 import BranchScores from './BranchScores'
 import BranchInfoCard from './BranchInfoCard'
 import GridInfoCard from './GridInfoCard'
 import RankBadge from './RankBadge'
 import QuadrantPosition from './QuadrantPosition'
-import ThreeColumnCards from './ThreeColumnCards'
+import ScoreProgressBar from './ScoreProgressBar'
+import PillarRadar from './PillarRadar'
 import PeerBankSection from './PeerBankSection'
 
 export default {
   name: 'SidebarPanel',
   components: {
-    ScoreCard, IndicatorSection, BranchScores,
-    BranchInfoCard, GridInfoCard, RankBadge, QuadrantPosition, ThreeColumnCards,
+    ScoreCard, BranchScores,
+    BranchInfoCard, GridInfoCard, RankBadge, QuadrantPosition, ScoreProgressBar, PillarRadar,
     PeerBankSection
   },
   props: {
@@ -107,7 +116,7 @@ export default {
     width: { type: Number, default: 380 },
     gridData: { type: Object, default: () => ({}) },
     gridRank: { type: Number, default: null },
-    gridRankMeta: { type: Object, default: () => ({ cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 }) },
+    gridRankMeta: { type: Object, default: () => ({ cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0, topScore: 0, districtTopScore: 0, districtScoreGap: 0 }) },
     gridIndicators: { type: Array, default: () => [] },
     branchData: { type: Object, default: () => ({}) },
     branchScores: { type: Array, default: () => [] },
@@ -116,9 +125,10 @@ export default {
     pillar: { type: Object, default: () => ({ population: { score: 0, count: 0 }, enterprise: { score: 0, count: 0 }, business: { score: 0, count: 0 } }) },
     peerBanks: { type: Array, default: () => [] },
     nearbyBranches: { type: Array, default: () => [] },
-    pillarGap: { type: Object, default: () => ({ population: { gap: 0 }, enterprise: { gap: 0 }, business: { gap: 0 } }) },
+    pillarGap: { type: Object, default: () => ({ population: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' }, enterprise: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' }, business: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' } }) },
     years: { type: Array, default: () => [] },
-    year: { type: Number, default: null }
+    year: { type: Number, default: null },
+    nearestBranch: { type: Object, default: null }
   },
   computed: {
     title() {
@@ -131,12 +141,9 @@ export default {
       const s = this.branchScores.find(s => s.scoreCategory === 'overall')
       return s ? s.categoryScore : null
     },
-    popGap() { return this.pillarGap && this.pillarGap.population ? this.pillarGap.population.gap : 0 },
-    entGap() { return this.pillarGap && this.pillarGap.enterprise ? this.pillarGap.enterprise.gap : 0 },
-    bizGap() { return this.pillarGap && this.pillarGap.business ? this.pillarGap.business.gap : 0 },
-    popGapName() { return (this.pillarGap && this.pillarGap.population && this.pillarGap.population.name) || '---' },
-    entGapName() { return (this.pillarGap && this.pillarGap.enterprise && this.pillarGap.enterprise.name) || '---' },
-    bizGapName() { return (this.pillarGap && this.pillarGap.business && this.pillarGap.business.name) || '---' },
+    gridScore() {
+      return this.gridData && this.gridData.siteScore != null ? this.gridData.siteScore : 0
+    },
     branchScoreGap() {
       return this.branchRankMeta ? (this.branchRankMeta.scoreGap || 0) : 0
     }
@@ -238,6 +245,20 @@ export default {
   font-size: 13px; background: rgba(79, 110, 246, 0.06);
   padding: 1px 8px; border-radius: 10px; font-variant-numeric: tabular-nums;
 }
+.nb-card {
+  background: #fff; border-radius: 8px; padding: 12px 14px;
+  border: 1px solid rgba(79,110,246,0.08);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+}
+.nb-card-name {
+  font-size: 14px; font-weight: 600; color: #232845;
+  margin-bottom: 4px;
+}
+.nb-card-dist {
+  font-size: 13px; color: #888;
+  display: flex; align-items: center; gap: 4px;
+}
+.nb-card-dist i { color: #4f6ef6; }
 .slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.25s ease; }
 .slide-enter, .slide-leave-to { transform: translateX(-20px); opacity: 0; }
 </style>

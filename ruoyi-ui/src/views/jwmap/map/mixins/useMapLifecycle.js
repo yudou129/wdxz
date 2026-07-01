@@ -7,7 +7,7 @@ import { HeatmapLayer } from '../utils/heatmapLayer'
 import { getGridScoreByCity, getBranchList, getGridIndicators, getGridBranches,
          getGridDistrictRanking, getGridPillarScores, getBranchScoreDetail,
          getBranchInternalRanking, getBranchTopScores, getQuadrantData, getDimensionStats,
-         getPillarGap, getBranchIndicators } from '@/api/jwmap/data'
+         getPillarGap, getBranchIndicators, getGridNearestBranch } from '@/api/jwmap/data'
 import { checkBranchAccess, getPendingCount } from '@/api/jwmap/data-access'
 import '@/views/jwmap/map/assets/branch-icon.css'
 import { getOwnBankSvgUrl } from '../utils/bankSvgMap'
@@ -210,17 +210,29 @@ export default {
     },
 
     async loadPillarGap(gridCode) {
-      const safeGap = { population: { gap: 0, name: '---' }, enterprise: { gap: 0, name: '---' }, business: { gap: 0, name: '---' } }
+      const safeGap = { population: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' }, enterprise: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' }, business: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' } }
       if (!gridCode) { this.sidebar.pillarGap = safeGap; return }
       try {
         const res = await getPillarGap(gridCode)
         const d = res.data || {}
         const gapValues = Object.values(d)
-        this.sidebar.pillarGap = {
-          population: gapValues[0] ? { gap: gapValues[0].gap != null ? gapValues[0].gap : 0, name: gapValues[0].name || '---' } : { gap: 0, name: '---' },
-          enterprise: gapValues[1] ? { gap: gapValues[1].gap != null ? gapValues[1].gap : 0, name: gapValues[1].name || '---' } : { gap: 0, name: '---' },
-          business:   gapValues[2] ? { gap: gapValues[2].gap != null ? gapValues[2].gap : 0, name: gapValues[2].name || '---' } : { gap: 0, name: '---' }
-        }
+        const keys = ['population', 'enterprise', 'business']
+        const result = {}
+        keys.forEach((key, i) => {
+          const v = gapValues[i]
+          if (v) {
+            result[key] = {
+              name: v.name || '---',
+              maxCity: v.maxCity != null ? v.maxCity : (v.max != null ? v.max : 0),
+              maxDistrict: v.maxDistrict != null ? v.maxDistrict : 0,
+              gapCity: v.gapCity != null ? v.gapCity : (v.gap != null ? v.gap : 0),
+              gapDistrict: v.gapDistrict != null ? v.gapDistrict : 0
+            }
+          } else {
+            result[key] = { ...safeGap[key] }
+          }
+        })
+        this.sidebar.pillarGap = result
       } catch (e) { this.sidebar.pillarGap = safeGap }
     },
 
@@ -295,7 +307,7 @@ export default {
           level1Name: d.level1Name
         }))
         if (this._gridClickSeq !== _seq) return
-        this.sidebar.gridRankMeta = rankRes.data || { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0 }
+        this.sidebar.gridRankMeta = rankRes.data || { cityRank: 0, cityTotal: 0, districtRank: 0, districtTotal: 0, scoreGap: 0, topScore: 0, districtTopScore: 0, districtScoreGap: 0 }
         const rawPillar = pillarRes.data || {}
         const pillarValues = Object.values(rawPillar)
         const pillarKeys = Object.keys(rawPillar)
@@ -326,9 +338,24 @@ export default {
           ])
         } else {
           this.sidebar.mode = 'grid-only'; this.sidebar.width = 380
+          // 空白服务点：加载最近网点
+          if (data && data.blankSpot) {
+            this.loadNearestBranch(gridCode)
+          } else {
+            this.sidebar.nearestBranch = null
+          }
         }
       } catch (e) {
         console.error('[jwmap] 网格点击加载失败:', e)
+      }
+    },
+
+    async loadNearestBranch(gridCode) {
+      try {
+        const res = await getGridNearestBranch(gridCode)
+        this.sidebar.nearestBranch = res.data || null
+      } catch (e) {
+        this.sidebar.nearestBranch = null
       }
     },
 

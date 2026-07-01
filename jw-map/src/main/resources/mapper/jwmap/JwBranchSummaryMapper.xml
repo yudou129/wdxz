@@ -42,6 +42,12 @@
         ORDER BY indicator_code
     </select>
 
+    <select id="selectByCityAndYearRange" resultMap="JwBranchSummaryResult">
+        <include refid="selectJwBranchSummaryVo"/>
+        WHERE city = #{city} AND data_year BETWEEN #{startYear} AND #{endYear}
+        ORDER BY indicator_code
+    </select>
+
     <insert id="insertJwBranchSummary" parameterType="com.ruoyi.jwmap.domain.JwBranchSummary" useGeneratedKeys="true" keyProperty="summaryId">
         INSERT INTO jw_branch_summary (
             city, data_year, indicator_code, actual_weight,

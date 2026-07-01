@@ -16,17 +16,17 @@ const port = process.env.port || process.env.npm_config_port || 8099 // 端口
 
 // 百度离线瓦片目录 (tiler-master 下载，标准 XYZ 格式)
 // Windows 路径
-const TILES_DIR = process.env.MAP_TILES_DIR || 'E:/coding/wangdianxuanzhi/mapfile/guizhou_baidu_tiles'
+// const TILES_DIR = process.env.MAP_TILES_DIR || 'E:/coding/wangdianxuanzhi/mapfile/guizhou_baidu_tiles'
 // macOS 路径
-// const TILES_DIR = process.env.MAP_TILES_DIR || path.join(__dirname, '../mapfile/guizhou_baidu_tiles')
+const TILES_DIR = process.env.MAP_TILES_DIR || path.join(__dirname, '../mapfile/guizhou_baidu_tiles')
 
 // 天地图离线瓦片目录 (EPSG:3857 Web Mercator，标准 XYZ 格式)
 // Windows 路径（切换平台时取消注释下面两行，注释掉macOS两行）
-const TIANDITU_VEC_DIR = 'E:/coding/wangdianxuanzhi/mapfile/tianditu_vec/tianditu_vec-z9-17'
-const TIANDITU_CVA_DIR = 'E:/coding/wangdianxuanzhi/mapfile/tianditu_cva/tianditu_cva-z9-17'
+// const TIANDITU_VEC_DIR = 'E:/coding/wangdianxuanzhi/mapfile/tianditu_vec/tianditu_vec-z9-17'
+// const TIANDITU_CVA_DIR = 'E:/coding/wangdianxuanzhi/mapfile/tianditu_cva/tianditu_cva-z9-17'
 // macOS 路径
-// const TIANDITU_VEC_DIR = path.join(__dirname, '../mapfile', 'tianditu_vec/vec_guizhou-z9-17')
-// const TIANDITU_CVA_DIR = path.join(__dirname, '../mapfile', 'tianditu_cva/cva_guizhou-z9-17')
+const TIANDITU_VEC_DIR = path.join(__dirname, '../mapfile', 'tianditu_vec/vec_guizhou-z9-17')
+const TIANDITU_CVA_DIR = path.join(__dirname, '../mapfile', 'tianditu_cva/cva_guizhou-z9-17')
 
 // vue.config.js 配置说明
 //官方vue.config.js 参考文档 https://cli.vuejs.org/zh/config/#css-loaderoptions

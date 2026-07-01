@@ -74,3 +74,7 @@ export function getReviewers(targetDeptId) {
 export function getAccessDeptTree() {
   return request({ url: '/jwmap/access/deptTree', method: 'get' })
 }
+// 审批通过记录导出网点数据
+export function exportApprovedData(requestId) {
+  return request({ url: '/jwmap/access/export/' + requestId, method: 'get', responseType: 'blob', timeout: 600000 })
+}
