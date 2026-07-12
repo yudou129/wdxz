@@ -169,28 +169,15 @@ export const dynamicRoutes = [
     ]
   },
   {
-    path: '/jwmap/map',
+    path: '/jwmap/baidu-map',
     component: Layout,
     hidden: true,
     children: [
       {
         path: '',
-        component: () => import('@/views/jwmap/map/index'),
-        name: 'JwMap',
-        meta: { title: '网点地图', icon: 'map' }
-      }
-    ]
-  },
-  {
-    path: '/jwmap/tianditu',
-    component: Layout,
-    hidden: true,
-    children: [
-      {
-        path: '',
-        component: () => import('@/views/jwmap/map/tianditu'),
-        name: 'JwMapTianditu',
-        meta: { title: '天地图', icon: 'map' }
+        component: () => import('@/views/jwmap/baidu-map/index'),
+        name: 'JwMapBaidu',
+        meta: { title: '百度地图', icon: 'map' }
       }
     ]
   },

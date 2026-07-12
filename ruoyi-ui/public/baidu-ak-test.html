@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>百度地图 AK 测试</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Microsoft YaHei', sans-serif; background: #f5f5f5; }
+    .header {
+      background: #409eff; color: #fff; padding: 12px 20px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .header h1 { font-size: 18px; }
+    .status { display: flex; gap: 12px; margin-left: auto; }
+    .status-item { font-size: 13px; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,0.2); }
+    .status-item.ok { background: #67c23a; }
+    .status-item.fail { background: #f56c6c; }
+    #map-container { width: 100%; height: calc(100vh - 120px); position: relative; }
+    #map { width: 100%; height: 100%; }
+    /* 搜索栏 */
+    .search-bar {
+      position: absolute; top: 12px; left: 12px; z-index: 1000;
+      background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      padding: 10px 14px; display: flex; gap: 8px; align-items: center;
+    }
+    .search-bar input { width: 260px; border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px; font-size: 14px; outline: none; }
+    .search-bar input:focus { border-color: #409eff; }
+    .search-bar button { padding: 6px 14px; background: #409eff; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .search-bar button:hover { background: #3a8ee6; }
+    /* 搜索结果下拉 */
+    .search-results {
+      position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+      background: #fff; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      max-height: 300px; overflow-y: auto; display: none;
+    }
+    .search-results.show { display: block; }
+    .search-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+    .search-item:hover { background: #f0f7ff; }
+    .search-item .name { font-size: 14px; color: #333; font-weight: 500; }
+    .search-item .addr { font-size: 12px; color: #888; margin-top: 2px; }
+    /* 逆地理编码面板 */
+    .geo-panel {
+      position: absolute; bottom: 12px; left: 12px; z-index: 1000;
+      background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      padding: 10px 14px; font-size: 13px; color: #666;
+    }
+    .geo-panel .label { color: #333; font-weight: 600; margin-bottom: 4px; }
+    .geo-panel .coord { color: #409eff; font-family: monospace; }
+    .footer {
+      height: 48px; background: #fff; display: flex; align-items: center;
+      padding: 0 20px; font-size: 13px; color: #888; gap: 16px;
+      border-top: 1px solid #eee;
+    }
+    .log-area { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-clear { padding: 4px 12px; background: #eee; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🗺 百度地图 AK 测试 — 贵州省 (BD09, BMapGL 3.0)</h1>
+  <div class="status">
+    <span id="status-sdk" class="status-item">SDK 加载中...</span>
+    <span id="status-map" class="status-item">地图未初始化</span>
+    <span id="status-search" class="status-item">地址搜索未测</span>
+    <span id="status-geo" class="status-item">逆地理编码未测</span>
+  </div>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <!-- 地址搜索 -->
+  <div class="search-bar" id="search-bar" style="display:none">
+    <input id="search-input" type="text" placeholder="搜索地址/地名/POI..." />
+    <button id="search-btn" onclick="doSearch()">搜索</button>
+    <div class="search-results" id="search-results"></div>
+  </div>
+  <!-- 逆地理编码面板 -->
+  <div class="geo-panel" id="geo-panel" style="display:none">
+    <div class="label">📍 点击地图任意位置测试逆地理编码</div>
+    <div>经纬度: <span class="coord" id="geo-coord">--</span></div>
+    <div>地址: <span id="geo-addr">--</span></div>
+  </div>
+</div>
+
+<div class="footer">
+  <span id="log-line" class="log-area">等待 SDK 加载...</span>
+  <button class="btn-clear" onclick="clearMarkers()">清除标记</button>
+</div>
+
+<!-- ====== 核心：BMapGL SDK 加载 ====== -->
+<script>
+  // ═══════════════════════════════════════════════
+  // ★ 在这里替换为行内的百度地图 AK
+  // ═══════════════════════════════════════════════
+  const AK = 'g0o18DfiUGEiOg9QbZ6Cq4N5QgtHX4tr';
+
+  // SDK 加载超时计时器
+  var _loadTimeout, _map, _localSearch, _geocoder, _searchMarkers = [];
+
+  _loadTimeout = setTimeout(function() {
+    setStatus('status-sdk', 'SDK 加载超时(15s) - AK不可用或网络不通', 'fail');
+    log('❌ BMapGL SDK 加载超时 — 请检查 AK 或网络连接');
+  }, 15000);
+
+  window.onBMapGLReady = function() {
+    clearTimeout(_loadTimeout);
+    setStatus('status-sdk', 'SDK 加载成功', 'ok');
+    log('✅ BMapGL SDK 加载成功！');
+    initMap();
+  };
+
+  function initMap() {
+    try {
+      _map = new BMapGL.Map('map');
+      var center = new BMapGL.Point(106.7238, 26.5807); // 贵州省中心 BD09
+      _map.centerAndZoom(center, 12);
+      _map.setMinZoom(9);
+      _map.setMaxZoom(17);
+      _map.enableScrollWheelZoom(true);
+
+      // 缩放控件
+      _map.addControl(new BMapGL.NavigationControl());
+
+      setStatus('status-map', '地图初始化成功', 'ok');
+      log('✅ 地图初始化成功 — 中心: 贵州省 (zoom=12)');
+
+      // 逆地理编码测试
+      _map.addEventListener('click', function(e) {
+        document.getElementById('geo-panel').style.display = 'block';
+        document.getElementById('geo-coord').textContent =
+          e.latlng.lng.toFixed(6) + ', ' + e.latlng.lat.toFixed(6);
+        testGeocoder(e.latlng);
+      });
+
+      // 显示搜索栏
+      document.getElementById('search-bar').style.display = 'flex';
+
+      // 初始化搜索和地理编码
+      _localSearch = new BMapGL.LocalSearch(_map, {
+        onSearchComplete: function(results) { onSearchDone(results); }
+      });
+      _geocoder = new BMapGL.Geocoder();
+
+      log('🎉 所有功能已就绪！可搜索地址或点击地图测试逆地理编码');
+    } catch (e) {
+      setStatus('status-map', '地图初始化失败: ' + e.message, 'fail');
+      log('❌ 地图初始化异常: ' + e.message);
+    }
+  }
+
+  // ====== 地址搜索 ======
+  function doSearch() {
+    var kw = document.getElementById('search-input').value.trim();
+    if (kw.length < 2) { log('⚠ 请输入至少2个字符'); return; }
+    if (!_localSearch) { log('⚠ 搜索工具未初始化'); return; }
+    log('🔍 搜索: ' + kw);
+    _localSearch.search(kw);
+  }
+  document.getElementById('search-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doSearch();
+  });
+
+  function onSearchDone(results) {
+    var div = document.getElementById('search-results');
+    var count = results && results.getCurrentNumPois ? results.getCurrentNumPois() : 0;
+    if (!count) {
+      setStatus('status-search', '搜索无结果', 'fail');
+      log('⚠ 未找到结果');
+      div.classList.remove('show');
+      return;
+    }
+    setStatus('status-search', '搜索成功(' + count + '条)', 'ok');
+    log('✅ 地址搜索成功 — 找到 ' + count + ' 条结果');
+
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      var poi = results.getPoi(i);
+      html += '<div class="search-item" onclick="selectResult(' + i + ')" data-idx="' + i + '">' +
+        '<div class="name">' + (poi.title || '--') + '</div>' +
+        '<div class="addr">' + (poi.address || '') + '</div></div>';
+    }
+    div.innerHTML = html;
+    div.classList.add('show');
+    // 存储当前结果
+    div._results = [];
+    for (var i2 = 0; i2 < count; i2++) { div._results.push(results.getPoi(i2)); }
+  }
+
+  function selectResult(idx) {
+    var results = document.getElementById('search-results')._results || [];
+    var poi = results[idx];
+    if (!poi || !poi.point) return;
+    document.getElementById('search-results').classList.remove('show');
+    document.getElementById('search-input').value = poi.title || '';
+
+    // 飞至并打标记
+    clearMarkers();
+    var mk = new BMapGL.Marker(poi.point, { enableDragging: false });
+    _map.addOverlay(mk);
+    _searchMarkers.push(mk);
+    _map.flyTo(poi.point, 16, { duration: 0.5 });
+    log('📍 飞至: ' + (poi.title || '--') + ' → ' + poi.point.lng.toFixed(4) + ', ' + poi.point.lat.toFixed(4));
+  }
+
+  function clearMarkers() {
+    _searchMarkers.forEach(function(m) { try { _map.removeOverlay(m); } catch(e) {} });
+    _searchMarkers = [];
+  }
+
+  // ====== 逆地理编码 ======
+  function testGeocoder(latlng) {
+    if (!_geocoder) { log('⚠ 地理编码器未初始化'); return; }
+    document.getElementById('geo-addr').textContent = '正在解析...';
+    _geocoder.getLocation(latlng, function(result) {
+      if (result && result.address) {
+        setStatus('status-geo', '逆地理编码成功', 'ok');
+        document.getElementById('geo-addr').textContent = result.address;
+        log('✅ 逆地理编码成功: ' + result.address);
+      } else {
+        setStatus('status-geo', '逆地理编码返回空', 'fail');
+        document.getElementById('geo-addr').textContent = '(无结果 — AK可能无Geocoder权限或内网不通)';
+        log('⚠ 逆地理编码返回空 — 可能无权限或网络问题');
+      }
+    });
+  }
+
+  // ====== 工具函数 ======
+  function setStatus(id, text, cls) {
+    var el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'status-item ' + (cls || '');
+  }
+  function log(msg) {
+    document.getElementById('log-line').textContent =
+      '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  }
+</script>
+
+<!-- ====== BMapGL SDK 在线加载 — 这是sdkLoader.js 的核心逻辑 ====== -->
+<script src="https://api.map.baidu.com/api?v=3.0&type=webgl&ak=g0o18DfiUGEiOg9QbZ6Cq4N5QgtHX4tr&callback=onBMapGLReady"></script>
+
+</body>
+</html>

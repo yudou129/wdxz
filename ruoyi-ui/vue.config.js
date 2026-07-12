@@ -5,7 +5,6 @@ function resolve(dir) {
   return path.join(__dirname, dir)
 }
 
-const fs = require('fs')
 const CompressionPlugin = require('compression-webpack-plugin')
 
 const name = process.env.VUE_APP_TITLE || '若依管理系统' // 网页标题
@@ -13,20 +12,6 @@ const name = process.env.VUE_APP_TITLE || '若依管理系统' // 网页标题
 const baseUrl = 'http://localhost:8080' // 后端接口
 
 const port = process.env.port || process.env.npm_config_port || 8099 // 端口
-
-// 百度离线瓦片目录 (tiler-master 下载，标准 XYZ 格式)
-// Windows 路径
-// const TILES_DIR = process.env.MAP_TILES_DIR || 'E:/coding/wangdianxuanzhi/mapfile/guizhou_baidu_tiles'
-// macOS 路径
-const TILES_DIR = process.env.MAP_TILES_DIR || path.join(__dirname, '../mapfile/guizhou_baidu_tiles')
-
-// 天地图离线瓦片目录 (EPSG:3857 Web Mercator，标准 XYZ 格式)
-// Windows 路径（切换平台时取消注释下面两行，注释掉macOS两行）
-// const TIANDITU_VEC_DIR = 'E:/coding/wangdianxuanzhi/mapfile/tianditu_vec/tianditu_vec-z9-17'
-// const TIANDITU_CVA_DIR = 'E:/coding/wangdianxuanzhi/mapfile/tianditu_cva/tianditu_cva-z9-17'
-// macOS 路径
-const TIANDITU_VEC_DIR = path.join(__dirname, '../mapfile', 'tianditu_vec/vec_guizhou-z9-17')
-const TIANDITU_CVA_DIR = path.join(__dirname, '../mapfile', 'tianditu_cva/cva_guizhou-z9-17')
 
 // vue.config.js 配置说明
 //官方vue.config.js 参考文档 https://cli.vuejs.org/zh/config/#css-loaderoptions
@@ -64,31 +49,6 @@ module.exports = {
       }
     },
     disableHostCheck: true,
-    // 离线瓦片服务中间件 (express.static)
-    before(app) {
-      const express = require('express')
-      // 百度瓦片 (自定义BaiduCRS)
-      app.use('/tiles', express.static(TILES_DIR, {
-        maxAge: '30d',
-        setHeaders(res) {
-          res.setHeader('Content-Type', 'image/png')
-        }
-      }))
-      // 天地图矢量底图 (EPSG:3857 标准XYZ)
-      app.use('/tiles_tianditu/vec', express.static(TIANDITU_VEC_DIR, {
-        maxAge: '30d',
-        setHeaders(res) {
-          res.setHeader('Content-Type', 'image/png')
-        }
-      }))
-      // 天地图标注层 (EPSG:3857 标准XYZ)
-      app.use('/tiles_tianditu/cva', express.static(TIANDITU_CVA_DIR, {
-        maxAge: '30d',
-        setHeaders(res) {
-          res.setHeader('Content-Type', 'image/png')
-        }
-      }))
-    }
   },
   css: {
     loaderOptions: {

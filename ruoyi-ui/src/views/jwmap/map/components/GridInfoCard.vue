@@ -14,6 +14,9 @@
       <span>经度 {{ formatCoord(grid.longitude) }}</span>
       <span>纬度 {{ formatCoord(grid.latitude) }}</span>
     </div>
+    <div v-if="grid.address" class="gic-address">
+      📍 {{ grid.address }}
+    </div>
   </div>
 </template>
 <script>
@@ -83,5 +86,16 @@ export default {
   font-size: 12px;
   color: #888;
   font-family: 'Courier New', monospace;
+}
+.gic-address {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+  padding: 6px 8px;
+  background: rgba(79, 110, 246, 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(79, 110, 246, 0.08);
+  word-break: break-all;
 }
 </style>

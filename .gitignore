@@ -41,6 +41,23 @@ nbdist/
 .claude/
 
 ######################################################################
+# OS files
+.DS_Store
+Thumbs.db
+
+######################################################################
+# Map tiles / large binary assets (keep the script, not the tiles)
+mapfile/
+tiler/*.png
+
+# Screenshots and test images
+*.png
+!ruoyi-ui/src/views/**/*.svg
+!ruoyi-ui/src/assets/**/*.png
+!ruoyi-ui/public/**/*.png
+!ruoyi-ui/favicon.ico
+
+######################################################################
 # Others
 *.log
 *.xml.versionsBackup

@@ -19,6 +19,31 @@
         <el-option label="全部" value="all" />
         <el-option v-for="b in branchOptions" :key="b" :label="b" :value="b" />
       </el-select>
+      <span style="margin-left:4px;border-left:1px solid rgba(0,0,0,0.12);height:20px" />
+
+      <!-- 地址/POI搜索 -->
+      <div class="toolbar-search addr-search">
+        <i class="el-icon-map-location search-icon" style="font-size:14px" />
+        <input ref="addrInput" v-model="addressSearchKeyword" class="search-input"
+               placeholder="搜索地址/POI..." style="width:120px"
+               @input="onAddressSearchInput"
+               @focus="addressSearchFocused = true"
+               @blur="onAddressSearchBlur"
+               @keydown.enter="onAddressSearchEnter" />
+        <i v-if="addressSearchKeyword && !addressSearchLoading"
+           class="el-icon-close search-clear"
+           @mousedown.prevent="clearAddressSearch" />
+        <i v-if="addressSearchLoading" class="el-icon-loading search-loading" />
+        <div v-if="addressSearchFocused && addressSearchResults.length" class="search-dropdown addr-dropdown">
+          <div v-for="(item, idx) in addressSearchResults" :key="idx"
+               class="search-item" @mousedown.prevent="selectAddressResult(item)">
+            <div class="search-item-row1">
+              <span class="search-item-name">{{ item.name }}</span>
+            </div>
+            <span class="search-item-parent">{{ item.address }}</span>
+          </div>
+        </div>
+      </div>
 
       <div class="toolbar-search">
         <i class="el-icon-search search-icon" />
@@ -114,13 +139,20 @@ export default {
     blankSpotActive: { type: Boolean, default: false },
     blankSpotLimit: { type: Number, default: 100 },
     branchList: { type: Array, default: () => [] },
-    pendingCount: { type: Number, default: 0 }
+    pendingCount: { type: Number, default: 0 },
+    searchTool: { type: Object, default: null }
   },
   data() {
     return {
       selectedCity: 'all', selectedDistrict: 'all',
       selectedBranch: 'all', branchOptions: [], districts: [],
-      searchQuery: '', searchResults: [], searchFocused: false
+      searchQuery: '', searchResults: [], searchFocused: false,
+      // 地址搜索
+      addressSearchKeyword: '',
+      addressSearchFocused: false,
+      addressSearchResults: [],
+      addressSearchLoading: false,
+      _addressSearchTimer: null
     }
   },
   computed: {
@@ -141,6 +173,59 @@ export default {
     }
   },
   methods: {
+    // ======== 地址/POI搜索 ========
+    onAddressSearchInput() {
+      const kw = (this.addressSearchKeyword || '').trim()
+      if (kw.length < 2) {
+        this.addressSearchResults = []
+        return
+      }
+      if (this._addressSearchTimer) clearTimeout(this._addressSearchTimer)
+      this._addressSearchTimer = setTimeout(() => {
+        this.doAddressSearch(kw)
+      }, 300)
+    },
+
+    onAddressSearchEnter() {
+      const kw = (this.addressSearchKeyword || '').trim()
+      if (kw.length >= 2) {
+        if (this._addressSearchTimer) clearTimeout(this._addressSearchTimer)
+        this.doAddressSearch(kw)
+      }
+    },
+
+    onAddressSearchBlur() {
+      setTimeout(() => { this.addressSearchFocused = false }, 200)
+    },
+
+    async doAddressSearch(keyword) {
+      if (!this.searchTool) return
+      this.addressSearchLoading = true
+      try {
+        const result = await this.searchTool.search(keyword)
+        const parsed = this.searchTool.parseResults(result)
+        this.addressSearchResults = parsed
+      } catch (e) {
+        this.addressSearchResults = []
+      } finally {
+        this.addressSearchLoading = false
+      }
+    },
+
+    selectAddressResult(item) {
+      this.addressSearchKeyword = item.name
+      this.addressSearchResults = []
+      this.addressSearchFocused = false
+      this.$emit('address-select', item)
+    },
+
+    clearAddressSearch() {
+      this.addressSearchKeyword = ''
+      this.addressSearchResults = []
+      if (this.searchTool) this.searchTool.clearResultMarkers()
+    },
+
+    // ======== 网点搜索 ========
     onSearchInput() {
       const q = this.searchQuery.trim().toLowerCase()
       if (!q || q.length < 2 || !this.branchList.length) { this.searchResults = []; return }
@@ -419,6 +504,28 @@ export default {
 }
 .blank-spot-params .el-select {
   width: 90px;
+}
+.addr-search .search-input {
+  width: 120px;
+}
+.addr-search .search-input:focus {
+  width: 160px;
+}
+.search-clear {
+  position: absolute;
+  right: 8px;
+  color: #999;
+  cursor: pointer;
+  font-size: 13px;
+  z-index: 1;
+}
+.search-clear:hover { color: #666; }
+.search-loading {
+  position: absolute;
+  right: 8px;
+  color: #409eff;
+  font-size: 13px;
+  z-index: 1;
 }
 .filter-hint {
   font-size: 11px;
