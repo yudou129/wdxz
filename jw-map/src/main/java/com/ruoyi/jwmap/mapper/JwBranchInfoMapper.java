@@ -44,6 +44,9 @@ public interface JwBranchInfoMapper {
 
     List<JwBranchInfo> selectByDeptName(@Param("deptName") String deptName);
 
+    /** 空间关联网格：通过坐标匹配查 branchId → gridCode 映射 */
+    List<java.util.Map<String, Object>> selectBranchGridMapping(@Param("city") String city);
+
     /** 四象限分析：JOIN grid_score + branch_score 获取选址得分和网点得分 */
     List<java.util.Map<String, Object>> selectQuadrantData(@Param("city") String city,
                                                             @Param("year") Integer year);

@@ -15,6 +15,10 @@
           <span v-if="branches.length" class="cp-count">({{ branches.length }}/4)</span>
         </span>
         <div class="cp-actions">
+          <el-select v-if="years && years.length" :value="year" size="mini" style="width:76px;margin-right:4px"
+                     @change="$emit('year-change', $event)">
+            <el-option v-for="y in years" :key="y" :label="String(y)" :value="y" />
+          </el-select>
           <el-button v-if="branches.length" type="text" size="mini" class="act-clear"
                      @click="$emit('clear-all')">清空</el-button>
           <el-button type="text" size="mini" class="act-fold"
@@ -146,6 +150,7 @@
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
@@ -159,7 +164,6 @@
 
 <script>
 import * as echarts from 'echarts'
-
 const CAT_COLORS = {
   '业务运营': 'linear-gradient(90deg, #4f6ef6, #6b8af8)',
   '业绩表现': 'linear-gradient(90deg, #f0a050, #f6b870)',
@@ -169,8 +173,8 @@ const CAT_COLORS = {
 }
 
 const CATEGORY_NAME_FALLBACK = {
-  overall: '综合', revenue: '营收', indicator: '业绩',
-  customer: '客户', operation: '运营'
+  overall: '综合得分', revenue: '经营情况', indicator: '业绩表现',
+  customer: '客户发展', operation: '业务运营'
 }
 
 const BASIC_INFO_ROWS = [
@@ -190,7 +194,9 @@ export default {
   props: {
     visible: { type: Boolean, default: false },
     branches: { type: Array, default: () => [] },
-    loading: { type: Boolean, default: false }
+    loading: { type: Boolean, default: false },
+    year: { type: Number, default: null },
+    years: { type: Array, default: () => [] }
   },
   data() {
     return { collapsed: false, showInfo: true, radarChart: null, expandedIndicators: {} }
@@ -601,4 +607,39 @@ categoryInsight(catKey) {
   border-radius: 4px; user-select: none;
 }
 .sc-toggle:hover { background: rgba(79,110,246,0.06); }
+
+/* ===== AI 入口 ===== */
+.cp-ai-entry {
+  background: linear-gradient(135deg, rgba(245,158,11,0.04), rgba(246,184,112,0.04));
+  border-radius: 10px;
+  padding: 6px 14px 12px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  box-shadow: 0 2px 12px rgba(245, 158, 11, 0.06);
+}
+.cp-ai-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.cp-ai-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #f6b870 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 500;
+  padding: 7px 14px !important;
+  border-radius: 8px !important;
+  transition: all 0.25s ease !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25) !important;
+  letter-spacing: 0.3px;
+}
+.cp-ai-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35) !important;
+}
+.cp-ai-btn:active { transform: translateY(0); }
+.cp-ai-btn.is-loading {
+  background: linear-gradient(135deg, #cccc88, #aaaacc) !important;
+}
 </style>

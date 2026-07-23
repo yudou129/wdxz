@@ -102,7 +102,15 @@ public class MyBatisConfig
                 try
                 {
                     Resource[] mappers = resourceResolver.getResources(mapperLocation);
-                    resources.addAll(Arrays.asList(mappers));
+                    for (Resource r : mappers)
+                    {
+                        // 排除 postMapper 目录（PostgreSQL 方言版本，非当前数据库）
+                        if (r.getURI().toString().contains("/postMapper/"))
+                        {
+                            continue;
+                        }
+                        resources.add(r);
+                    }
                 }
                 catch (IOException e)
                 {

@@ -22,7 +22,19 @@ public interface JwGridScoreMapper {
 
     List<JwGridScore> selectScoresByGridCodes(@Param("gridCodes") List<String> gridCodes);
 
+    List<JwGridScore> selectScoresByGridCodesAndCategory(@Param("gridCodes") List<String> gridCodes,
+                                                          @Param("category") String category);
+
     List<JwGridScore> selectByCity(@Param("city") String city);
+
+    List<JwGridScore> selectByCityAndDistrict(@Param("city") String city,
+                                               @Param("district") String district);
+
+    /** 网格排名用—带 district/lng/lat */
+    List<java.util.Map<String, Object>> selectRankingWithMeta(@Param("city") String city);
+
+    List<java.util.Map<String, Object>> selectRankingWithMetaByDistrict(@Param("city") String city,
+                                                                         @Param("district") String district);
 
     int countByCity(@Param("city") String city);
 
@@ -37,6 +49,9 @@ public interface JwGridScoreMapper {
     List<String> selectTopCodesWithoutBranch(@Param("city") String city,
                                               @Param("district") String district,
                                               @Param("limit") int limit);
+
+    List<String> selectBetterBlankCodes(@Param("city") String city,
+                                         @Param("minScore") double minScore);
 
     int deleteByCity(@Param("city") String city);
 

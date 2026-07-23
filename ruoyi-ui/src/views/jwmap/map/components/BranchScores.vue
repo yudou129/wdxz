@@ -25,7 +25,7 @@ export default {
   methods: {
     fmtGap(v) { return typeof v === 'number' ? v.toFixed(2) : '-' },
     label(s) {
-      return s.categoryName || { revenue: '营收', indicator: '业绩', customer: '客户', operation: '运营', overall: '综合' }[s.scoreCategory] || s.scoreCategory
+      return s.categoryName || { revenue: '经营情况', indicator: '业绩表现', customer: '客户发展', operation: '业务运营', overall: '综合' }[s.scoreCategory] || s.scoreCategory
     },
     val(s) {
       const v = s.categoryScore
@@ -39,9 +39,9 @@ export default {
       if (typeof s.categoryScore !== 'number') return '#e2e4ea'
       const CAT_COLORS = {
         '业务运营': 'linear-gradient(90deg, #4f6ef6, #6b8af8)',
+        '经营情况': 'linear-gradient(90deg, #a855f7, #c084fc)',
         '业绩表现': 'linear-gradient(90deg, #f0a050, #f6b870)',
         '客户发展': 'linear-gradient(90deg, #52c41a, #73d13d)',
-        '经营情况': 'linear-gradient(90deg, #a855f7, #c084fc)',
       }
       return CAT_COLORS[this.label(s)] || 'linear-gradient(90deg, #4f6ef6, #6b8af8)'
     }

@@ -52,6 +52,26 @@
         <!-- ===== 网点内容 ===== -->
         <div :class="{ 'split-col': mode === 'split' }">
         <template v-if="mode === 'branch-only' || mode === 'split'">
+          <!-- 多网点切换标签 -->
+          <template v-if="mode === 'split' && gridBranches.length > 1">
+            <div class="branch-tabs">
+              <div v-for="(tab, i) in branchTabs" :key="tab.id"
+                   class="branch-tab"
+                   :class="{ active: tab.active }"
+                   :style="tab.active ? {
+                     background: tab.color + '12',
+                     borderColor: tab.color + '40',
+                     color: tab.color,
+                     boxShadow: '0 0 0 1px ' + tab.color + '20'
+                   } : {}"
+                   @click="$emit('switch-branch', gridBranches[i], i)">
+                <span class="branch-tab-dot" :style="{ background: tab.color }">
+                  <span v-if="tab.active" class="branch-tab-check" />
+                </span>
+                <span class="branch-tab-name">{{ tab.name }}</span>
+              </div>
+            </div>
+          </template>
           <BranchInfoCard :branch="branchData" @zoom="$emit('zoom-branch')" />
 
           <ScoreCard :score="overallScore" :rank="branchRankMeta.cityRank" :gap="branchScoreGap" label="内部效能得分与排名" size="small"
@@ -84,6 +104,8 @@
               </div>
             </div>
           </div>
+
+          <!-- AI 入口已迁移至右下角 FAB 悬浮球 -->
         </template>
         </div>
         </div>
@@ -128,7 +150,9 @@ export default {
     pillarGap: { type: Object, default: () => ({ population: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' }, enterprise: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' }, business: { maxCity: 0, maxDistrict: 0, gapCity: 0, gapDistrict: 0, name: '---' } }) },
     years: { type: Array, default: () => [] },
     year: { type: Number, default: null },
-    nearestBranch: { type: Object, default: null }
+    nearestBranch: { type: Object, default: null },
+    gridBranches: { type: Array, default: () => [] },
+    activeGridBranchIdx: { type: Number, default: 0 }
   },
   computed: {
     title() {
@@ -146,6 +170,16 @@ export default {
     },
     branchScoreGap() {
       return this.branchRankMeta ? (this.branchRankMeta.scoreGap || 0) : 0
+    },
+    branchTabs() {
+      if (!this.gridBranches || !this.gridBranches.length) return []
+      const colors = ['#4f6ef6', '#52c41a', '#f0a050', '#f56c6c', '#7c3aed', '#06b6d4']
+      return this.gridBranches.map((b, i) => ({
+        id: b.branchId,
+        name: b.secondaryBranch || b.branchName || '网点' + (i + 1),
+        color: colors[i % colors.length],
+        active: i === this.activeGridBranchIdx
+      }))
     }
   },
 }
@@ -259,6 +293,169 @@ export default {
   display: flex; align-items: center; gap: 4px;
 }
 .nb-card-dist i { color: #4f6ef6; }
+
+/* AI 入口 — 内联按钮行（网格模式） */
+.ai-entry-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.ai-entry-btn-inline {
+  padding: 5px 12px !important;
+  font-size: 12px !important;
+}
+.ai-done-tag {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* AI 入口 — 通用按钮基类 */
+.ai-entry-btn {
+  border: none !important;
+  color: #fff !important;
+  font-weight: 500;
+  border-radius: 8px !important;
+  transition: all 0.25s ease !important;
+  letter-spacing: 0.3px;
+}
+.ai-entry-btn:hover {
+  transform: translateY(-1px);
+}
+.ai-entry-btn:active {
+  transform: translateY(0);
+}
+.ai-entry-btn.is-loading {
+  background: linear-gradient(135deg, #8899cc 0%, #66aacc 100%) !important;
+}
+
+/* AI 功能区卡片（网点模式） */
+.ai-section-card {
+  margin-top: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(79, 110, 246, 0.15);
+  background: linear-gradient(135deg, rgba(79,110,246,0.04), rgba(6,182,212,0.04));
+  box-shadow: 0 2px 12px rgba(79, 110, 246, 0.06);
+  overflow: hidden;
+}
+.ai-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #232845;
+  border-bottom: 1px solid rgba(79,110,246,0.08);
+}
+.ai-section-header i {
+  color: #4f6ef6;
+  font-size: 15px;
+}
+.ai-section-body {
+  padding: 8px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ais-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ais-btn {
+  padding: 6px 14px !important;
+  font-size: 12px !important;
+  border-radius: 8px !important;
+  white-space: nowrap;
+}
+.ais-btn-blue {
+  background: linear-gradient(135deg, #4f6ef6 0%, #06b6d4 100%) !important;
+  box-shadow: 0 2px 8px rgba(79, 110, 246, 0.25) !important;
+}
+.ais-btn-blue:hover {
+  box-shadow: 0 4px 14px rgba(79, 110, 246, 0.35) !important;
+}
+.ais-btn-purple {
+  background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%) !important;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25) !important;
+}
+.ais-btn-purple:hover {
+  box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35) !important;
+}
+.ais-btn-rose {
+  background: linear-gradient(135deg, #f43f5e 0%, #fb7185 100%) !important;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.25) !important;
+}
+.ais-btn-rose:hover {
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35) !important;
+}
+.ais-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(79,110,246,0.15), transparent);
+  margin: 0;
+}
+.ais-row-quadrant {
+  padding-top: 2px;
+}
+
+/* 多网点切换标签 — 精致卡片式设计 */
+.branch-tabs {
+  display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;
+  padding: 8px 10px; background: rgba(255,255,255,0.6);
+  border-radius: 8px; border: 1px solid rgba(0,0,0,0.04);
+}
+.branch-tab {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px 5px 8px; font-size: 12px; font-weight: 500;
+  border-radius: 8px; cursor: pointer; color: #666;
+  background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.05);
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1); line-height: 1.4;
+  position: relative;
+}
+.branch-tab:hover {
+  border-color: rgba(79,110,246,0.2);
+  background: rgba(79,110,246,0.04);
+  color: #4f6ef6;
+  transform: translateY(-1px);
+}
+.branch-tab:active {
+  transform: translateY(0);
+}
+.branch-tab.active {
+  font-weight: 600;
+  cursor: default;
+  transform: none;
+}
+.branch-tab-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform 0.2s ease;
+}
+.branch-tab.active .branch-tab-dot {
+  transform: scale(1.1);
+}
+.branch-tab-check {
+  width: 5px; height: 5px; border-radius: 50%; background: #fff;
+}
+.branch-tab-name {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* 旧类名保留兼容（已全面改用新类） */
+.ai-entry-btn-weight {
+  background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%) !important;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25) !important;
+  font-size: 12px;
+  padding: 7px 10px !important;
+}
+.ai-entry-btn-weight:hover {
+  box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35) !important;
+}
 .slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.25s ease; }
 .slide-enter, .slide-leave-to { transform: translateX(-20px); opacity: 0; }
 </style>

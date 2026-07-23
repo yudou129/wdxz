@@ -338,25 +338,17 @@ public class JwDataAccessServiceImpl implements IJwDataAccessService {
 
     @Override
     public List<Long> getReviewerDeptIds(Long userId) {
-        // 通过用户 data_reviewer 角色关联的 sys_role_dept 获取管辖部门
+        // 审批人的管辖范围 = 其所在部门的直接子部门
+        // 例如贵阳分行(210)的审批人 → 管辖210的所有直接子部门（清镇市支行232等）
         SysUser user = sysUserMapper.selectUserById(userId);
-        if (user == null || user.getRoles() == null) return Collections.emptyList();
+        if (user == null || user.getDeptId() == null) return Collections.emptyList();
 
-        for (SysRole role : user.getRoles()) {
-            if (REVIEWER_ROLE_KEY.equals(role.getRoleKey())) {
-                List<Long> deptIds = sysDeptMapper.selectDeptListByRoleId(role.getRoleId(), false);
-                if (deptIds == null) return Collections.emptyList();
+        SysDept query = new SysDept();
+        query.setParentId(user.getDeptId());
+        List<SysDept> children = sysDeptMapper.selectDeptList(query);
+        if (children == null || children.isEmpty()) return Collections.emptyList();
 
-                // 展开：管辖部门 + 其所有子孙部门（覆盖该市行下的所有支行）
-                Set<Long> expanded = new HashSet<>(deptIds);
-                for (Long deptId : deptIds) {
-                    List<SysDept> children = sysDeptMapper.selectChildrenDeptById(deptId);
-                    children.forEach(d -> expanded.add(d.getDeptId()));
-                }
-                return new ArrayList<>(expanded);
-            }
-        }
-        return Collections.emptyList();
+        return children.stream().map(SysDept::getDeptId).collect(Collectors.toList());
     }
 
     // ===== 私有工具方法 =====

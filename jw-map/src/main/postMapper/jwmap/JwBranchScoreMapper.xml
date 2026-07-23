@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwBranchScoreMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwBranchScore" id="JwBranchScoreResult">
+        <id property="scoreId" column="score_id"/>
+        <result property="branchId" column="branch_id"/>
+        <result property="dataYear" column="data_year"/>
+        <result property="city" column="city"/>
+        <result property="scoreCategory" column="score_category"/>
+        <result property="positiveDistance" column="positive_distance"/>
+        <result property="negativeDistance" column="negative_distance"/>
+        <result property="categoryScore" column="category_score"/>
+        <result property="rankNum" column="rank_num"/>
+        <result property="quadrant" column="quadrant"/>
+        <result property="medianSiteRank" column="median_site_rank"/>
+        <result property="medianBranchRank" column="median_branch_rank"/>
+        <result property="createTime" column="create_time"/>
+        <result property="secondaryBranch" column="secondary_branch"/>
+        <result property="primaryBranch" column="primary_branch"/>
+        <result property="gridCode" column="grid_code"/>
+    </resultMap>
+
+    <sql id="selectJwBranchScoreVo">
+        SELECT score_id, branch_id, data_year, city, score_category,
+               positive_distance, negative_distance, category_score, rank_num, create_time
+        FROM jw_branch_score
+    </sql>
+
+    <!-- 带网点名称的查询（LEFT JOIN jw_branch_info） -->
+    <sql id="selectJwBranchScoreWithNameVo">
+        SELECT s.score_id, s.branch_id, s.data_year, s.city, s.score_category,
+               s.positive_distance, s.negative_distance, s.category_score, s.rank_num, s.create_time,
+               s.quadrant, s.median_site_rank, s.median_branch_rank,
+               bi.secondary_branch, bi.primary_branch, bi.grid_code
+        FROM jw_branch_score s
+        LEFT JOIN jw_branch_info bi ON s.branch_id = bi.branch_id
+    </sql>
+
+    <select id="selectJwBranchScoreList" parameterType="com.ruoyi.jwmap.domain.JwBranchScore" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        <where>
+            <if test="branchId != null">AND branch_id = #{branchId}</if>
+            <if test="dataYear != null">AND data_year = #{dataYear}</if>
+            <if test="city != null and city != ''">AND city = #{city}</if>
+            <if test="scoreCategory != null and scoreCategory != ''">AND score_category = #{scoreCategory}</if>
+        </where>
+        ORDER BY rank_num
+    </select>
+
+    <select id="selectJwBranchScoreById" parameterType="Long" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE score_id = #{scoreId}
+    </select>
+
+    <select id="selectByBranchAndYear" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE branch_id = #{branchId} AND data_year = #{dataYear}
+        ORDER BY score_category
+    </select>
+
+    <select id="selectByBranchIdsAndYear" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE branch_id IN
+        <foreach item="id" collection="branchIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND data_year = #{dataYear}
+        ORDER BY score_category
+    </select>
+
+    <select id="selectByCityAndYear" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE city = #{city} AND data_year = #{dataYear}
+        ORDER BY score_category, rank_num
+    </select>
+
+    <select id="selectByCityAndYearRange" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreVo"/>
+        WHERE city = #{city} AND data_year BETWEEN #{startYear} AND #{endYear}
+        ORDER BY score_category, rank_num
+    </select>
+
+    <select id="selectByCityAndYearAndCategory" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreWithNameVo"/>
+        WHERE s.city = #{city} AND s.data_year = #{dataYear} AND s.score_category = #{category}
+        ORDER BY s.rank_num
+    </select>
+
+    <insert id="insertJwBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore" useGeneratedKeys="true" keyProperty="scoreId">
+        INSERT INTO jw_branch_score (
+            branch_id, data_year, city, score_category,
+            positive_distance, negative_distance, category_score, rank_num, create_time
+        ) VALUES (
+            #{branchId}, #{dataYear}, #{city}, #{scoreCategory},
+            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, now()
+        )
+    </insert>
+
+    <update id="updateJwBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
+        UPDATE jw_branch_score
+        <set>
+            <if test="branchId != null">branch_id = #{branchId},</if>
+            <if test="dataYear != null">data_year = #{dataYear},</if>
+            <if test="city != null">city = #{city},</if>
+            <if test="scoreCategory != null">score_category = #{scoreCategory},</if>
+            <if test="positiveDistance != null">positive_distance = #{positiveDistance},</if>
+            <if test="negativeDistance != null">negative_distance = #{negativeDistance},</if>
+            <if test="categoryScore != null">category_score = #{categoryScore},</if>
+            <if test="rankNum != null">rank_num = #{rankNum},</if>
+        </set>
+        WHERE score_id = #{scoreId}
+    </update>
+
+    <update id="updateRank" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
+        UPDATE jw_branch_score
+        SET rank_num = #{rankNum}
+        WHERE score_id = #{scoreId}
+    </update>
+
+    <delete id="deleteJwBranchScoreById" parameterType="Long">
+        DELETE FROM jw_branch_score WHERE score_id = #{scoreId}
+    </delete>
+
+    <delete id="deleteJwBranchScoreByIds" parameterType="Long">
+        DELETE FROM jw_branch_score WHERE score_id IN
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteByCityAndYear">
+        DELETE FROM jw_branch_score WHERE city = #{city} AND data_year = #{dataYear}
+    </delete>
+
+    <insert id="upsertBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
+        INSERT INTO jw_branch_score (
+            branch_id, data_year, city, score_category,
+            positive_distance, negative_distance, category_score, rank_num, create_time
+        ) VALUES (
+            #{branchId}, #{dataYear}, #{city}, #{scoreCategory},
+            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, now()
+        )
+    </insert>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_branch_score (
+            branch_id, data_year, city, score_category,
+            positive_distance, negative_distance, category_score, rank_num, create_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.branchId}, #{item.dataYear}, #{item.city}, #{item.scoreCategory},
+             #{item.positiveDistance}, #{item.negativeDistance}, #{item.categoryScore}, #{item.rankNum}, now())
+        </foreach>
+    </insert>
+
+    <update id="batchUpdateQuadrant" parameterType="java.util.List">
+        <foreach item="item" collection="list" separator=";">
+            UPDATE jw_branch_score
+            SET quadrant = #{item.quadrant},
+                median_site_rank = #{item.medianSiteRank},
+                median_branch_rank = #{item.medianBranchRank}
+            WHERE score_id = #{item.scoreId}
+        </foreach>
+    </update>
+
+    <update id="batchUpdateRank" parameterType="java.util.List">
+        <foreach item="item" collection="list" separator=";">
+            UPDATE jw_branch_score
+            SET rank_num = #{item.rankNum}
+            WHERE score_id = #{item.scoreId}
+        </foreach>
+    </update>
+
+</mapper>

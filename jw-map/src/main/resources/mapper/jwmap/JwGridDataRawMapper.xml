@@ -60,7 +60,7 @@
         INSERT INTO jw_grid_data_raw (
             grid_code, indicator_code, indicator_value, create_time
         ) VALUES (
-            #{gridCode}, #{indicatorCode}, #{indicatorValue}, sysdate()
+            #{gridCode}, #{indicatorCode}, #{indicatorValue}, now()
         )
     </insert>
 
@@ -86,9 +86,8 @@
     </delete>
 
     <delete id="deleteByCity" parameterType="String">
-        DELETE d FROM jw_grid_data_raw d
-        JOIN jw_grid_meta m ON d.grid_code = m.grid_code
-        WHERE m.city = #{city}
+        DELETE FROM jw_grid_data_raw
+        WHERE grid_code IN (SELECT grid_code FROM jw_grid_meta WHERE city = #{city})
     </delete>
 
     <insert id="batchInsert" parameterType="java.util.List">
@@ -96,18 +95,8 @@
             grid_code, indicator_code, indicator_value, create_time
         ) VALUES
         <foreach item="item" collection="list" separator=",">
-            (#{item.gridCode}, #{item.indicatorCode}, #{item.indicatorValue}, sysdate())
+            (#{item.gridCode}, #{item.indicatorCode}, #{item.indicatorValue}, now())
         </foreach>
-    </insert>
-
-    <insert id="upsertGridData" parameterType="com.ruoyi.jwmap.domain.JwGridDataRaw">
-        INSERT INTO jw_grid_data_raw (
-            grid_code, indicator_code, indicator_value, create_time
-        ) VALUES (
-            #{gridCode}, #{indicatorCode}, #{indicatorValue}, sysdate()
-        )
-        ON DUPLICATE KEY UPDATE
-            indicator_value = VALUES(indicator_value)
     </insert>
 
     <select id="selectByGridCodes" resultMap="JwGridDataRawResult">

@@ -6,10 +6,10 @@
           <i :class="titleIcon" /> {{ title }}
         </span>
         <div class="header-right">
-          <el-radio-group v-if="showTypeSwitch" v-model="localType" size="mini" class="tb-type-group" @change="$emit('type-change', localType)">
-            <el-radio-button label="grid">网格</el-radio-button>
-            <el-radio-button label="branch">网点</el-radio-button>
-          </el-radio-group>
+          <el-select v-if="showYearPicker" :value="year" size="mini" style="width:80px;margin-right:4px"
+                     @change="$emit('year-change', $event)">
+            <el-option v-for="y in years" :key="y" :label="String(y)" :value="y" />
+          </el-select>
           <el-radio-group v-if="showFocusTabs" v-model="focusTab" size="mini" class="tb-focus-group" @change="$emit('focus-change', focusTab)">
             <el-radio-button label="population">人口</el-radio-button>
             <el-radio-button label="enterprise">企业</el-radio-button>
@@ -24,7 +24,10 @@
              @click="$emit('item-click', item)">
           <span class="rn-medal" v-if="i < 3">{{ medals[i] }}</span>
           <span class="rank-num" :class="{ 'rank-top': i < 3 }">{{ padRank(i + 1 + (page - 1) * pageSize) }}</span>
-          <span :class="['rank-name', { 'rank-name-focus': i < 3 }]">{{ item.name }}</span>
+          <span class="rank-info">
+            <span :class="['rank-name', { 'rank-name-focus': i < 3 }]">{{ item.name }}</span>
+            <span v-if="item.subtitle" class="rank-subtitle">{{ item.subtitle }}</span>
+          </span>
           <span :class="['rank-score', 'rank-score-' + (i + 1)]">{{ item.score.toFixed(4) }}</span>
         </div>
         <el-button v-if="hasMore" type="text" class="load-more" @click="$emit('load-more')" :loading="loading">
@@ -51,7 +54,10 @@ export default {
     loading: { type: Boolean, default: false },
     type: { type: String, default: 'grid' },
     showFocusTabs: { type: Boolean, default: false },
-    showTypeSwitch: { type: Boolean, default: false }
+    showTypeSwitch: { type: Boolean, default: false },
+    showYearPicker: { type: Boolean, default: false },
+    year: { type: Number, default: null },
+    years: { type: Array, default: () => [] }
   },
   data() {
     return { focusTab: 'population', localType: this.type }
@@ -200,14 +206,28 @@ export default {
 .rank-num.rank-top { color: #4f6ef6; font-weight: 700; }
 
 /* ===== 名称 ===== */
-.rank-name {
+.rank-info {
   flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rank-name {
   color: #303651;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .rank-name-focus { font-weight: 600; }
+.rank-subtitle {
+  font-size: 11px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
 
 /* ===== 得分 ===== */
 .rank-score {

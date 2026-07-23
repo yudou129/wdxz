@@ -2,6 +2,7 @@ package com.ruoyi.jwmap.service.impl;
 
 import com.ruoyi.jwmap.domain.*;
 import com.ruoyi.jwmap.mapper.*;
+import com.ruoyi.jwmap.util.JwIndicatorUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
@@ -61,6 +62,14 @@ public class ExcelExportService {
 
     @Autowired
     private JwBranchScoreMapper branchScoreMapper;
+
+    /**
+     * 一次性加载全部指标配置并缓存为 Map（消除多处 selectByCode N+1）
+     */
+    private Map<String, JwIndicatorConfig> loadConfigMap() {
+        List<JwIndicatorConfig> list = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
+        return list.stream().collect(Collectors.toMap(JwIndicatorConfig::getIndicatorCode, c -> c, (a, b) -> a));
+    }
 
     // ==================== 网格数据导出 ====================
 
@@ -135,11 +144,12 @@ public class ExcelExportService {
             CellStyle dataStyle = createDataStyle(workbook);
             CellStyle maxMinStyle = createMaxMinStyle(workbook);
 
-            // 预加载指标名称（查config，找不到就用编码本身）
+            // 预加载指标名称（一次查询，消除 N+1）
             List<String> codeList = new ArrayList<>(indicatorCodes);
+            Map<String, JwIndicatorConfig> configMap = loadConfigMap();
             Map<String, String> indicatorNameMap = new LinkedHashMap<>();
             for (String code : codeList) {
-                JwIndicatorConfig config = indicatorConfigMapper.selectByCode(code);
+                JwIndicatorConfig config = configMap.get(code);
                 indicatorNameMap.put(code, config != null ? config.getIndicatorName() : code);
             }
 
@@ -360,9 +370,10 @@ public class ExcelExportService {
             }
 
             List<String> indicatorCodeList = new ArrayList<>(indicatorCodes);
+            Map<String, JwIndicatorConfig> configMap = loadConfigMap();
             Map<String, String> indicatorNameMap = new LinkedHashMap<>();
             for (String code : indicatorCodeList) {
-                JwIndicatorConfig config = indicatorConfigMapper.selectByCode(code);
+                JwIndicatorConfig config = configMap.get(code);
                 indicatorNameMap.put(code, config != null ? config.getIndicatorName() : code);
             }
 
@@ -528,14 +539,8 @@ public class ExcelExportService {
         CellStyle dataStyle = createDataStyle(sheet.getWorkbook());
         CellStyle maxMinStyle = createMaxMinStyle(sheet.getWorkbook());
 
-        // ===== 1. 按 categoryLevel1 分组 =====
-        Map<String, JwIndicatorConfig> configMap = new LinkedHashMap<>();
-        for (String code : indicatorCodes) {
-            if (!configMap.containsKey(code)) {
-                JwIndicatorConfig config = indicatorConfigMapper.selectByCode(code);
-                if (config != null) configMap.put(code, config);
-            }
-        }
+        // ===== 1. 按 categoryLevel1 分组（消除 selectByCode N+1） =====
+        Map<String, JwIndicatorConfig> configMap = loadConfigMap();
 
         LinkedHashMap<String, List<String>> catGroups = new LinkedHashMap<>();
         for (String code : indicatorCodes) {
@@ -543,7 +548,7 @@ public class ExcelExportService {
             String cat = "其他";
             if (cfg != null) {
                 // 使用 parent_code 链找到根节点名称作为分类
-                String rootName = getRootName(cfg, configMap);
+                String rootName = JwIndicatorUtils.getRootName(code, configMap);
                 if (rootName != null && !rootName.isEmpty()) {
                     cat = rootName;
                 }
@@ -905,8 +910,8 @@ public class ExcelExportService {
         }
         // 按 (祖父名, 父名, sort_order) 排序
         branchLeaves.sort((a, b) -> {
-            String ga = getRootName(a, allConfigMap);
-            String gb = getRootName(b, allConfigMap);
+            String ga = JwIndicatorUtils.getRootName(a.getIndicatorCode(), allConfigMap);
+            String gb = JwIndicatorUtils.getRootName(b.getIndicatorCode(), allConfigMap);
             if (ga == null) ga = "";
             if (gb == null) gb = "";
             int cmp = ga.compareTo(gb);
@@ -960,9 +965,11 @@ public class ExcelExportService {
         if (calcIndicators != null) calcIndicators.forEach(i -> allCodes.add(i.getIndicatorCode()));
         if (normIndicators != null) normIndicators.forEach(i -> allCodes.add(i.getIndicatorCode()));
         allCodes.addAll(calcCodeList);
+        // 一次性加载全部指标配置（消除 N+1 selectByCode）
+        Map<String, JwIndicatorConfig> allConfigs = loadConfigMap();
         Map<String, String> nameMap = new LinkedHashMap<>();
         for (String code : allCodes) {
-            JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
+            JwIndicatorConfig cfg = allConfigs.get(code);
             if (cfg != null) {
                 nameMap.put(code, cfg.getIndicatorName());
             } else {
@@ -1075,26 +1082,29 @@ public class ExcelExportService {
         if (indicators != null) indicators.forEach(i -> {
             if (i.getIndicatorCode() != null) uniqueCodes.add(i.getIndicatorCode());
         });
-        // 批量查配置表获取名称和层级
+        // 一次性加载全部配置到内存 Map（消除 N+1 selectByCode + 递归查父节点）
+        Map<String, JwIndicatorConfig> allConfigs = loadConfigMap();
         Map<String, JwIndicatorConfig> dataCodeConfigMap = new LinkedHashMap<>();
         for (String code : uniqueCodes) {
-            JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
+            JwIndicatorConfig cfg = allConfigs.get(code);
             if (cfg != null) dataCodeConfigMap.put(code, cfg);
         }
         // 构建 indicatorDefs: {code, row0Cat(大类), row1SubCat(子类), null}
+        // 仅在配置表中有定义时才展示该列（配置表和 BASE_INDICATOR_NAME_MAP 均查不到则跳过）
         List<String[]> indicatorDefsList = new ArrayList<>();
         for (String code : uniqueCodes) {
             JwIndicatorConfig cfg = dataCodeConfigMap.get(code);
-            String row1SubCat = code;
-            String row0Cat = code;
+            String row1SubCat;
+            String row0Cat;
             if (cfg != null) {
                 row1SubCat = cfg.getIndicatorName() != null ? cfg.getIndicatorName() : code;
+                row0Cat = row1SubCat;
                 if (cfg.getParentCode() != null && !cfg.getParentCode().isEmpty()) {
-                    JwIndicatorConfig parent = indicatorConfigMapper.selectByCode(cfg.getParentCode());
+                    JwIndicatorConfig parent = allConfigs.get(cfg.getParentCode());
                     if (parent != null) {
                         row1SubCat = parent.getIndicatorName() != null ? parent.getIndicatorName() : row1SubCat;
                         if (parent.getParentCode() != null && !parent.getParentCode().isEmpty()) {
-                            JwIndicatorConfig grandparent = indicatorConfigMapper.selectByCode(parent.getParentCode());
+                            JwIndicatorConfig grandparent = allConfigs.get(parent.getParentCode());
                             if (grandparent != null && grandparent.getIndicatorName() != null) {
                                 row0Cat = grandparent.getIndicatorName();
                             } else {
@@ -1105,9 +1115,12 @@ public class ExcelExportService {
                         }
                     }
                 }
-            } else {
-                row1SubCat = BASE_INDICATOR_NAME_MAP.getOrDefault(code, code);
+            } else if (BASE_INDICATOR_NAME_MAP.containsKey(code)) {
+                row1SubCat = BASE_INDICATOR_NAME_MAP.get(code);
                 row0Cat = row1SubCat;
+            } else {
+                // 配置表和硬编码映射均无此 code，跳过不展示
+                continue;
             }
             indicatorDefsList.add(new String[]{code, row0Cat, row1SubCat, null});
         }
@@ -1351,15 +1364,14 @@ public class ExcelExportService {
     private String catForIndicatorCode(String code, List<String> codeList) {
         int idx = codeList != null ? codeList.indexOf(code) : -1;
         if (idx >= 0) {
-            // 从配置表 parent chain 获取分类
-            JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
+            // 从缓存配置获取分类（避免 N+1 selectByCode）
+            Map<String, JwIndicatorConfig> configMap = loadConfigMap();
+            JwIndicatorConfig cfg = configMap.get(code);
             if (cfg != null) {
-                JwIndicatorConfig parent = null;
-                if (cfg.getParentCode() != null && !cfg.getParentCode().isEmpty()) {
-                    parent = indicatorConfigMapper.selectByCode(cfg.getParentCode());
-                }
+                JwIndicatorConfig parent = cfg.getParentCode() != null && !cfg.getParentCode().isEmpty()
+                    ? configMap.get(cfg.getParentCode()) : null;
                 if (parent != null && parent.getParentCode() != null && !parent.getParentCode().isEmpty()) {
-                    JwIndicatorConfig grandparent = indicatorConfigMapper.selectByCode(parent.getParentCode());
+                    JwIndicatorConfig grandparent = configMap.get(parent.getParentCode());
                     if (grandparent != null) return grandparent.getIndicatorName();
                 }
                 if (parent != null) return parent.getIndicatorName();
@@ -1419,21 +1431,21 @@ public class ExcelExportService {
             }
         }
 
-        // 指标分类布局: 从配置表动态获取
-        // 按(大分类, 子分类)分组
+        // 指标分类布局: 从配置表动态获取（消除 N+1 递归查父节点）
+        Map<String, JwIndicatorConfig> allConfigs = loadConfigMap();
         Map<String, Map<String, List<String>>> dynamicCats = new LinkedHashMap<>();
         for (String code : codeList) {
-            JwIndicatorConfig cfg = indicatorConfigMapper.selectByCode(code);
+            JwIndicatorConfig cfg = allConfigs.get(code);
             String cat = "其他";
             String subCat = code;
             if (cfg != null) {
                 subCat = cfg.getIndicatorName() != null ? cfg.getIndicatorName() : code;
                 if (cfg.getParentCode() != null && !cfg.getParentCode().isEmpty()) {
-                    JwIndicatorConfig parent = indicatorConfigMapper.selectByCode(cfg.getParentCode());
+                    JwIndicatorConfig parent = allConfigs.get(cfg.getParentCode());
                     if (parent != null) {
                         subCat = parent.getIndicatorName() != null ? parent.getIndicatorName() : subCat;
                         if (parent.getParentCode() != null && !parent.getParentCode().isEmpty()) {
-                            JwIndicatorConfig gp = indicatorConfigMapper.selectByCode(parent.getParentCode());
+                            JwIndicatorConfig gp = allConfigs.get(parent.getParentCode());
                             if (gp != null) cat = gp.getIndicatorName();
                             else cat = parent.getIndicatorName();
                         } else {
@@ -1460,9 +1472,25 @@ public class ExcelExportService {
             }
         }
 
-        // TOPSIS得分区(仅归一化sheet)
-        String[] scoreCats = {"overall", "revenue", "indicator", "customer", "operation"};
-        String[] scoreLabels = {"总分", "营收", "指标", "客户", "运营"};
+        // TOPSIS得分区(仅归一化sheet) — 从 branch_raw + branch 类型根节点动态获取分类
+        List<JwIndicatorConfig> rootNodes = isNormalized
+            ? indicatorConfigMapper.selectByTypes(Arrays.asList("branch_raw", "branch")).stream()
+                .filter(c -> c.getParentCode() == null || c.getParentCode().isEmpty())
+                .sorted(Comparator.comparingInt(r -> r.getSortOrder() != null ? r.getSortOrder() : 0))
+                .collect(Collectors.toList())
+            : new ArrayList<>();
+        List<String> scoreCatList = new ArrayList<>();
+        List<String> scoreLabelList = new ArrayList<>();
+        if (isNormalized) {
+            for (JwIndicatorConfig root : rootNodes) {
+                scoreCatList.add(root.getIndicatorCode());
+                scoreLabelList.add(root.getIndicatorName());
+            }
+            scoreCatList.add("overall");
+            scoreLabelList.add("总分");
+        }
+        String[] scoreCats = scoreCatList.toArray(new String[0]);
+        String[] scoreLabels = scoreLabelList.toArray(new String[0]);
         String[] distLabels = {"正理想解欧式距离", "负理想解欧式距离", "得分", "排名"};
         int colsPerCat = 4;
         int scoreTotal = isNormalized ? scoreCats.length * colsPerCat : 0;
@@ -1806,18 +1834,4 @@ public class ExcelExportService {
         return style;
     }
 
-    /** 沿 parent_code 链找到根节点的 indicator_name 作为分类名 */
-    private String getRootName(JwIndicatorConfig cfg, Map<String, JwIndicatorConfig> configMap) {
-        String parent = cfg.getParentCode();
-        if (parent == null || parent.isEmpty()) return cfg.getIndicatorName();
-        String prev = parent;
-        while (parent != null && !parent.isEmpty()) {
-            JwIndicatorConfig p = configMap.get(parent);
-            if (p == null) break;
-            prev = parent;
-            parent = p.getParentCode();
-        }
-        JwIndicatorConfig root = configMap.get(prev);
-        return root != null ? root.getIndicatorName() : null;
-    }
 }

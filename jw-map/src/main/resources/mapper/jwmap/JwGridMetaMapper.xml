@@ -28,7 +28,7 @@
     <select id="selectJwGridMetaList" parameterType="com.ruoyi.jwmap.domain.JwGridMeta" resultMap="JwGridMetaResult">
         <include refid="selectJwGridMetaVo"/>
         <where>
-            <if test="gridCode != null and gridCode != ''">AND grid_code LIKE CONCAT('%', #{gridCode}, '%')</if>
+            <if test="gridCode != null and gridCode != ''">AND grid_code LIKE '%' || #{gridCode} || '%'</if>
             <if test="city != null and city != ''">AND city = #{city}</if>
             <if test="province != null and province != ''">AND province = #{province}</if>
             <if test="district != null and district != ''">AND district = #{district}</if>
@@ -66,7 +66,7 @@
             #{gridCode}, #{longitude}, #{latitude},
             #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
             #{province}, #{city}, #{district},
-            sysdate(), sysdate()
+            now(), now()
         )
     </insert>
 
@@ -83,7 +83,7 @@
             <if test="city != null">city = #{city},</if>
             <if test="district != null">district = #{district},</if>
 
-            update_time = sysdate()
+            update_time = now()
         </set>
         WHERE grid_code = #{gridCode}
     </update>
@@ -114,35 +114,49 @@
             (#{item.gridCode}, #{item.longitude}, #{item.latitude},
              #{item.westLongitude}, #{item.eastLongitude}, #{item.northLatitude}, #{item.southLatitude},
              #{item.province}, #{item.city}, #{item.district}, #{item.poiCount},
-             sysdate(), sysdate())
+             now(), now())
         </foreach>
     </insert>
 
-    <insert id="upsertGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
-        INSERT INTO jw_grid_meta (
-            grid_code, longitude, latitude,
-            west_longitude, east_longitude, north_latitude, south_latitude,
-            province, city, district,
-            create_time, update_time
-        ) VALUES (
-            #{gridCode}, #{longitude}, #{latitude},
-            #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
-            #{province}, #{city}, #{district},
-            sysdate(), sysdate()
+    <update id="batchUpdateGridMeta" parameterType="java.util.List">
+        UPDATE jw_grid_meta
+        SET longitude = CASE grid_code
+            <foreach item="item" collection="list">
+            WHEN #{item.gridCode} THEN #{item.longitude}
+            </foreach>
+        END,
+        latitude = CASE grid_code
+            <foreach item="item" collection="list">
+            WHEN #{item.gridCode} THEN #{item.latitude}
+            </foreach>
+        END,
+        west_longitude = CASE grid_code
+            <foreach item="item" collection="list">
+            WHEN #{item.gridCode} THEN #{item.westLongitude}
+            </foreach>
+        END,
+        east_longitude = CASE grid_code
+            <foreach item="item" collection="list">
+            WHEN #{item.gridCode} THEN #{item.eastLongitude}
+            </foreach>
+        END,
+        north_latitude = CASE grid_code
+            <foreach item="item" collection="list">
+            WHEN #{item.gridCode} THEN #{item.northLatitude}
+            </foreach>
+        END,
+        south_latitude = CASE grid_code
+            <foreach item="item" collection="list">
+            WHEN #{item.gridCode} THEN #{item.southLatitude}
+            </foreach>
+        END,
+        update_time = now()
+        WHERE grid_code IN (
+            <foreach item="item" collection="list" separator=",">
+            #{item.gridCode}
+            </foreach>
         )
-        ON DUPLICATE KEY UPDATE
-            longitude = VALUES(longitude),
-            latitude = VALUES(latitude),
-            west_longitude = VALUES(west_longitude),
-            east_longitude = VALUES(east_longitude),
-            north_latitude = VALUES(north_latitude),
-            south_latitude = VALUES(south_latitude),
-            province = VALUES(province),
-            city = VALUES(city),
-            district = VALUES(district),
-
-            update_time = sysdate()
-    </insert>
+    </update>
 
     <select id="selectByPoint" resultMap="JwGridMetaResult">
         <include refid="selectJwGridMetaVo"/>

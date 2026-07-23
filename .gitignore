@@ -66,3 +66,9 @@ tiler/*.png
 !*/build/*.java
 !*/build/*.html
 !*/build/*.xml
+node_modules/
+uploadPath/
+jw-map/ry-vue.sql
+package-lock.json
+package.json
+jw-map/jw_indicator_config.sql

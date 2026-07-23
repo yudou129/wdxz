@@ -7,6 +7,7 @@ import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.jwmap.domain.*;
 import com.ruoyi.jwmap.mapper.*;
 import com.ruoyi.jwmap.service.IJwDataAccessService;
+import com.ruoyi.jwmap.util.JwGeoUtils;
 import com.ruoyi.jwmap.util.JwIndicatorUtils;
 import com.ruoyi.system.mapper.SysDeptMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,8 +84,15 @@ public class JwGridDataController extends BaseController {
     }
 
     @GetMapping("/grid/score/byCity/{city}")
-    public AjaxResult gridScoreByCity(@PathVariable String city) {
+    public AjaxResult gridScoreByCity(@PathVariable String city,
+                                       @RequestParam(required = false) String district) {
         List<JwGridMeta> metas = gridMetaMapper.selectByCity(city);
+        // 按区县过滤（"all" 表示不过滤）
+        if (district != null && !district.isEmpty() && !"all".equals(district)) {
+            metas = metas.stream()
+                .filter(m -> district.equals(m.getDistrict()))
+                .collect(Collectors.toList());
+        }
         Map<String, Double> scoreMap = buildSiteScoreMap(city);
 
         List<Map<String, Object>> result = new ArrayList<>();
@@ -154,9 +162,13 @@ public class JwGridDataController extends BaseController {
     // ===== 网格排名 =====
 
     @GetMapping("/grid/ranking/{city}")
-    public TableDataInfo gridRanking(@PathVariable String city) {
+    public TableDataInfo gridRanking(@PathVariable String city,
+                                      @RequestParam(required = false) String district) {
         startPage();
-        return getDataTable(gridScoreMapper.selectByCity(city));
+        if (district != null && !district.isEmpty()) {
+            return getDataTable(gridScoreMapper.selectRankingWithMetaByDistrict(city, district));
+        }
+        return getDataTable(gridScoreMapper.selectRankingWithMeta(city));
     }
 
     @GetMapping("/grid/ranking/district/{gridCode}")
@@ -358,10 +370,9 @@ public class JwGridDataController extends BaseController {
 
     @GetMapping("/grid/topWithoutBranch/{city}")
     public AjaxResult gridTopWithoutBranch(@PathVariable String city,
-                                           @RequestParam(required = false, defaultValue = "100") Integer limit,
                                            @RequestParam(required = false) String district) {
         List<String> codes = gridScoreMapper.selectTopCodesWithoutBranch(city,
-            district != null && !district.isEmpty() ? district : null, limit);
+            district != null && !district.isEmpty() && !"all".equals(district) ? district : null, 1000000);
         if (codes.isEmpty()) return success(new ArrayList<>());
 
         Set<String> codeSet = new HashSet<>(codes);
@@ -415,7 +426,7 @@ public class JwGridDataController extends BaseController {
 
         for (JwBranchInfo b : branches) {
             if (b.getLatitude() == null || b.getLongitude() == null) continue;
-            double dist = haversineKm(gridLat, gridLng, b.getLatitude(), b.getLongitude());
+            double dist = JwGeoUtils.haversine(gridLat, gridLng, b.getLatitude(), b.getLongitude());
             if (dist < minDist) { minDist = dist; nearest = b; }
         }
 
@@ -427,18 +438,6 @@ public class JwGridDataController extends BaseController {
         result.put("primaryBranch", nearest.getPrimaryBranch());
         result.put("distance", Math.round(minDist * 10.0) / 10.0); // 保留1位小数
         return success(result);
-    }
-
-    /** Haversine 公式计算两点间距离（km） */
-    private double haversineKm(double lat1, double lng1, double lat2, double lng2) {
-        double R = 6371.0; // 地球平均半径 km
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLng = Math.toRadians(lng2 - lng1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                 * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
     }
 
     // ===== 辅助方法 =====

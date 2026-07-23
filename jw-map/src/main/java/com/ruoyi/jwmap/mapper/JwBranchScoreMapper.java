@@ -33,6 +33,11 @@ public interface JwBranchScoreMapper {
                                                         @Param("dataYear") Integer dataYear,
                                                         @Param("category") String category);
 
+    List<JwBranchScore> selectByCityAndYearAndCategoryAndBranch(@Param("city") String city,
+                                                                 @Param("dataYear") Integer dataYear,
+                                                                 @Param("category") String category,
+                                                                 @Param("primaryBranch") String primaryBranch);
+
     int insertJwBranchScore(JwBranchScore s);
 
     int updateJwBranchScore(JwBranchScore s);
@@ -47,5 +52,13 @@ public interface JwBranchScoreMapper {
 
     int batchInsert(List<JwBranchScore> list);
 
-    int upsertBranchScore(JwBranchScore s);
+    /**
+     * 批量更新排名（GaussDB兼容：使用VALUES语法批量UPDATE）
+     */
+    int batchUpdateRank(@Param("list") List<JwBranchScore> list);
+
+    /**
+     * 批量更新四象限字段（quadrant, median_site_rank, median_branch_rank）
+     */
+    int batchUpdateQuadrant(@Param("list") List<JwBranchScore> list);
 }

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwGridMetaMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwGridMeta" id="JwGridMetaResult">
+        <id property="gridCode" column="grid_code"/>
+        <result property="longitude" column="longitude"/>
+        <result property="latitude" column="latitude"/>
+        <result property="westLongitude" column="west_longitude"/>
+        <result property="eastLongitude" column="east_longitude"/>
+        <result property="northLatitude" column="north_latitude"/>
+        <result property="southLatitude" column="south_latitude"/>
+        <result property="province" column="province"/>
+        <result property="city" column="city"/>
+        <result property="district" column="district"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectJwGridMetaVo">
+        SELECT grid_code, longitude, latitude,
+               west_longitude, east_longitude, north_latitude, south_latitude,
+               province, city, district,
+               create_time, update_time
+        FROM jw_grid_meta
+    </sql>
+
+    <select id="selectJwGridMetaList" parameterType="com.ruoyi.jwmap.domain.JwGridMeta" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        <where>
+            <if test="gridCode != null and gridCode != ''">AND grid_code LIKE '%' || #{gridCode} || '%'</if>
+            <if test="city != null and city != ''">AND city = #{city}</if>
+            <if test="province != null and province != ''">AND province = #{province}</if>
+            <if test="district != null and district != ''">AND district = #{district}</if>
+        </where>
+        ORDER BY grid_code
+    </select>
+
+    <select id="selectJwGridMetaById" parameterType="String" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        WHERE grid_code = #{gridCode}
+    </select>
+
+    <select id="selectByGridCode" parameterType="String" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        WHERE grid_code = #{gridCode}
+    </select>
+
+    <select id="selectByCity" parameterType="String" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        WHERE city = #{city}
+        ORDER BY grid_code
+    </select>
+
+    <select id="selectDistinctCities" resultType="String">
+        SELECT DISTINCT city FROM jw_grid_meta ORDER BY city
+    </select>
+
+    <insert id="insertJwGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
+        INSERT INTO jw_grid_meta (
+            grid_code, longitude, latitude,
+            west_longitude, east_longitude, north_latitude, south_latitude,
+            province, city, district,
+            create_time, update_time
+        ) VALUES (
+            #{gridCode}, #{longitude}, #{latitude},
+            #{westLongitude}, #{eastLongitude}, #{northLatitude}, #{southLatitude},
+            #{province}, #{city}, #{district},
+            now(), now()
+        )
+    </insert>
+
+    <update id="updateJwGridMeta" parameterType="com.ruoyi.jwmap.domain.JwGridMeta">
+        UPDATE jw_grid_meta
+        <set>
+            <if test="longitude != null">longitude = #{longitude},</if>
+            <if test="latitude != null">latitude = #{latitude},</if>
+            <if test="westLongitude != null">west_longitude = #{westLongitude},</if>
+            <if test="eastLongitude != null">east_longitude = #{eastLongitude},</if>
+            <if test="northLatitude != null">north_latitude = #{northLatitude},</if>
+            <if test="southLatitude != null">south_latitude = #{southLatitude},</if>
+            <if test="province != null">province = #{province},</if>
+            <if test="city != null">city = #{city},</if>
+            <if test="district != null">district = #{district},</if>
+            update_time = now()
+        </set>
+        WHERE grid_code = #{gridCode}
+    </update>
+
+    <delete id="deleteJwGridMetaById" parameterType="String">
+        DELETE FROM jw_grid_meta WHERE grid_code = #{gridCode}
+    </delete>
+
+    <delete id="deleteJwGridMetaByIds" parameterType="String">
+        DELETE FROM jw_grid_meta WHERE grid_code IN
+        <foreach item="code" collection="array" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </delete>
+
+    <delete id="deleteByCity" parameterType="String">
+        DELETE FROM jw_grid_meta WHERE city = #{city}
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_grid_meta (
+            grid_code, longitude, latitude,
+            west_longitude, east_longitude, north_latitude, south_latitude,
+            province, city, district,
+            create_time, update_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.gridCode}, #{item.longitude}, #{item.latitude},
+             #{item.westLongitude}, #{item.eastLongitude}, #{item.northLatitude}, #{item.southLatitude},
+             #{item.province}, #{item.city}, #{item.district},
+             now(), now())
+        </foreach>
+    </insert>
+
+    <select id="selectByPoint" resultMap="JwGridMetaResult">
+        <include refid="selectJwGridMetaVo"/>
+        WHERE west_longitude &lt;= #{longitude}
+          AND east_longitude &gt;= #{longitude}
+          AND south_latitude &lt;= #{latitude}
+          AND north_latitude &gt;= #{latitude}
+        LIMIT 1
+    </select>
+
+    <update id="batchUpdateGridMeta" parameterType="java.util.List">
+        <foreach item="item" collection="list" separator=";">
+            UPDATE jw_grid_meta
+            SET longitude = #{item.longitude},
+                latitude = #{item.latitude},
+                west_longitude = #{item.westLongitude},
+                east_longitude = #{item.eastLongitude},
+                north_latitude = #{item.northLatitude},
+                south_latitude = #{item.southLatitude},
+                update_time = now()
+            WHERE grid_code = #{item.gridCode}
+        </foreach>
+    </update>
+
+</mapper>

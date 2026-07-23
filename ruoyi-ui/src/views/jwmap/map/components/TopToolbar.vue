@@ -1,25 +1,25 @@
 <template>
   <div class="top-toolbar">
     <div class="toolbar-row toolbar-row-top">
-      <span class="toolbar-label">行政区</span>
-      <el-select v-model="selectedCity" size="small" placeholder="贵州省" @change="onCityChange"
-                 style="width:110px;">
-        <el-option label="贵州省" value="all" />
-        <el-option v-for="c in cities" :key="c.properties.adcode"
-                   :label="c.properties.name" :value="c.properties.adcode" />
+      <span class="toolbar-label">选择分行/地市</span>
+      <el-select v-model="selectedCity" size="small" placeholder="选择分行/地市" @change="onCityChange"
+                 style="width:140px;">
+        <el-option label="全省" value="all" />
+        <el-option v-for="b in BRANCH_LIST" :key="b.adcode"
+                   :label="b.label" :value="b.adcode" />
       </el-select>
       <el-select v-if="selectedCity !== 'all'" v-model="selectedDistrict" size="small"
-                 placeholder="选择区县" @change="onDistrictChange" style="width:120px;margin-left:6px;">
+                 placeholder="选择区县" @change="onDistrictChange" style="width:130px;margin-left:6px;">
         <el-option label="全部区县" value="all" />
         <el-option v-for="d in districts" :key="d.properties.adcode"
                    :label="d.properties.name" :value="d.properties.adcode" />
       </el-select>
-      <span class="toolbar-label" style="margin-left:12px;">一级支行</span>
-      <el-select v-model="selectedBranch" size="small" placeholder="全部" @change="onBranchChange">
+      <span v-if="selectedCity !== 'all'" class="toolbar-label" style="margin-left:12px;">一级支行</span>
+      <el-select v-if="selectedCity !== 'all'" v-model="selectedBranch" size="small" placeholder="全部" @change="onBranchChange">
         <el-option label="全部" value="all" />
         <el-option v-for="b in branchOptions" :key="b" :label="b" :value="b" />
       </el-select>
-      <span style="margin-left:4px;border-left:1px solid rgba(0,0,0,0.12);height:20px" />
+      <span class="row-divider" />
 
       <!-- 地址/POI搜索 -->
       <div class="toolbar-search addr-search">
@@ -64,7 +64,7 @@
           </div>
         </div>
       </div>
-      <span style="margin-left:8px;border-left:1px solid rgba(0,0,0,0.1);padding-left:8px" />
+      <span class="row-divider" />
       <el-button size="small" @click="$emit('goto-access')">
         <i class="el-icon-document" /> 我的申请
       </el-button>
@@ -74,20 +74,27 @@
       </el-button>
     </div>
 
-    <div class="toolbar-row toolbar-row-bottom">
-      <el-button size="small" @click="$emit('toggle-quadrant')">
-        <i class="el-icon-s-data" /> 四象限综合分析
+    <div v-show="true" class="toolbar-row toolbar-row-bottom">
+      <el-button size="small" :type="quadrantActive ? 'primary' : 'default'"
+                 :class="{ 'btn-analysis': quadrantActive }"
+                 @click="$emit('toggle-quadrant')">
+        <i class="el-icon-s-data" /> 四象限
       </el-button>
       <!-- <el-button size="small" @click="$emit('toggle-dim-stats')">
         <i class="el-icon-pie-chart" /> 统计
       </el-button> -->
-      <el-button size="small" :type="heatmapActive ? 'danger' : 'default'"
-                 :class="{ 'heatmap-on': heatmapActive }"
+      <el-button size="small" :type="branchActive ? 'primary' : 'default'"
+                 :class="{ 'branch-on': branchActive }"
+                 @click="$emit('toggle-branch')">
+        <i class="el-icon-location" /> 网点信息
+      </el-button>
+      <el-button size="small" :type="heatmapActive ? 'primary' : 'default'"
+                 :class="{ 'btn-info': heatmapActive }"
                  @click="$emit('toggle-heatmap')">
         <i class="el-icon-data-board" /> 网格热力图
       </el-button>
-      <el-button size="small" :type="blankSpotActive ? 'info' : 'default'"
-                 :class="{ 'blankspot-on': blankSpotActive }"
+      <el-button size="small" :type="blankSpotActive ? 'primary' : 'default'"
+                 :class="{ 'btn-info': blankSpotActive }"
                  @click="$emit('toggle-blank-spot')">
         <i class="el-icon-view" /> 服务空白点
       </el-button>
@@ -101,36 +108,65 @@
         </el-select>
       </span>
       <el-button size="small" :type="peerBankActive ? 'primary' : 'default'"
-                 :class="{ 'peerbk-on': peerBankActive }"
+                 :class="{ 'btn-brand': peerBankActive }"
                  @click="$emit('toggle-peerbank')">
         <i class="el-icon-office-building" /> 同业网点
       </el-button>
-      <el-button size="small" :type="rangeActive ? 'warning' : 'default'"
-                 :class="{ 'range-on': rangeActive }"
+      <el-button size="small" :type="rangeActive ? 'primary' : 'default'"
+                 :class="{ 'btn-ops': rangeActive }"
                  @click="$emit('toggle-range')">
         <i class="el-icon-rank" /> POI范围分析
       </el-button>
-      <el-button size="small" :type="rankingActive ? 'success' : 'default'"
-                 :class="{ 'ranking-on': rankingActive }"
-                 @click="$emit('toggle-ranking')">
-        <i class="el-icon-trophy" /> 网格/网点排名
-      </el-button>
-      <el-button size="small" :type="compareActive ? 'warning' : 'default'"
-                 :class="{ 'compare-on': compareActive }"
+      <el-dropdown size="small" @command="v => $emit('toggle-ranking', v)" trigger="click">
+        <el-button size="small" :type="rankingActive ? 'primary' : 'default'"
+                   :class="{ 'btn-analysis': rankingActive }">
+          <i class="el-icon-trophy" /> 排名<i class="el-icon-arrow-down el-icon--right" />
+        </el-button>
+        <el-dropdown-menu slot="dropdown">
+          <el-dropdown-item command="grid"><i class="el-icon-trophy" /> 网格排名</el-dropdown-item>
+          <el-dropdown-item command="branch"><i class="el-icon-medal" /> 网点排名</el-dropdown-item>
+        </el-dropdown-menu>
+      </el-dropdown>
+      <el-button size="small" :type="compareActive ? 'primary' : 'default'"
+                 :class="{ 'btn-analysis': compareActive }"
                  @click="$emit('toggle-compare')">
-        <i class="el-icon-data-analysis" /> {{ compareActive ? '退出对比' : '多网点对比分析' }}
+        <i class="el-icon-data-analysis" /> {{ compareActive ? '退出对比' : '对比' }}
       </el-button>
+      <el-dropdown size="small" @command="v => $emit('tool-command', v)" trigger="click">
+        <el-button size="small" :type="toolActive ? 'primary' : 'default'">
+          <i class="el-icon-setting" /> 工具<i class="el-icon-arrow-down el-icon--right" />
+        </el-button>
+        <el-dropdown-menu slot="dropdown">
+          <el-dropdown-item command="pick"><i class="el-icon-location" /> 标点（经纬度拾取）</el-dropdown-item>
+          <el-dropdown-item command="measure"><i class="el-icon-connection" /> 测距</el-dropdown-item>
+          <el-dropdown-item command="clear" divided><i class="el-icon-delete" /> 清除所有标记</el-dropdown-item>
+        </el-dropdown-menu>
+      </el-dropdown>
     </div>
   </div>
 </template>
 
 <script>
-import { getBranchList } from '@/api/jwmap/data'
+const BRANCH_LIST = [
+  { label: '贵阳分行（贵阳市）', adcode: 520100, city: '贵阳市' },
+  { label: '遵义分行（遵义市）', adcode: 520300, city: '遵义市' },
+  { label: '六盘水分行（六盘水市）', adcode: 520200, city: '六盘水市' },
+  { label: '安顺分行（安顺市）', adcode: 520400, city: '安顺市' },
+  { label: '毕节分行（毕节市）', adcode: 520500, city: '毕节市' },
+  { label: '铜仁分行（铜仁市）', adcode: 520600, city: '铜仁市' },
+  { label: '凯里分行（黔东南）', adcode: 522600, city: '黔东南州' },
+  { label: '都匀分行（黔南）', adcode: 522700, city: '黔南州' },
+  { label: '兴义分行（黔西南）', adcode: 522300, city: '黔西南州' },
+]
 
 export default {
   name: 'TopToolbar',
+  BRANCH_LIST,
   props: {
-    cities: { type: Array, default: () => [] },
+
+    toolActive: { type: Boolean, default: false },
+    quadrantActive: { type: Boolean, default: false },
+    branchActive: { type: Boolean, default: true },
     heatmapActive: { type: Boolean, default: false },
     peerBankActive: { type: Boolean, default: true },
     rangeActive: { type: Boolean, default: false },
@@ -140,7 +176,8 @@ export default {
     blankSpotLimit: { type: Number, default: 100 },
     branchList: { type: Array, default: () => [] },
     pendingCount: { type: Number, default: 0 },
-    searchTool: { type: Object, default: null }
+    searchTool: { type: Object, default: null },
+
   },
   data() {
     return {
@@ -152,24 +189,20 @@ export default {
       addressSearchFocused: false,
       addressSearchResults: [],
       addressSearchLoading: false,
-      _addressSearchTimer: null
+      _addressSearchTimer: null,
     }
   },
   computed: {
-    cityNameMap() {
-      const map = {}
-      for (const c of this.cities) {
-        if (c.properties && c.properties.adcode != null) {
-          map[c.properties.adcode] = c.properties.name
-        }
-      }
-      return map
+    BRANCH_LIST() {
+      return BRANCH_LIST
     }
   },
   watch: {
-    branchList() {
+    branchList(list) {
       this.searchQuery = ''
       this.searchResults = []
+      // 从 branchList prop 提取唯一的一级支行名称，填充"一级支行"下拉框
+      this.branchOptions = [...new Set((list || []).map(b => b.primaryBranch).filter(Boolean))].sort()
     }
   },
   methods: {
@@ -255,13 +288,18 @@ export default {
         this.branchOptions = []; this.selectedBranch = 'all'; this.districts = []
         this.$emit('select-city', null)
       } else {
-        this.loadBranches(val)
-        this.loadDistricts(val)
-        this.$emit('select-city', val)
+        const found = this.BRANCH_LIST.find(b => b.adcode === val)
+        if (found) {
+          this.loadDistricts(found.adcode)
+          this.$emit('select-city', found.city || found.label, found.adcode)
+        }
       }
     },
     onDistrictChange(val) {
-      this.$emit('select-district', val === 'all' ? null : val)
+      // 第二个参数传区县名称（如"云岩区"），供后端筛选用
+      const feature = val === 'all' ? null : this.districts.find(d => d.properties.adcode === val)
+      const name = feature ? feature.properties.name : null
+      this.$emit('select-district', val === 'all' ? null : val, name)
     },
     async loadDistricts(adcode) {
       try {
@@ -270,18 +308,11 @@ export default {
         this.districts = (await res.json()).features || []
       } catch (e) { this.districts = [] }
     },
-    async loadBranches(adcode) {
-      try {
-        const cityName = this.cityNameMap[adcode]
-        if (!cityName) { this.branchOptions = []; return }
-        const res = await getBranchList(cityName)
-        const branches = [...new Set((res.data || []).map(b => b.primaryBranch).filter(Boolean))]
-        this.branchOptions = branches.sort()
-      } catch (e) { this.branchOptions = [] }
-    },
+
     onBranchChange(val) {
       this.$emit('filter-branch', val === 'all' ? null : val)
-    }
+    },
+
   }
 }
 </script>
@@ -294,34 +325,23 @@ export default {
   transform: translateX(-50%);
   z-index: 1000;
   isolation: isolate;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.28);
+  max-width: 98vw;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.08)),
-    rgba(255, 255, 255, 0.10);
-  backdrop-filter: blur(22px) saturate(170%) contrast(1.04);
-  -webkit-backdrop-filter: blur(22px) saturate(170%) contrast(1.04);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.10)),
+    rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px) saturate(180%) contrast(1.06);
+  -webkit-backdrop-filter: blur(24px) saturate(180%) contrast(1.06);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.44),
+    inset 0 1px 0 rgba(255, 255, 255, 0.48),
     inset 0 -1px 0 rgba(255, 255, 255, 0.10),
-    0 4px 20px rgba(79, 110, 246, 0.06),
-    0 1px 3px rgba(0, 0, 0, 0.04);
-  padding: 8px 16px;
+    0 4px 24px rgba(79, 110, 246, 0.08),
+    0 1px 4px rgba(0, 0, 0, 0.04);
+  padding: 12px 20px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-.toolbar-row {
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-}
-.toolbar-row-top {
-  gap: 2px;
-}
-.toolbar-row-bottom {
-  justify-content: center;
-  gap: 4px;
+  gap: 7px;
 }
 .top-toolbar::before {
   content: '';
@@ -330,91 +350,122 @@ export default {
   z-index: -1;
   border-radius: inherit;
   background:
-    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.48), transparent 34%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.16), transparent 42%, rgba(255, 255, 255, 0.12));
+    radial-gradient(circle at 20% 0%, rgba(255,255,255,0.5), transparent 36%),
+    linear-gradient(90deg, rgba(255,255,255,0.18), transparent 42%, rgba(255,255,255,0.10));
   pointer-events: none;
 }
 .top-toolbar::after {
   content: '';
   position: absolute;
   inset: 1px;
-  border-radius: 9px;
+  border-radius: 11px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   pointer-events: none;
 }
 @media (prefers-reduced-transparency: reduce) {
-  .top-toolbar {
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
+  .top-toolbar { background: rgba(255,255,255,0.94); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.toolbar-row-top {
+  gap: 6px;
+}
+.toolbar-row-bottom {
+  justify-content: center;
+  gap: 6px;
+}
+/* 工具栏内按钮加宽调字体 */
+.toolbar-row-bottom ::v-deep .el-button--small {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+.toolbar-row ::v-deep .el-button--small {
+  padding: 8px 14px;
+}
+.toolbar-row-bottom > * { flex-shrink: 0; }
+
 .toolbar-label {
   font-size: 13px;
   color: #444;
   font-weight: 500;
   margin-right: 2px;
+  white-space: nowrap;
 }
+
+/* 行内分隔线 */
+.row-divider {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: rgba(0,0,0,0.08);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
 /* 网点搜索 */
 .toolbar-search {
   position: relative;
   display: inline-flex;
   align-items: center;
-  margin-left: 8px;
+  margin-left: 10px;
 }
 .search-icon {
   position: absolute;
   left: 8px;
-  color: #666;
+  color: #888;
   font-size: 13px;
   pointer-events: none;
   z-index: 1;
 }
 .search-input {
-  width: 140px;
-  height: 28px;
-  border: 1px solid rgba(0,0,0,0.1);
-  border-radius: 6px;
-  padding: 0 8px 0 26px;
+  width: 160px;
+  height: 30px;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 7px;
+  padding: 0 10px 0 28px;
   font-size: 13px;
   outline: none;
-  background: rgba(255,255,255,0.7);
-  transition: border-color 0.2s, width 0.2s;
+  background: rgba(255,255,255,0.55);
+  transition: border-color 0.2s, width 0.2s, background 0.2s, box-shadow 0.2s;
 }
 .search-input:focus {
-  width: 180px;
-  border-color: #409eff;
-  background: rgba(255,255,255,0.95);
+  width: 200px;
+  border-color: #4f6ef6;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 0 0 3px rgba(79,110,246,0.08);
 }
-.search-input::placeholder {
-  color: #888;
-}
+.search-input::placeholder { color: #999; }
 .search-dropdown {
   position: absolute;
   top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  max-height: 260px;
+  left: -12px;
+  min-width: calc(100% + 60px);
+  width: 340px;
+  margin-top: 5px;
+  background: rgba(255,255,255,0.97);
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  max-height: 300px;
   overflow-y: auto;
   z-index: 2000;
 }
 .search-item {
   display: flex;
   flex-direction: column;
-  padding: 7px 10px;
+  padding: 9px 12px;
   cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.12s;
 }
-.search-item:last-child {
-  border-bottom: none;
-}
-.search-item:hover {
-  background: #f0f7ff;
-}
+.search-item:last-child { border-bottom: none; }
+.search-item:hover { background: #f5f8ff; }
 .search-item-row1 {
   display: flex;
   align-items: center;
@@ -423,8 +474,8 @@ export default {
 }
 .search-item-name {
   font-size: 13px;
-  color: #333;
-  font-weight: 500;
+  color: #232845;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -436,81 +487,54 @@ export default {
   flex-shrink: 0;
   padding: 0 4px;
 }
-.add-compare-btn:hover {
-  color: #3b54d4;
-}
+.add-compare-btn:hover { color: #3b54d4; }
 .search-item-parent {
-  font-size: 13px;
-  color: #555;
-  margin-top: 1px;
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.heatmap-on {
-  background: #f56c6c;
-  border-color: #f56c6c;
-  color: #fff;
+
+/* ===== 激活态按钮配色体系 ===== */
+
+/* 蓝色 — 数据层控制（网点、同业） */
+.btn-brand { background: #4f6ef6; border-color: #4f6ef6; color: #fff; }
+.btn-brand:hover { background: #3b54d4; border-color: #3b54d4; }
+
+/* 紫色 — 综合分析（四象限、排名、对比） */
+.btn-analysis { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+.btn-analysis:hover { background: #6d28d9; border-color: #6d28d9; }
+
+/* 青色 — 网格覆盖层（热力图、空白点） */
+.btn-info { background: #06b6d4; border-color: #06b6d4; color: #fff; }
+.btn-info:hover { background: #0891b2; border-color: #0891b2; }
+
+/* 橙色 — 工具/操作（POI、工具） */
+.btn-ops { background: #e6a23c; border-color: #e6a23c; color: #fff; }
+.btn-ops:hover { background: #d4941f; border-color: #d4941f; }
+
+/* 按钮悬停通用效果 */
+.el-button--default:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.15s ease;
 }
-.heatmap-on:hover {
-  background: #e85b5b;
-  border-color: #e85b5b;
+.el-button--default:active {
+  transform: translateY(0);
 }
-.peerbk-on {
-  background: #409eff;
-  border-color: #409eff;
-  color: #fff;
-}
-.peerbk-on:hover {
-  background: #3a8ee6;
-  border-color: #3a8ee6;
-}
-.range-on {
-  background: #e6a23c;
-  border-color: #e6a23c;
-  color: #fff;
-}
-.range-on:hover {
-  background: #d4941f;
-  border-color: #d4941f;
-}
-.ranking-on {
-  background: #67c23a;
-  border-color: #67c23a;
-  color: #fff;
-}
-.ranking-on:hover {
-  background: #5daf34;
-  border-color: #5daf34;
-}
-.compare-on {
-  background: #e6a23c;
-  border-color: #e6a23c;
-  color: #fff;
-}
-.compare-on:hover {
-  background: #d4941f;
-  border-color: #d4941f;
-}
-.blankspot-on {
-  background: #06b6d4;
-  border-color: #06b6d4;
-  color: #fff;
-}
-.blankspot-on:hover {
-  background: #0891b2;
-  border-color: #0891b2;
-}
+
+/* 空白点数量下拉 */
 .blank-spot-params {
   display: inline-flex;
   align-items: center;
 }
-.blank-spot-params .el-select {
-  width: 90px;
-}
-.addr-search .search-input {
-  width: 120px;
-}
-.addr-search .search-input:focus {
-  width: 160px;
-}
+.blank-spot-params .el-select { width: 90px; }
+
+/* 地址搜索 */
+.addr-search .search-input { width: 150px; }
+.addr-search .search-input:focus { width: 220px; }
 .search-clear {
   position: absolute;
   right: 8px;
@@ -523,7 +547,7 @@ export default {
 .search-loading {
   position: absolute;
   right: 8px;
-  color: #409eff;
+  color: #4f6ef6;
   font-size: 13px;
   z-index: 1;
 }
@@ -536,14 +560,9 @@ export default {
   background: rgba(0,0,0,0.04);
 }
 .filter-hint-active {
-  color: #409eff;
-  background: rgba(64,158,255,0.08);
+  color: #4f6ef6;
+  background: rgba(79,110,246,0.08);
 }
-.toolbar-badge {
-  margin-left: 2px;
-}
-.toolbar-badge >>> .el-badge__content {
-  top: 2px;
-  right: -4px;
-}
+.toolbar-badge { margin-left: 2px; }
+.toolbar-badge >>> .el-badge__content { top: 2px; right: -4px; }
 </style>

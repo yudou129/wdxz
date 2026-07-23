@@ -150,8 +150,13 @@ public class JwBranchDataController extends BaseController {
     // ===== 网点排名 =====
 
     @GetMapping("/branch/ranking/{city}/{year}")
-    public TableDataInfo branchRanking(@PathVariable String city, @PathVariable Integer year) {
+    public TableDataInfo branchRanking(@PathVariable String city, @PathVariable Integer year,
+                                        @RequestParam(required = false) String primaryBranch) {
         startPage();
+        if (primaryBranch != null && !primaryBranch.isEmpty()) {
+            return getDataTable(branchScoreMapper.selectByCityAndYearAndCategoryAndBranch(
+                city, year, "overall", primaryBranch));
+        }
         return getDataTable(branchScoreMapper.selectByCityAndYearAndCategory(city, year, "overall"));
     }
 

@@ -16,7 +16,7 @@
       <el-row :gutter="12">
         <el-col :span="6" v-for="item in cityStatusList" :key="item.city">
           <el-card :class="['status-card', item.ready ? 'ready' : 'incomplete']" shadow="never">
-            <h4>{{ item.city }}</h4>
+            <h4>{{ branchLabel(item.city) }}</h4>
             <div>POI: <el-tag :type="item.hasPoi ? 'success' : 'danger'" size="small">{{ item.hasPoi ? '已导入' : '缺' }}</el-tag></div>
             <div>人口热力: <el-tag :type="item.hasPopulation ? 'success' : 'danger'" size="small">{{ item.hasPopulation ? '已导入' : '缺' }}</el-tag></div>
             <div>权重: <el-tag :type="item.hasWeight ? 'success' : 'danger'" size="small">{{ item.hasWeight ? '已配置' : '缺' }}</el-tag></div>
@@ -77,7 +77,7 @@
               <el-card shadow="never">
                 <div slot="header"><i class="el-icon-s-grid" /> 网格数据计算</div>
                 <p>将POI信息和人口热力数据按1KM×1KM网格聚合，计算四至坐标、POI数量、TOPSIS选址得分。</p>
-                <el-select v-model="computeGridCity" placeholder="选择城市" class="dm-select">
+                <el-select v-model="computeGridCity" placeholder="选择二级分行" class="dm-select">
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
                 <el-button type="primary" @click="handleGridCompute" :loading="gridComputing">{{ gridComputing ? '计算中...' : '开始网格计算' }}</el-button>
@@ -89,13 +89,50 @@
               <el-card shadow="never">
                 <div slot="header"><i class="el-icon-office-building" /> 网点效能计算</div>
                 <p>计算22个衍生指标（人均/单位面积/户均），执行归一化和五类TOPSIS评分（营收/指标/客户/运营/总分）。</p>
-                <el-select v-model="computeBranchCity" placeholder="选择城市" class="dm-select">
+                <el-select v-model="computeBranchCity" placeholder="选择二级分行" class="dm-select">
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
                 <el-select v-model="computeBranchYear" placeholder="选择年份" class="dm-select dm-select-sm">
                   <el-option v-for="y in yearOptions" :key="y" :label="String(y)" :value="y" />
                 </el-select>
                 <el-button type="primary" @click="handleBranchCompute" :loading="branchComputing">{{ branchComputing ? '计算中...' : '开始网点计算' }}</el-button>
+              </el-card>
+            </el-col>
+          </el-row>
+
+
+          <!-- 四象限计算 -->
+          <el-row :gutter="20" style="margin-top:16px">
+            <el-col :span="12">
+              <el-card shadow="never">
+                <div slot="header"><i class="el-icon-s-data" /> 四象限分析</div>
+                <p>网点计算完成后，基于网点效能排名和网格选址排名，将网点划分为 Q1~Q4 四个象限。</p>
+                <el-select v-model="quadrantCity" placeholder="选择二级分行" class="dm-select">
+                  <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
+                </el-select>
+                <el-select v-model="quadrantYear" placeholder="选择年份" class="dm-select dm-select-sm">
+                  <el-option v-for="y in yearOptions" :key="y" :label="String(y)" :value="y" />
+                </el-select>
+                <div class="boundary-config" style="margin-top:8px">
+                  <span style="font-size:13px;color:#555;margin-right:8px">分界方式：</span>
+                  <el-radio-group v-model="boundaryMethod" size="small">
+                    <el-radio-button label="median">中位数</el-radio-button>
+                    <el-radio-button label="custom">自定义排名</el-radio-button>
+                  </el-radio-group>
+                </div>
+                <template v-if="boundaryMethod === 'custom'">
+                  <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span style="font-size:13px;color:#555">选址排名分界：</span>
+                    <el-input-number v-model="siteRankCutoff" :min="1" size="small" style="width:100px" />
+                    <span style="font-size:13px;color:#555;margin-left:8px">网点排名分界：</span>
+                    <el-input-number v-model="branchRankCutoff" :min="1" size="small" style="width:100px" />
+                  </div>
+                </template>
+                <div style="margin-top:12px">
+                  <el-button type="primary" @click="handleQuadrantCompute" :loading="quadrantComputing">
+                    {{ quadrantComputing ? '计算中...' : '执行四象限计算' }}
+                  </el-button>
+                </div>
               </el-card>
             </el-col>
           </el-row>
@@ -137,16 +174,16 @@
         <el-tab-pane label="数据查看" name="view">
           <el-tabs v-model="viewTab" type="card">
             <el-tab-pane label="网格数据" name="gridView">
-              <el-select v-model="viewCity" placeholder="选择城市" class="dm-select" style="margin-bottom:12px">
+              <el-select v-model="viewCity" placeholder="选择二级分行" class="dm-select" style="margin-bottom:12px">
                 <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
               </el-select>
               <div style="height:calc(100vh - 380px);min-height:400px">
-                <GridDetailView :city="viewCity" />
+                <GridDetailView :city="cityValue(viewCity)" />
               </div>
             </el-tab-pane>
             <el-tab-pane label="网点数据" name="branchView">
               <div style="margin-bottom:12px">
-                <el-select v-model="viewCity" placeholder="选择城市" class="dm-select">
+                <el-select v-model="viewCity" placeholder="选择二级分行" class="dm-select">
                   <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
                 </el-select>
                 <el-select v-model="branchViewYear" placeholder="选择年份" class="dm-select dm-select-sm">
@@ -154,11 +191,11 @@
                 </el-select>
               </div>
               <div style="height:calc(100vh - 380px);min-height:400px">
-                <BranchDetailView :city="viewCity" :year="branchViewYear" />
+                <BranchDetailView :city="cityValue(viewCity)" :year="branchViewYear" />
               </div>
             </el-tab-pane>
             <el-tab-pane label="同业银行" name="peerBankView">
-              <el-select v-model="viewCity" placeholder="选择城市" @change="loadPeerBankList" class="dm-select" style="margin-bottom:12px">
+              <el-select v-model="viewCity" placeholder="选择二级分行" @change="loadPeerBankList" class="dm-select" style="margin-bottom:12px">
                 <el-option v-for="c in cityList" :key="c" :label="c" :value="c" />
               </el-select>
               <el-table :data="peerBankList" class="dm-table" v-loading="peerBankLoading">
@@ -186,14 +223,21 @@
 </template>
 
 <script>
-// 贵州省工行二级分行对应地市列表
-const GUIZHOU_CITIES = [
-  '贵阳市', '遵义市', '六盘水市', '安顺市', '毕节市', '铜仁市',
-  '兴义', '凯里', '都匀'
+// 贵州省工行二级分行 → city 映射
+const BRANCH_CITIES = [
+  { label: '贵阳分行', city: '贵阳市' },
+  { label: '遵义分行', city: '遵义市' },
+  { label: '六盘水分行', city: '六盘水市' },
+  { label: '安顺分行', city: '安顺市' },
+  { label: '毕节分行', city: '毕节市' },
+  { label: '铜仁分行', city: '铜仁市' },
+  { label: '凯里分行', city: '凯里' },
+  { label: '都匀分行', city: '都匀' },
+  { label: '兴义分行', city: '兴义' },
 ]
 
 import {
-  getAllCityStatus, computeGridData, computeBranchData,
+  getAllCityStatus, computeGridData, computeBranchData, computeQuadrant,
 } from '@/api/jwmap/data'
 import { importPoi, importPopulationHeat,
   importBranchInfo, importPeerBank } from '@/api/jwmap/data'
@@ -214,7 +258,7 @@ export default {
       importCollapse: ['poi'],
       // 城市状态
       cityStatusList: [],
-      cityList: [...GUIZHOU_CITIES],
+      cityList: BRANCH_CITIES.map(b => b.label),
       // 导入
       importCity: '',
       importDataSource: '网点信息',
@@ -228,6 +272,13 @@ export default {
       computeBranchYear: new Date().getFullYear() - 1,
       gridComputing: false,
       branchComputing: false,
+      // 四象限
+      quadrantCity: '',
+      quadrantYear: new Date().getFullYear() - 1,
+      boundaryMethod: 'median',
+      siteRankCutoff: 5,
+      branchRankCutoff: 5,
+      quadrantComputing: false,
       // 导出
       exportCity: '',
       exportYear: new Date().getFullYear() - 1,
@@ -244,19 +295,35 @@ export default {
   computed: {
     yearOptions() {
       const cur = new Date().getFullYear()
-      return [cur - 3, cur - 2, cur - 1]
+      return [cur - 3, cur - 2, cur - 1, cur]
     }
   },
   methods: {
+    /** 分行名 → city 值（贵阳市/遵义市等） */
+    cityValue(label) {
+      const found = BRANCH_CITIES.find(b => b.label === label)
+      return found ? found.city : label
+    },
+    /** city 值 → 分行名 */
+    branchLabel(city) {
+      const found = BRANCH_CITIES.find(b => b.city === city)
+      return found ? found.label : city
+    },
     async refreshCityStatus() {
       try {
         const res = await getAllCityStatus()
         this.cityStatusList = res.data || []
         // 合并静态列表与API返回的城市，保留静态列表且去重
         const apiCities = this.cityStatusList.map(s => s.city)
-        const seen = new Set(GUIZHOU_CITIES)
-        this.cityList = [...GUIZHOU_CITIES]
-        apiCities.forEach(c => { if (!seen.has(c)) { seen.add(c); this.cityList.push(c) } })
+        const branchLabels = BRANCH_CITIES.map(b => b.label)
+        const seen = new Set(branchLabels)
+        this.cityList = [...branchLabels]
+        apiCities.forEach(c => {
+          // 通过映射找到对应分行名，或直接添加
+          const found = BRANCH_CITIES.find(b => b.city === c)
+          const label = found ? found.label : c
+          if (!seen.has(label)) { seen.add(label); this.cityList.push(label) }
+        })
       } catch (e) { /* ignore */ }
     },
     async handleImport(type, eventData) {
@@ -264,8 +331,9 @@ export default {
       this[loadingKey] = true
       try {
         const file = eventData?.file
-        const city = eventData?.city
+        const branchLabel = eventData?.city
         const dataSource = eventData?.dataSource
+        const city = this.cityValue(branchLabel || '')
         if (!file) return
         let result
         const fd = new FormData()
@@ -287,34 +355,53 @@ export default {
       }
     },
     async handleGridCompute() {
-      if (!this.computeGridCity) { this.$message.warning('请选择城市'); return }
+      if (!this.computeGridCity) { this.$message.warning('请选择二级分行'); return }
       this.gridComputing = true
       try {
-        const res = await computeGridData(this.computeGridCity)
+        const res = await computeGridData(this.cityValue(this.computeGridCity))
         this.$message.success(res.msg || '计算完成')
         this.refreshCityStatus()
       } catch (e) { this.$message.error('计算失败：' + (e.message || '未知错误')) }
       finally { this.gridComputing = false }
     },
     async handleBranchCompute() {
-      if (!this.computeBranchCity) { this.$message.warning('请选择城市'); return }
+      if (!this.computeBranchCity) { this.$message.warning('请选择二级分行'); return }
       this.branchComputing = true
       try {
-        const res = await computeBranchData(this.computeBranchCity, this.computeBranchYear)
+        const res = await computeBranchData(this.cityValue(this.computeBranchCity), this.computeBranchYear)
         this.$message.success(res.msg || '计算完成')
       } catch (e) { this.$message.error('计算失败：' + (e.message || '未知错误')) }
       finally { this.branchComputing = false }
     },
+    async handleQuadrantCompute() {
+      if (!this.quadrantCity) { this.$message.warning('请选择二级分行'); return }
+      this.quadrantComputing = true
+      try {
+        const params = {
+          city: this.cityValue(this.quadrantCity),
+          dataYear: this.quadrantYear,
+          boundaryMethod: this.boundaryMethod,
+        }
+        if (this.boundaryMethod === 'custom') {
+          params.siteRankCutoff = this.siteRankCutoff
+          params.branchRankCutoff = this.branchRankCutoff
+        }
+        const res = await computeQuadrant(params)
+        this.$message.success('四象限计算完成，共 ' + (res.data?.totalBranches || 0) + ' 个网点')
+      } catch (e) { this.$message.error('四象限计算失败：' + (e.message || '未知错误')) }
+      finally { this.quadrantComputing = false }
+    },
     async handleExport(type) {
-      if (!this.exportCity) { this.$message.warning('请选择城市'); return }
+      if (!this.exportCity) { this.$message.warning('请选择二级分行'); return }
+      const city = this.cityValue(this.exportCity)
       try {
         let blob
         let fileName
         if (type === 'grid') {
-          blob = await exportGridCombined(this.exportCity)
-          fileName = '网格数据_' + this.exportCity + '.xlsx'
+          blob = await exportGridCombined(city)
+          fileName = '网格数据_' + city + '.xlsx'
         } else if (type === 'branch') {
-          blob = await exportBranchCombined(this.exportCity, this.exportYear)
+          blob = await exportBranchCombined(city, this.exportYear)
           fileName = '网点数据_' + this.exportCity + '_' + this.exportYear + '.xlsx'
         } else {
           this.$message.error('未知导出类型')
@@ -350,7 +437,7 @@ export default {
     async loadPeerBankList() {
       if (!this.viewCity) return
       this.peerBankLoading = true
-      try { const res = await getPeerBankList(this.viewCity); this.peerBankList = res.data || [] }
+      try { const res = await getPeerBankList(this.cityValue(this.viewCity)); this.peerBankList = res.data || [] }
       catch (e) { this.peerBankList = [] } finally { this.peerBankLoading = false }
     },
   }

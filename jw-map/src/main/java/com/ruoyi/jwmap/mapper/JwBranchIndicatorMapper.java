@@ -56,6 +56,13 @@ public interface JwBranchIndicatorMapper {
     int deleteByBranchAndSheetType(@Param("branchId") Long branchId,
                                    @Param("sheetType") String sheetType);
 
+    /**
+     * 按城市+年份+表类型批量删除（GaussDB优化：消除网点循环内的N+1 DELETE）
+     */
+    int deleteByCityYearAndSheetType(@Param("city") String city,
+                                     @Param("dataYear") Integer dataYear,
+                                     @Param("sheetType") String sheetType);
+
     int batchInsert(List<JwBranchIndicator> list);
 
     int upsertJwBranchIndicator(JwBranchIndicator ind);

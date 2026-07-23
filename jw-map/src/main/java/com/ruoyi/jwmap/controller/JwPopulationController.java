@@ -2,7 +2,7 @@ package com.ruoyi.jwmap.controller;
 
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.jwmap.mapper.JwPopulationHeatMapper;
+import com.ruoyi.jwmap.service.IJwDataQueryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,10 +14,10 @@ import org.springframework.web.bind.annotation.*;
 public class JwPopulationController extends BaseController {
 
     @Autowired
-    private JwPopulationHeatMapper populationHeatMapper;
+    private IJwDataQueryService dataQueryService;
 
     @GetMapping("/grids/{city}")
     public AjaxResult getDistinctGrids(@PathVariable String city) {
-        return success(populationHeatMapper.selectDistinctGridCodesByCity(city));
+        return success(dataQueryService.queryDistinctGridCodes(city));
     }
 }

@@ -12,6 +12,9 @@
         <result property="negativeDistance" column="negative_distance"/>
         <result property="categoryScore" column="category_score"/>
         <result property="rankNum" column="rank_num"/>
+        <result property="quadrant" column="quadrant"/>
+        <result property="medianSiteRank" column="median_site_rank"/>
+        <result property="medianBranchRank" column="median_branch_rank"/>
         <result property="createTime" column="create_time"/>
         <result property="secondaryBranch" column="secondary_branch"/>
         <result property="primaryBranch" column="primary_branch"/>
@@ -28,6 +31,7 @@
     <sql id="selectJwBranchScoreWithNameVo">
         SELECT s.score_id, s.branch_id, s.data_year, s.city, s.score_category,
                s.positive_distance, s.negative_distance, s.category_score, s.rank_num, s.create_time,
+               s.quadrant, s.median_site_rank, s.median_branch_rank,
                bi.secondary_branch, bi.primary_branch, bi.grid_code
         FROM jw_branch_score s
         LEFT JOIN jw_branch_info bi ON s.branch_id = bi.branch_id
@@ -83,13 +87,20 @@
         ORDER BY s.rank_num
     </select>
 
+    <select id="selectByCityAndYearAndCategoryAndBranch" resultMap="JwBranchScoreResult">
+        <include refid="selectJwBranchScoreWithNameVo"/>
+        WHERE s.city = #{city} AND s.data_year = #{dataYear} AND s.score_category = #{category}
+          AND bi.primary_branch = #{primaryBranch}
+        ORDER BY s.rank_num
+    </select>
+
     <insert id="insertJwBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore" useGeneratedKeys="true" keyProperty="scoreId">
         INSERT INTO jw_branch_score (
             branch_id, data_year, city, score_category,
             positive_distance, negative_distance, category_score, rank_num, create_time
         ) VALUES (
             #{branchId}, #{dataYear}, #{city}, #{scoreCategory},
-            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, sysdate()
+            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, now()
         )
     </insert>
 
@@ -136,23 +147,46 @@
         ) VALUES
         <foreach item="item" collection="list" separator=",">
             (#{item.branchId}, #{item.dataYear}, #{item.city}, #{item.scoreCategory},
-             #{item.positiveDistance}, #{item.negativeDistance}, #{item.categoryScore}, #{item.rankNum}, sysdate())
+             #{item.positiveDistance}, #{item.negativeDistance}, #{item.categoryScore}, #{item.rankNum}, now())
         </foreach>
     </insert>
 
-    <insert id="upsertBranchScore" parameterType="com.ruoyi.jwmap.domain.JwBranchScore">
-        INSERT INTO jw_branch_score (
-            branch_id, data_year, city, score_category,
-            positive_distance, negative_distance, category_score, rank_num, create_time
-        ) VALUES (
-            #{branchId}, #{dataYear}, #{city}, #{scoreCategory},
-            #{positiveDistance}, #{negativeDistance}, #{categoryScore}, #{rankNum}, sysdate()
+    <update id="batchUpdateQuadrant" parameterType="java.util.List">
+        UPDATE jw_branch_score
+        SET quadrant = CASE score_id
+            <foreach item="item" collection="list">
+            WHEN #{item.scoreId} THEN #{item.quadrant}
+            </foreach>
+        END,
+        median_site_rank = CASE score_id
+            <foreach item="item" collection="list">
+            WHEN #{item.scoreId} THEN #{item.medianSiteRank}
+            </foreach>
+        END,
+        median_branch_rank = CASE score_id
+            <foreach item="item" collection="list">
+            WHEN #{item.scoreId} THEN #{item.medianBranchRank}
+            </foreach>
+        END
+        WHERE score_id IN (
+            <foreach item="item" collection="list" separator=",">
+            #{item.scoreId}
+            </foreach>
         )
-        ON DUPLICATE KEY UPDATE
-            positive_distance = VALUES(positive_distance),
-            negative_distance = VALUES(negative_distance),
-            category_score = VALUES(category_score),
-            rank_num = VALUES(rank_num)
-    </insert>
+    </update>
+
+    <update id="batchUpdateRank" parameterType="java.util.List">
+        UPDATE jw_branch_score
+        SET rank_num = CASE score_id
+            <foreach item="item" collection="list">
+            WHEN #{item.scoreId} THEN #{item.rankNum}
+            </foreach>
+        END
+        WHERE score_id IN (
+            <foreach item="item" collection="list" separator=",">
+            #{item.scoreId}
+            </foreach>
+        )
+    </update>
 
 </mapper>

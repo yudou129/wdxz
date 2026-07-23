@@ -51,7 +51,7 @@ export default {
   },
 
   beforeDestroy() {
-    if (this.measureTool) { this.measureTool._deactivate(); this.measureTool._clear() }
+    if (this.measureTool) { this.measureTool.destroy() }
     this.unbindRangeEvents()
 
     // 清理覆盖物
@@ -119,7 +119,6 @@ export default {
 
       // 6. 测距工具
       this.measureTool = new BMapMeasureTool(this.map)
-      this.measureTool.init()
 
       // 7. 地址搜索工具
       this.searchTool = new BMapSearchTool(this.map)
@@ -190,7 +189,7 @@ export default {
       if (this.boundaryMgr) this.boundaryMgr.showCity(this.currentAdcode)
       await this.loadGridDataCache()
       await this.loadBranches()
-      this.loadRanking('grid', false)
+      this.loadGridRanking(false)
     },
 
     onSelectDistrict(adcode) {
@@ -215,7 +214,8 @@ export default {
 
     async loadHeatmapData() {
       try {
-        const res = await getGridScoreByCity(this.currentCity)
+        const district = this.currentDistrict || null
+        const res = await getGridScoreByCity(this.currentCity, district)
         this.heatmapData = res.data || []
         if (!this.heatmapData.length) {
           this.$message.info('该城市暂无网格评分数据')
@@ -282,6 +282,10 @@ export default {
           try { this.map.removeOverlay(marker) } catch(e) {}
         }
       }
+      // 联动刷新网点排名
+      if (this.branchRanking && this.branchRanking.visible) {
+        this.loadBranchRanking()
+      }
     },
 
     async onYearChange(year) {
@@ -292,7 +296,11 @@ export default {
         await this.loadBranchScores(this.sidebar.branchData.branchId)
       }
       if (this._yearChangeSeq !== _seq) return
-      if (this.ranking.visible) this.loadRanking(this.ranking.type)
+      if (this.ranking.visible) this.loadGridRanking(false)
+      if (this._yearChangeSeq !== _seq) return
+      if (this.quadrant && this.quadrant.visible) {
+        this.loadQuadrant()
+      }
       if (this._yearChangeSeq !== _seq) return
       if (this.comparePanel && this.comparePanel.branches && this.comparePanel.branches.length > 0) {
         await this.refreshAllCompareData()
@@ -315,22 +323,30 @@ export default {
       const branches = res.data || []
       this.branchList = branches
 
-      // SVG 图标 — 本行银行 logo
+      const markers = this.createBranchMarkers(branches)
+      this.branchMarkers = markers
+      if (this.branchVisible !== false) {
+        for (const m of markers) this.map.addOverlay(m)
+      }
+    },
+
+    createBranchMarkers(branches) {
+      const BMapGL = window.BMapGL
+      if (!BMapGL) return []
+      const markers = []
       const svgUrl = getOwnBankSvgUrl()
-      const iconSize = 28  // 气泡外径
+      const iconSize = 28
       const half = iconSize / 2
 
       for (const b of branches) {
         if (b.longitude == null || b.latitude == null) continue
         const point = new BMapGL.Point(b.longitude, b.latitude)
 
-        // ══ 圆形彩色气泡标记 ══
         const marker = new BMapGL.CustomOverlay(function () {
           const wrapper = document.createElement('div')
           wrapper.style.cssText =
             'position:absolute;cursor:pointer;width:' + iconSize + 'px;height:' + iconSize + 'px;'
 
-          // 气泡外圈
           const bubble = document.createElement('div')
           bubble.style.cssText =
             'width:' + iconSize + 'px;height:' + iconSize + 'px;border-radius:50%;' +
@@ -340,10 +356,8 @@ export default {
             'transition:transform 0.15s ease,box-shadow 0.15s ease;'
 
           if (svgUrl) {
-            // 气泡内嵌缩小后的 SVG logo
             bubble.innerHTML = '<img src="' + svgUrl + '" style="width:18px;height:18px;object-fit:contain;">'
           } else {
-            // 无 SVG 时显示文字缩写，气泡颜色变为主体色
             bubble.style.background = '#4a6cf7'
             bubble.style.color = '#fff'
             bubble.style.fontSize = '11px'
@@ -353,7 +367,6 @@ export default {
 
           wrapper.appendChild(bubble)
 
-          // 悬停标签
           const nameDiv = document.createElement('div')
           nameDiv.style.cssText =
             'display:none;position:absolute;top:-24px;left:50%;transform:translateX(-50%);' +
@@ -383,12 +396,13 @@ export default {
         })
 
         marker._branchData = b
-        this.branchMarkers.push(marker)
-        this.map.addOverlay(marker)
+        markers.push(marker)
       }
+      return markers
     },
 
     onSearchBranch(branch) {
+
       if (branch.latitude != null && branch.longitude != null) {
         const BMapGL = window.BMapGL
         if (BMapGL) {
@@ -450,6 +464,12 @@ export default {
       }
       const _seq = (this._branchClickSeq || 0) + 1
       this._branchClickSeq = _seq
+
+      // 切换网点时重置所有 AI 状态，防止旧内容串到新网点
+      this.gridAiState = { loading: false, content: '', error: '', mode: '' }
+      this.branchAiState = { loading: false, content: '', error: '' }
+      this.quadrantAiState = { loading: false, content: '', error: '' }
+      this.relocationAiState = { loading: false, content: '', error: '' }
 
       this.sidebar.mode = 'branch-only'
       this.sidebar.width = 380
@@ -554,6 +574,13 @@ export default {
     // ======== 网格点击 ========
     async onGridClick(gridCode, data) {
       this.clearHighlight()
+
+      // 切换网格时重置所有 AI 状态，防止旧分析内容串到新网格
+      this.gridAiState = { loading: false, content: '', error: '', mode: '' }
+      this.branchAiState = { loading: false, content: '', error: '' }
+      this.quadrantAiState = { loading: false, content: '', error: '' }
+      this.relocationAiState = { loading: false, content: '', error: '' }
+
       this.sidebar.visible = true
       this.sidebar.gridData = data
 
@@ -617,6 +644,8 @@ export default {
         if (branches.length > 0) {
           this.sidebar.mode = 'split'
           this.sidebar.width = 600
+          this.gridBranches = branches
+          this.activeGridBranchIdx = 0
           this.sidebar.branchData = branches[0]
           await Promise.all([
             this.loadBranchScores(branches[0].branchId),
@@ -626,6 +655,8 @@ export default {
         } else {
           this.sidebar.mode = 'grid-only'
           this.sidebar.width = 380
+          this.gridBranches = []
+          this.activeGridBranchIdx = 0
           if (data && data.blankSpot) {
             this.loadNearestBranch(gridCode)
           } else {
@@ -635,6 +666,17 @@ export default {
       } catch (e) {
         console.error('[bmap] 网格点击加载失败:', e)
       }
+    },
+
+    async switchGridBranch(branch, idx) {
+      if (!branch || !branch.branchId) return
+      this.activeGridBranchIdx = idx
+      this.sidebar.branchData = branch
+      await Promise.all([
+        this.loadBranchScores(branch.branchId),
+        this.loadBranchRankMeta(branch.branchId),
+        this.loadBranchQuadrant(branch)
+      ])
     },
 
     async loadNearestBranch(gridCode) {
@@ -920,6 +962,16 @@ export default {
       this.peerBankVisible = !this.peerBankVisible
     },
 
+    onToggleBranch() {
+      if (!this.branchMarkers || !this.branchMarkers.length) { return }
+      if (this.branchVisible) {
+        this.branchMarkers.forEach(m => { try { this.map.removeOverlay(m) } catch(e) {} })
+      } else {
+        this.branchMarkers.forEach(m => { try { this.map.addOverlay(m) } catch(e) {} })
+      }
+      this.branchVisible = !this.branchVisible
+    },
+
     async loadPeerAndNearby(branchId) {
       try {
         const [peerRes, nearbyRes] = await Promise.all([
@@ -950,7 +1002,7 @@ export default {
       this.blankSpotRanking.loading = true
       try {
         const limit = this.blankSpotLimit || 100
-        const district = this.currentDistrict !== 'all' && this.currentDistrict ? this.currentDistrict : undefined
+        const district = this.currentDistrict || undefined
         const res = await getGridTopWithoutBranch(this.currentCity, { limit, district })
         this.blankSpotData = res.data || []
         if (!this.blankSpotData.length) {
@@ -1013,10 +1065,10 @@ export default {
     },
 
     onBlankSpotParamsChange(params) {
-      if (params.limit != null || params.district !== undefined) {
+      if (params.limit != null) {
         this.blankSpotLimit = params.limit
-        this.currentDistrict = params.district
       }
+      // district 由 onSelectDistrict 统一管理，不在空白点 params 中修改
       if (this.blankSpotActive) {
         this.removeBlankSpotLayer()
         this.loadBlankSpotData()

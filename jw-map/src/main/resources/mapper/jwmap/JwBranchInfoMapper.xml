@@ -54,7 +54,7 @@
         <include refid="selectJwBranchInfoVo"/>
         <where>
             <if test="branchCode != null and branchCode != ''">
-                AND branch_code LIKE CONCAT('%', #{branchCode}, '%')
+                AND branch_code LIKE '%' || #{branchCode} || '%'
             </if>
             <if test="primaryBranch != null and primaryBranch != ''">
                 AND primary_branch = #{primaryBranch}
@@ -115,6 +115,18 @@
         ORDER BY branch_id
     </select>
 
+    <select id="selectBranchGridMapping" parameterType="String" resultType="java.util.Map">
+        SELECT bi.branch_id AS "branchId", gm.grid_code AS "gridCode"
+        FROM jw_branch_info bi
+        JOIN jw_grid_meta gm
+          ON bi.longitude &gt;= gm.west_longitude
+          AND bi.longitude &lt;= gm.east_longitude
+          AND bi.latitude &gt;= gm.south_latitude
+          AND bi.latitude &lt;= gm.north_latitude
+        WHERE bi.city = #{city}
+          AND (bi.del_flag IS NULL OR bi.del_flag = '0')
+    </select>
+
     <select id="selectDistinctCities" resultType="String">
         SELECT DISTINCT city FROM jw_branch_info
         WHERE (del_flag IS NULL OR del_flag = '0')
@@ -137,7 +149,7 @@
             #{branchManager}, #{managerTenure}, #{managerResume}, #{managerHistory},
             #{totalArea}, #{otherFloorArea}, #{cashCounter}, #{nonCashCounter}, #{managerSeat},
             #{propertyRight}, #{leaseExpire}, #{lastRenovation}, #{branchType}, #{relocation}, #{dataSource},
-            #{delFlag}, sysdate(), sysdate()
+            #{delFlag}, now(), now()
         )
     </insert>
 
@@ -175,14 +187,14 @@
             <if test="relocation != null">relocation = #{relocation},</if>
             <if test="dataSource != null">data_source = #{dataSource},</if>
             <if test="delFlag != null">del_flag = #{delFlag},</if>
-            update_time = sysdate()
+            update_time = now()
         </set>
         WHERE branch_id = #{branchId}
     </update>
 
     <update id="updateGridCode">
         UPDATE jw_branch_info
-        SET grid_code = #{gridCode}, update_time = sysdate()
+        SET grid_code = #{gridCode}, update_time = now()
         WHERE branch_id = #{branchId}
     </update>
 
@@ -193,7 +205,7 @@
             WHEN #{item.branchId} THEN #{item.gridCode}
         </foreach>
         END,
-        update_time = sysdate()
+        update_time = now()
         WHERE branch_id IN
         <foreach item="item" collection="list" open="(" close=")" separator=",">
             #{item.branchId}
@@ -228,60 +240,10 @@
              #{item.branchManager}, #{item.managerTenure}, #{item.managerResume}, #{item.managerHistory},
              #{item.totalArea}, #{item.otherFloorArea}, #{item.cashCounter}, #{item.nonCashCounter}, #{item.managerSeat},
              #{item.propertyRight}, #{item.leaseExpire}, #{item.lastRenovation}, #{item.branchType}, #{item.relocation}, #{item.dataSource},
-             #{item.delFlag}, sysdate(), sysdate())
+             #{item.delFlag}, now(), now())
         </foreach>
     </insert>
 
-    <insert id="upsertJwBranchInfo" parameterType="com.ruoyi.jwmap.domain.JwBranchInfo">
-        INSERT INTO jw_branch_info (
-            primary_branch, secondary_branch, branch_code, city, grid_code,
-            district_name, street, address, longitude, latitude,
-            total_staff, personal_manager, corporate_manager, counter_staff, lobby_staff,
-            branch_manager, manager_tenure, manager_resume, manager_history,
-            total_area, other_floor_area, cash_counter, non_cash_counter, manager_seat,
-            property_right, lease_expire, last_renovation, branch_type, relocation, data_source,
-            del_flag, create_time, update_time
-        ) VALUES (
-            #{primaryBranch}, #{secondaryBranch}, #{branchCode}, #{city}, #{gridCode},
-            #{districtName}, #{street}, #{address}, #{longitude}, #{latitude},
-            #{totalStaff}, #{personalManager}, #{corporateManager}, #{counterStaff}, #{lobbyStaff},
-            #{branchManager}, #{managerTenure}, #{managerResume}, #{managerHistory},
-            #{totalArea}, #{otherFloorArea}, #{cashCounter}, #{nonCashCounter}, #{managerSeat},
-            #{propertyRight}, #{leaseExpire}, #{lastRenovation}, #{branchType}, #{relocation}, #{dataSource},
-            #{delFlag}, sysdate(), sysdate()
-        )
-        ON DUPLICATE KEY UPDATE
-            primary_branch = VALUES(primary_branch),
-            secondary_branch = VALUES(secondary_branch),
-            city = VALUES(city),
-            grid_code = VALUES(grid_code),
-            district_name = VALUES(district_name),
-            street = VALUES(street),
-            address = VALUES(address),
-            longitude = VALUES(longitude),
-            latitude = VALUES(latitude),
-            total_staff = VALUES(total_staff),
-            personal_manager = VALUES(personal_manager),
-            corporate_manager = VALUES(corporate_manager),
-            counter_staff = VALUES(counter_staff),
-            lobby_staff = VALUES(lobby_staff),
-            branch_manager = VALUES(branch_manager),
-            manager_tenure = VALUES(manager_tenure),
-            manager_resume = VALUES(manager_resume),
-            manager_history = VALUES(manager_history),
-            total_area = VALUES(total_area),
-            other_floor_area = VALUES(other_floor_area),
-            cash_counter = VALUES(cash_counter),
-            non_cash_counter = VALUES(non_cash_counter),
-            manager_seat = VALUES(manager_seat),
-            property_right = VALUES(property_right),
-            lease_expire = VALUES(lease_expire),
-            last_renovation = VALUES(last_renovation),
-            branch_type = VALUES(branch_type),
-            relocation = VALUES(relocation),
-            data_source = VALUES(data_source),
-            update_time = sysdate()
-    </insert>
 
     <!-- 四象限分析：JOIN 网格得分 + 网点得分 -->
     <select id="selectQuadrantData" resultType="java.util.HashMap">
@@ -297,6 +259,7 @@
             bs.category_score AS branchScore
         FROM jw_branch_info bi
         LEFT JOIN jw_grid_score gs ON bi.grid_code = gs.grid_code
+            AND gs.score_category = 'overall'
         LEFT JOIN jw_branch_score bs ON bi.branch_id = bs.branch_id
             AND bs.score_category = 'overall'
             AND bs.data_year = #{year}

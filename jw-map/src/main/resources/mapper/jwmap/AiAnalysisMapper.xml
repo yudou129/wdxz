@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.AiAnalysisMapper">
+
+    <resultMap id="AiAnalysisResult" type="com.ruoyi.jwmap.domain.AiAnalysisRecord">
+        <id property="id" column="id" />
+        <result property="analysisType" column="analysis_type" />
+        <result property="entityKey" column="entity_key" />
+        <result property="city" column="city" />
+        <result property="content" column="content" />
+        <result property="satisfied" column="satisfied" />
+        <result property="expired" column="expired" />
+        <result property="createdAt" column="created_at" />
+        <result property="updatedAt" column="updated_at" />
+    </resultMap>
+
+    <sql id="selectVo">
+        SELECT id, analysis_type, entity_key, city, content, satisfied, expired, created_at, updated_at
+        FROM jw_ai_analysis
+    </sql>
+
+    <select id="selectByTypeAndKey" resultMap="AiAnalysisResult">
+        <include refid="selectVo" />
+        WHERE analysis_type = #{analysisType} AND entity_key = #{entityKey}
+    </select>
+
+    <select id="selectByCity" resultMap="AiAnalysisResult">
+        <include refid="selectVo" />
+        WHERE city = #{city}
+    </select>
+
+    <insert id="upsert" parameterType="com.ruoyi.jwmap.domain.AiAnalysisRecord">
+        INSERT INTO jw_ai_analysis (analysis_type, entity_key, city, content, satisfied, expired, created_at, updated_at)
+        VALUES (#{analysisType}, #{entityKey}, #{city}, #{content}, #{satisfied}, #{expired}, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            content = VALUES(content),
+            city = VALUES(city),
+            satisfied = NULL,
+            expired = 0,
+            updated_at = NOW()
+    </insert>
+
+    <update id="expireByCity">
+        UPDATE jw_ai_analysis
+        SET expired = 1, updated_at = NOW()
+        WHERE city = #{city}
+    </update>
+
+    <update id="updateSatisfied">
+        UPDATE jw_ai_analysis
+        SET satisfied = #{satisfied}, updated_at = NOW()
+        WHERE analysis_type = #{analysisType} AND entity_key = #{entityKey}
+    </update>
+
+</mapper>

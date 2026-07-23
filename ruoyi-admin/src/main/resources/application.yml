@@ -136,3 +136,36 @@ xss:
   excludes: /system/notice
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
+
+# AI 大模型配置
+ai:
+  # DeepSeek API Key
+  api-key: sk-ca5e5449019b437aa7b79bed47a39045
+  # API 服务地址（兼容 OpenAI 协议）
+  base-url: ${AI_BASE_URL:https://api.deepseek.com/v1}
+  # 模型名称
+  model: ${AI_MODEL:deepseek-v4-flash}
+  # 温度（分析任务建议 0.3）
+  temperature: 0.3
+  # 最大输出 Token
+  max-tokens: 4096
+  # HTTP 超时（秒）
+  timeout-seconds: 120
+
+# 智能体 AI 配置（新后端，用于替代 DeepSeek）
+agent:
+  ai:
+    # 智能体服务域名前缀
+    domain-prefix: mlp.xxx
+    # 认证 Token（自定义 token 头）
+    token: ${AGENT_AI_TOKEN:}
+    # 智能体名称
+    agent-name: 贵州分行营业网点布局优化智能体
+    # 默认用户 ID
+    default-user-id: ${AGENT_AI_USER_ID:}
+    # 项目 ID
+    project-id: mock_project_id
+    # 引擎类型
+    engine: workflow
+    # HTTP 超时（秒）
+    timeout-seconds: 120

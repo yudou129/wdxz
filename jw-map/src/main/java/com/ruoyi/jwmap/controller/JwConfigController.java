@@ -4,6 +4,7 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.jwmap.domain.JwIndicatorConfig;
 import com.ruoyi.jwmap.mapper.JwIndicatorConfigMapper;
+import com.ruoyi.jwmap.service.impl.ExcelImportService;
 import com.ruoyi.jwmap.service.impl.JwIndicatorConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,9 @@ public class JwConfigController extends BaseController {
 
     @Autowired
     private JwIndicatorConfigService indicatorConfigService;
+
+    @Autowired
+    private ExcelImportService excelImportService;
 
     /** 查询所有分类（根节点即评分分类） */
     @GetMapping("/categories")
@@ -183,6 +187,7 @@ public class JwConfigController extends BaseController {
         if (config.getIsDerived() == null) config.setIsDerived("0");
         if (config.getSortOrder() == null) config.setSortOrder(0);
         int rows = indicatorConfigMapper.insertIndicatorConfig(config);
+        if (rows > 0) excelImportService.clearNormalizedNameCache();
         return rows > 0 ? success("新增成功") : error("新增失败");
     }
 
@@ -201,6 +206,7 @@ public class JwConfigController extends BaseController {
         if (newCode != null && !newCode.equals(oldCode)) {
             indicatorConfigService.updateDependentCodes(oldCode, newCode);
         }
+        if (rows > 0) excelImportService.clearNormalizedNameCache();
         return rows > 0 ? success("更新成功") : error("更新失败");
     }
 
@@ -210,6 +216,7 @@ public class JwConfigController extends BaseController {
         JwIndicatorConfig config = indicatorConfigMapper.selectJwIndicatorConfigById(indicatorId);
         if (config == null) return error("指标不存在");
         indicatorConfigService.deleteWithCascadeData(config.getIndicatorCode());
+        excelImportService.clearNormalizedNameCache();
         return success("删除成功");
     }
 

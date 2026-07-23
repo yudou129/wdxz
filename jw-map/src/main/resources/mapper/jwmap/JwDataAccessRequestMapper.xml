@@ -30,9 +30,9 @@
                r.valid_days, r.status, r.reviewer_id, r.review_comment,
                r.review_time, r.valid_date_from, r.valid_date_to,
                r.del_flag, r.create_by, r.create_time, r.update_by, r.update_time,
-               u1.user_name AS applicant_name,
+               CONCAT(COALESCE(u1.nick_name, u1.user_name), '(', COALESCE(u1.user_name, ''), ')') AS applicant_name,
                d.dept_name AS target_dept_name,
-               u2.user_name AS reviewer_name
+               CONCAT(COALESCE(u2.nick_name, u2.user_name), '(', COALESCE(u2.user_name, ''), ')') AS reviewer_name
         FROM jw_data_access_request r
         LEFT JOIN sys_user u1 ON r.applicant_id = u1.user_id
         LEFT JOIN sys_dept d ON r.target_dept_id = d.dept_id
@@ -99,7 +99,7 @@
             del_flag, create_by, create_time
         ) VALUES (
             #{applicantId}, #{targetDeptId}, #{reason}, #{validDays}, #{reviewerId}, '0',
-            '0', #{createBy}, sysdate()
+            '0', #{createBy}, now()
         )
     </insert>
 
@@ -114,7 +114,7 @@
             <if test="validDateFrom != null">valid_date_from = #{validDateFrom},</if>
             <if test="validDateTo != null">valid_date_to = #{validDateTo},</if>
             update_by = #{updateBy},
-            update_time = sysdate()
+            update_time = now()
         </set>
         WHERE request_id = #{requestId}
     </update>
@@ -122,14 +122,14 @@
     <!-- 软删除 -->
     <update id="deleteJwDataAccessRequestById" parameterType="Long">
         UPDATE jw_data_access_request
-        SET del_flag = '2', update_time = sysdate()
+        SET del_flag = '2', update_time = now()
         WHERE request_id = #{requestId}
     </update>
 
     <!-- 获取审核人列表（直系上级部门的审核员） -->
     <select id="selectReviewers" resultType="java.util.HashMap">
         SELECT DISTINCT u.user_id AS userId, u.user_name AS userName,
-               IFNULL(u.nick_name, u.user_name) AS nickName
+               CONCAT(COALESCE(u.nick_name, u.user_name), '(', COALESCE(u.user_name, ''), ')') AS nickName
         FROM sys_user u
         JOIN sys_user_role ur ON u.user_id = ur.user_id
         JOIN sys_role r ON ur.role_id = r.role_id
@@ -143,7 +143,7 @@
     <!-- 批量过期（Quartz 定时任务用） -->
     <update id="batchExpire">
         UPDATE jw_data_access_request
-        SET status = '4', update_time = sysdate()
+        SET status = '4', update_time = now()
         WHERE status = '1'
           AND valid_date_to IS NOT NULL
           AND valid_date_to &lt; #{today}

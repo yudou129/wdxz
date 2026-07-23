@@ -12,7 +12,6 @@
 export class BMapSearchTool {
   constructor(map) {
     this.map = map
-    this._localSearch = null
     this._resultMarkers = []
     this._resultLabels = []
   }
@@ -23,25 +22,51 @@ export class BMapSearchTool {
    * @returns {Promise<Array<{name, address, point, uid}>>}
    */
   search(keyword) {
-    return new Promise((resolve, reject) => {
-      const BMapGL = window.BMapGL
-      if (!BMapGL) {
-        reject(new Error('BMapGL 未加载'))
-        return
-      }
-      if (!this._localSearch) {
-        this._localSearch = new BMapGL.LocalSearch(this.map, {
-          onSearchComplete: (results) => {
-            if (this._searchResolve) {
-              this._searchResolve(results)
-            }
-          }
-        })
-      }
+    // 使用百度地图 HTTP API 搜索，避免 BMapGL.LocalSearch 的 SDK 内部状态问题
+    return this._httpSearch(keyword)
+  }
 
-      this._searchResolve = resolve
-      this._localSearch.search(keyword)
-    })
+  async _httpSearch(keyword) {
+    const BMapGL = window.BMapGL
+    if (!BMapGL) throw new Error('BMapGL 未加载')
+    this.clearResultMarkers()
+
+    const ak = 'g0o18DfiUGEiOg9QbZ6Cq4N5QgtHX4tr'
+    const url = 'https://api.map.baidu.com/place/v2/search?query=' +
+      encodeURIComponent(keyword) +
+      '&region=贵阳&output=json&ak=' + ak + '&page_size=10'
+
+    try {
+      const res = await fetch(url)
+      const data = await res.json()
+      if (data.status !== 0 || !data.results) {
+        return { getCurrentNumPois: () => 0, getPoi: () => null }
+      }
+      const pois = data.results
+      return {
+        getCurrentNumPois: () => pois.length,
+        getPoi: (i) => {
+          const p = pois[i]
+          if (!p) return null
+          return {
+            title: p.name || '',
+            address: p.address || '',
+            point: new BMapGL.Point(p.location.lng, p.location.lat),
+            uid: p.uid || '',
+            phoneNumber: p.telephone || '',
+            tags: ''
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[bmap] HTTP search failed, fallback to LocalSearch:', e)
+      return new Promise((resolve) => {
+        const ls = new BMapGL.LocalSearch(this.map, {
+          onSearchComplete: (results) => { resolve(results) }
+        })
+        ls.search(keyword)
+      })
+    }
   }
 
   /**

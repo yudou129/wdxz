@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.jwmap.mapper.JwGridScoreMapper">
+
+    <resultMap type="com.ruoyi.jwmap.domain.JwGridScore" id="JwGridScoreResult">
+        <id property="gridCode" column="grid_code"/>
+        <id property="scoreCategory" column="score_category"/>
+        <result property="city" column="city"/>
+        <result property="positiveDistance" column="positive_distance"/>
+        <result property="negativeDistance" column="negative_distance"/>
+        <result property="siteScore" column="site_score"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectJwGridScoreVo">
+        SELECT grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        FROM jw_grid_score
+    </sql>
+
+    <select id="selectJwGridScoreList" parameterType="com.ruoyi.jwmap.domain.JwGridScore" resultMap="JwGridScoreResult">
+        <include refid="selectJwGridScoreVo"/>
+        <where>
+            <if test="gridCode != null and gridCode != ''">AND grid_code LIKE '%' || #{gridCode} || '%'</if>
+            <if test="city != null and city != ''">AND city = #{city}</if>
+            <if test="scoreCategory != null and scoreCategory != ''">AND score_category = #{scoreCategory}</if>
+        </where>
+        ORDER BY site_score DESC
+    </select>
+
+    <select id="selectJwGridScoreByGridCode" parameterType="String" resultMap="JwGridScoreResult">
+        <include refid="selectJwGridScoreVo"/>
+        WHERE grid_code = #{gridCode}
+    </select>
+
+    <select id="selectByGridCode" parameterType="String" resultMap="JwGridScoreResult">
+        SELECT grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        FROM jw_grid_score
+        WHERE grid_code = #{gridCode} AND score_category = 'overall'
+    </select>
+
+    <select id="selectScoresByGridCode" parameterType="String" resultMap="JwGridScoreResult">
+        SELECT grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        FROM jw_grid_score
+        WHERE grid_code = #{gridCode}
+    </select>
+
+    <select id="selectScoresByGridCodes" resultMap="JwGridScoreResult">
+        SELECT grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        FROM jw_grid_score
+        WHERE grid_code IN
+        <foreach item="code" collection="gridCodes" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
+
+    <select id="selectByCity" parameterType="String" resultMap="JwGridScoreResult">
+        <include refid="selectJwGridScoreVo"/>
+        WHERE city = #{city} AND score_category = 'overall'
+        ORDER BY site_score DESC
+    </select>
+
+    <select id="selectScoresByGridCodesAndCategory" resultMap="JwGridScoreResult">
+        SELECT grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        FROM jw_grid_score
+        WHERE grid_code IN
+        <foreach item="code" collection="gridCodes" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+        AND score_category = #{category}
+    </select>
+
+    <select id="selectByCityAndDistrict" resultMap="JwGridScoreResult">
+        SELECT gs.grid_code, gs.city, gs.score_category,
+               gs.positive_distance, gs.negative_distance, gs.site_score, gs.create_time
+        FROM jw_grid_score gs
+        JOIN jw_grid_meta gm ON gs.grid_code = gm.grid_code
+        WHERE gs.city = #{city} AND gs.score_category = 'overall'
+          AND gm.district = #{district}
+        ORDER BY gs.site_score DESC
+    </select>
+
+    <select id="selectBetterBlankCodes" resultType="string">
+        SELECT gs.grid_code
+        FROM jw_grid_score gs
+        JOIN jw_grid_meta gm ON gs.grid_code = gm.grid_code
+        WHERE gs.city = #{city} AND gs.score_category = 'overall'
+          AND gs.site_score > #{minScore}
+          AND NOT EXISTS (
+            SELECT 1 FROM jw_branch_info bi
+            WHERE bi.grid_code = gs.grid_code
+              AND (bi.del_flag IS NULL OR bi.del_flag = '0')
+          )
+        ORDER BY gs.site_score DESC
+    </select>
+
+    <select id="countByCity" parameterType="String" resultType="int">
+        SELECT COUNT(*) FROM jw_grid_score WHERE city = #{city} AND score_category = 'overall'
+    </select>
+
+    <select id="selectRankingWithMeta" resultType="java.util.LinkedHashMap">
+        SELECT gs.grid_code AS "gridCode", gs.site_score AS "siteScore",
+               gm.district AS "district", gm.longitude AS "longitude", gm.latitude AS "latitude"
+        FROM jw_grid_score gs
+        LEFT JOIN jw_grid_meta gm ON gs.grid_code = gm.grid_code
+        WHERE gs.city = #{city} AND gs.score_category = 'overall'
+        ORDER BY gs.site_score DESC
+    </select>
+
+    <select id="selectRankingWithMetaByDistrict" resultType="java.util.LinkedHashMap">
+        SELECT gs.grid_code AS "gridCode", gs.site_score AS "siteScore",
+               gm.district AS "district", gm.longitude AS "longitude", gm.latitude AS "latitude"
+        FROM jw_grid_score gs
+        JOIN jw_grid_meta gm ON gs.grid_code = gm.grid_code
+        WHERE gs.city = #{city} AND gs.score_category = 'overall'
+          AND gm.district = #{district}
+        ORDER BY gs.site_score DESC
+    </select>
+
+    <insert id="insertJwGridScore" parameterType="com.ruoyi.jwmap.domain.JwGridScore">
+        INSERT INTO jw_grid_score (
+            grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        ) VALUES (
+            #{gridCode}, #{city}, #{scoreCategory}, #{positiveDistance}, #{negativeDistance}, #{siteScore}, now()
+        )
+    </insert>
+
+    <update id="updateJwGridScore" parameterType="com.ruoyi.jwmap.domain.JwGridScore">
+        UPDATE jw_grid_score
+        <set>
+            <if test="positiveDistance != null">positive_distance = #{positiveDistance},</if>
+            <if test="negativeDistance != null">negative_distance = #{negativeDistance},</if>
+            <if test="siteScore != null">site_score = #{siteScore},</if>
+        </set>
+        WHERE grid_code = #{gridCode} AND score_category = #{scoreCategory}
+    </update>
+
+    <delete id="deleteJwGridScoreByGridCode" parameterType="String">
+        DELETE FROM jw_grid_score WHERE grid_code = #{gridCode}
+    </delete>
+
+    <delete id="deleteJwGridScoreByGridCodes" parameterType="String">
+        DELETE FROM jw_grid_score WHERE grid_code IN
+        <foreach item="code" collection="array" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </delete>
+
+    <select id="selectTopCodesWithoutBranch" resultType="string">
+        SELECT gs.grid_code
+        FROM jw_grid_score gs
+        JOIN jw_grid_meta gm ON gs.grid_code = gm.grid_code
+        WHERE gs.city = #{city} AND gs.score_category = 'overall'
+          AND NOT EXISTS (
+            SELECT 1 FROM jw_branch_info bi
+            WHERE bi.grid_code = gs.grid_code
+              AND (bi.del_flag IS NULL OR bi.del_flag = '0')
+          )
+        <if test="district != null and district != ''">
+            AND gm.district = #{district}
+        </if>
+        ORDER BY gs.site_score DESC
+        LIMIT #{limit}
+    </select>
+
+    <delete id="deleteByCity" parameterType="String">
+        DELETE FROM jw_grid_score WHERE city = #{city}
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO jw_grid_score (
+            grid_code, city, score_category, positive_distance, negative_distance, site_score, create_time
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.gridCode}, #{item.city}, #{item.scoreCategory}, #{item.positiveDistance}, #{item.negativeDistance}, #{item.siteScore}, now())
+        </foreach>
+    </insert>
+
+</mapper>

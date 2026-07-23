@@ -34,7 +34,10 @@ public interface JwGridMetaMapper {
 
     int batchInsert(List<JwGridMeta> list);
 
-    int upsertGridMeta(JwGridMeta meta);
+    /**
+     * 批量更新网格元信息（GaussDB兼容：使用VALUES语法批量UPDATE）
+     */
+    int batchUpdateGridMeta(@Param("list") List<JwGridMeta> list);
 
     JwGridMeta selectByPoint(@Param("longitude") Double longitude, @Param("latitude") Double latitude);
 }

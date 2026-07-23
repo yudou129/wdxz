@@ -3,7 +3,7 @@ package com.ruoyi.jwmap.service.impl;
 import com.ruoyi.jwmap.domain.*;
 import com.ruoyi.jwmap.mapper.*;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Excel数据导入服务
@@ -23,6 +25,9 @@ public class ExcelImportService {
     private static final Logger log = LoggerFactory.getLogger(ExcelImportService.class);
 
     // BRANCH_INDICATOR_MAP 已移除，所有指标通过 indicator_name 匹配 jw_indicator_config 表
+
+    /** 批量插入每批次大小 */
+    private static final int BATCH_SIZE = 500;
 
     @Autowired
     private JwPoiInfoMapper poiInfoMapper;
@@ -51,7 +56,8 @@ public class ExcelImportService {
     @Transactional
     public int importPoiInfo(InputStream inputStream, String city, String username) throws IOException {
         int count = 0;
-        try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+        List<JwPoiInfo> batch = new ArrayList<>();
+        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter();
 
@@ -74,8 +80,16 @@ public class ExcelImportService {
                 poi.setAddress(getCellStringValue(row.getCell(7), formatter));
                 poi.setPoiType(getCellStringValue(row.getCell(8), formatter));
 
-                poiInfoMapper.upsertPoiInfo(poi);
+                batch.add(poi);
                 count++;
+                if (batch.size() >= BATCH_SIZE) {
+                    poiInfoMapper.batchInsert(batch);
+                    batch.clear();
+                }
+            }
+            if (!batch.isEmpty()) {
+                poiInfoMapper.batchInsert(batch);
+                batch.clear();
             }
         }
         log.info("导入POI数据完成，共{}条", count);
@@ -96,12 +110,16 @@ public class ExcelImportService {
     @Transactional
     public int importPopulationHeat(InputStream inputStream, String city) throws IOException {
         int count = 0;
-        try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+        List<JwPopulationHeat> heatBatch = new ArrayList<>();
+        Set<String> metaSeen = new HashSet<>();
+        List<JwGridMeta> metaBatch = new ArrayList<>();
+        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter();
 
-            // 先清理该市旧人口热力数据（因指标编码会随表头解析改变）
+            // 先清理该市旧数据（全量覆盖，避免后续 batchInsert 主键冲突）
             populationHeatMapper.deleteByCity(city);
+            gridMetaMapper.deleteByCity(city);
 
             // Row 0: h1 一级分类行（含合并单元格）
             Row h1Row = sheet.getRow(0);
@@ -119,7 +137,7 @@ public class ExcelImportService {
                 h2Row != null ? h2Row.getLastCellNum() : 0
             );
 
-            for (int c = 3; c < maxCol; c++) {
+            for (int c = 6; c < maxCol; c++) {
                 // 读取 h1，合并单元格时只有首格有值，后续列 null → 沿用 currentH1
                 String h1 = getCellStringValue(h1Row.getCell(c), formatter);
                 if (h1 != null) {
@@ -158,18 +176,29 @@ public class ExcelImportService {
 
                 if (gridCode == null || gridCode.isEmpty()) continue;
 
-                // 确保jw_grid_meta中有对应的元信息
-                JwGridMeta existingMeta = gridMetaMapper.selectByGridCode(gridCode);
-                if (existingMeta == null) {
+                // 读取省市区（列 3/4/5）
+                String province = getCellStringValue(row.getCell(3), formatter);
+                String cityName = getCellStringValue(row.getCell(4), formatter);
+                String district = getCellStringValue(row.getCell(5), formatter);
+
+                // 保证网格元信息存在，同网格不重复（全量覆盖场景，旧数据已删除）
+                if (!metaSeen.contains(gridCode)) {
+                    metaSeen.add(gridCode);
                     JwGridMeta meta = new JwGridMeta();
                     meta.setGridCode(gridCode);
                     meta.setLongitude(lng);
                     meta.setLatitude(lat);
+                    meta.setProvince(province);
                     meta.setCity(city);
-                    gridMetaMapper.upsertGridMeta(meta);
+                    meta.setDistrict(district);
+                    metaBatch.add(meta);
+                    if (metaBatch.size() >= BATCH_SIZE) {
+                        gridMetaMapper.batchInsert(metaBatch);
+                        metaBatch.clear();
+                    }
                 }
 
-                // 写入每个指标的值
+                // 批量写入每个指标的值
                 for (Map.Entry<Integer, String> entry : colIndicatorMap.entrySet()) {
                     int colIdx = entry.getKey();
                     String indicatorCode = entry.getValue();
@@ -180,9 +209,21 @@ public class ExcelImportService {
                     heat.setGridCode(gridCode);
                     heat.setIndicatorCode(indicatorCode);
                     heat.setIndicatorValue(value);
-                    populationHeatMapper.upsertPopulationHeat(heat);
+                    heatBatch.add(heat);
                     count++;
+                    if (heatBatch.size() >= BATCH_SIZE) {
+                        populationHeatMapper.batchInsert(heatBatch);
+                        heatBatch.clear();
+                    }
                 }
+            }
+            if (!metaBatch.isEmpty()) {
+                gridMetaMapper.batchInsert(metaBatch);
+                metaBatch.clear();
+            }
+            if (!heatBatch.isEmpty()) {
+                populationHeatMapper.batchInsert(heatBatch);
+                heatBatch.clear();
             }
         }
         log.info("导入人口热力数据完成，共{}条指标数据", count);
@@ -201,7 +242,7 @@ public class ExcelImportService {
     @Transactional
     public int importBranchInfo(InputStream inputStream, String city, String dataSource) throws IOException {
         int count = 0;
-        try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
             DataFormatter formatter = new DataFormatter();
 
             // — 自动检测应读取哪个 Sheet —
@@ -438,7 +479,24 @@ public class ExcelImportService {
                 }
             }
 
-            // — 读取数据行 —
+            // — 读取数据行（批量处理，消除 N+1） —
+            // 预加载该市所有网点信息，避免逐行 selectByBranchCode
+            List<JwBranchInfo> existingBranches = branchInfoMapper.selectByCity(city);
+            Map<String, JwBranchInfo> branchCodeMap = existingBranches.stream()
+                .filter(b -> b.getBranchCode() != null)
+                .collect(Collectors.toMap(JwBranchInfo::getBranchCode, b -> b, (a, b) -> a));
+            List<JwBranchIndicator> indBatch = new ArrayList<>();
+
+            // 先批量删除该市该年所有基础数据（消除逐行 deleteByBranchAndYear）
+            int[] years = columnDefs.stream()
+                .filter(d -> d.year != null)
+                .mapToInt(d -> d.year)
+                .distinct().sorted().toArray();
+
+            for (int year : years) {
+                branchIndicatorMapper.deleteByCityYearAndSheetType(city, year, "基础数据");
+            }
+
             for (int i = dataStartIndex; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
@@ -486,22 +544,24 @@ public class ExcelImportService {
                     }
                 }
 
-                // 插入或更新网点基础信息
-                JwBranchInfo existing = branchInfoMapper.selectByBranchCode(branchCode);
-                if (existing != null) {
-                    branch.setBranchId(existing.getBranchId());
+                // 从预加载的 Map 中查找网点（消除逐行 selectByBranchCode）
+                JwBranchInfo saved = branchCodeMap.get(branchCode);
+                Long branchId;
+                if (saved != null) {
+                    branch.setBranchId(saved.getBranchId());
                     branchInfoMapper.updateBranchInfo(branch);
+                    branchId = saved.getBranchId();
                 } else {
                     branchInfoMapper.insertBranchInfo(branch);
+                    branchId = branch.getBranchId();
+                    branchCodeMap.put(branchCode, branch);
                 }
 
-                // 插入年度指标数据
-                Long branchId = branch.getBranchId();
+                // 年度指标：收集到 batch（数据已提前批量删除，此处直接插入）
                 if (branchId != null && !yearlyData.isEmpty()) {
                     for (Map.Entry<Integer, Map<String, Double>> yearEntry : yearlyData.entrySet()) {
                         Integer year = yearEntry.getKey();
                         Map<String, Double> indicators = yearEntry.getValue();
-                        branchIndicatorMapper.deleteByBranchAndYear(branchId, year, "基础数据");
                         for (Map.Entry<String, Double> indEntry : indicators.entrySet()) {
                             JwBranchIndicator ind = new JwBranchIndicator();
                             ind.setBranchId(branchId);
@@ -509,12 +569,20 @@ public class ExcelImportService {
                             ind.setSheetType("基础数据");
                             ind.setIndicatorCode(indEntry.getKey());
                             ind.setIndicatorValue(indEntry.getValue());
-                            branchIndicatorMapper.insertJwBranchIndicator(ind);
+                            indBatch.add(ind);
+                            if (indBatch.size() >= BATCH_SIZE) {
+                                branchIndicatorMapper.batchInsert(indBatch);
+                                indBatch.clear();
+                            }
                         }
                     }
                 }
 
                 count++;
+            }
+            if (!indBatch.isEmpty()) {
+                branchIndicatorMapper.batchInsert(indBatch);
+                indBatch.clear();
             }
 
             log.info("导入网点信息完成，共{}条网点", count);
@@ -529,9 +597,17 @@ public class ExcelImportService {
     @Transactional
     public int importExistingBranch(InputStream inputStream, String city) throws IOException {
         int count = 0;
-        try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter();
+
+            // 预加载该市所有网点，消除逐行 selectByBranchCode
+            List<JwBranchInfo> existingBranches = branchInfoMapper.selectByCity(city);
+            Map<String, JwBranchInfo> branchCodeMap = existingBranches.stream()
+                .filter(b -> b.getBranchCode() != null)
+                .collect(Collectors.toMap(JwBranchInfo::getBranchCode, b -> b, (a, b) -> a));
+            List<JwBranchInfo> toUpdate = new ArrayList<>();
+            List<JwBranchInfo> toInsert = new ArrayList<>();
 
             // 第一行为表头
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -557,8 +633,23 @@ public class ExcelImportService {
                 branch.setLeaseExpire(getCellStringValue(row.getCell(12), formatter));
                 branch.setLastRenovation(getCellStringValue(row.getCell(13), formatter));
 
-                branchInfoMapper.upsertJwBranchInfo(branch);
+                // 从预加载 Map 中查找（消除逐行 selectByBranchCode）
+                JwBranchInfo saved = branchCodeMap.get(branch.getBranchCode());
+                if (saved != null) {
+                    branch.setBranchId(saved.getBranchId());
+                    toUpdate.add(branch);
+                } else {
+                    toInsert.add(branch);
+                    branchCodeMap.put(branch.getBranchCode(), branch);
+                }
                 count++;
+            }
+            // 批量写入
+            for (JwBranchInfo b : toInsert) {
+                branchInfoMapper.insertBranchInfo(b);
+            }
+            for (JwBranchInfo b : toUpdate) {
+                branchInfoMapper.updateBranchInfo(b);
             }
         }
         log.info("导入存量网点完成，共{}条", count);
@@ -576,7 +667,10 @@ public class ExcelImportService {
     @Transactional
     public int importPeerBank(InputStream inputStream, String city) throws IOException {
         int count = 0;
-        try (XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+        List<JwPeerBankInfo> batch = new ArrayList<>();
+        // 预加载该市所有网格元信息，用于空间归属判断（避免逐行 selectByPoint）
+        List<JwGridMeta> cityGrids = gridMetaMapper.selectByCity(city);
+        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter();
 
@@ -604,16 +698,31 @@ public class ExcelImportService {
                     continue;
                 }
 
-                // ★ 自动判断所属网格：根据经纬度查找包含该点的网格
-                if (peer.getLongitude() != null && peer.getLatitude() != null) {
-                    JwGridMeta grid = gridMetaMapper.selectByPoint(peer.getLongitude(), peer.getLatitude());
-                    if (grid != null) {
-                        peer.setGridCode(grid.getGridCode());
+                // ★ 自动判断所属网格：在预加载的网格列表中查找包含该点的网格（内存中完成）
+                if (peer.getLongitude() != null && peer.getLatitude() != null && cityGrids != null) {
+                    for (JwGridMeta g : cityGrids) {
+                        if (g.getWestLongitude() != null && g.getEastLongitude() != null
+                                && g.getSouthLatitude() != null && g.getNorthLatitude() != null
+                                && peer.getLongitude() >= g.getWestLongitude()
+                                && peer.getLongitude() <= g.getEastLongitude()
+                                && peer.getLatitude() >= g.getSouthLatitude()
+                                && peer.getLatitude() <= g.getNorthLatitude()) {
+                            peer.setGridCode(g.getGridCode());
+                            break;
+                        }
                     }
                 }
 
-                peerBankInfoMapper.upsertJwPeerBankInfo(peer);
+                batch.add(peer);
                 count++;
+                if (batch.size() >= BATCH_SIZE) {
+                    peerBankInfoMapper.batchInsert(batch);
+                    batch.clear();
+                }
+            }
+            if (!batch.isEmpty()) {
+                peerBankInfoMapper.batchInsert(batch);
+                batch.clear();
             }
         }
         log.info("导入同业银行数据完成，共{}条", count);
@@ -913,27 +1022,40 @@ public class ExcelImportService {
         return name.replaceAll("[^\\u4e00-\\u9fff0-9]", "");
     }
 
-    /** 规范化名称到指标编码的缓存 */
-    private Map<String, JwIndicatorConfig> normalizedNameCache = null;
+    /** 规范化名称到指标编码的缓存（线程安全、惰性初始化） */
+    private final Map<String, JwIndicatorConfig> normalizedNameCache = new ConcurrentHashMap<>();
 
     /**
      * 构建规范化名称到指标编码的映射（缓存，只构建一次）
      */
     private Map<String, JwIndicatorConfig> buildNormalizedMap() {
-        if (normalizedNameCache != null) return normalizedNameCache;
+        Map<String, JwIndicatorConfig> existing = normalizedNameCache;
+        if (!existing.isEmpty()) return existing;
 
-        List<JwIndicatorConfig> all = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
-        Map<String, JwIndicatorConfig> map = new LinkedHashMap<>();
-        for (JwIndicatorConfig cfg : all) {
-            if (cfg.getIndicatorName() != null) {
-                String norm = normalizeName(cfg.getIndicatorName());
-                if (!norm.isEmpty() && !map.containsKey(norm)) {
-                    map.put(norm, cfg);
+        // 双检锁 — 只在第一次全量构建时同步
+        synchronized (this) {
+            if (!normalizedNameCache.isEmpty()) return normalizedNameCache;
+
+            List<JwIndicatorConfig> all = indicatorConfigMapper.selectJwIndicatorConfigList(new JwIndicatorConfig());
+            Map<String, JwIndicatorConfig> map = new LinkedHashMap<>();
+            for (JwIndicatorConfig cfg : all) {
+                if (cfg.getIndicatorName() != null) {
+                    String norm = normalizeName(cfg.getIndicatorName());
+                    if (!norm.isEmpty() && !map.containsKey(norm)) {
+                        map.put(norm, cfg);
+                    }
                 }
             }
+            normalizedNameCache.putAll(map);
+            return normalizedNameCache;
         }
-        normalizedNameCache = map;
-        return map;
+    }
+
+    /** 当 jw_indicator_config 更新时调用，使缓存失效 */
+    public void clearNormalizedNameCache() {
+        synchronized (this) {
+            normalizedNameCache.clear();
+        }
     }
 
     /**

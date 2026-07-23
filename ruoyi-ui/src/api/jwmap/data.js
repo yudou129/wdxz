@@ -84,8 +84,10 @@ export function getPeerBankList(city) {
 }
 
 // ===== 地图可视化 =====
-export function getGridScoreByCity(city) {
-  return request({ url: '/jwmap/data/grid/score/byCity/' + city, method: 'get' })
+export function getGridScoreByCity(city, district) {
+  const params = {}
+  if (district) params.district = district
+  return request({ url: '/jwmap/data/grid/score/byCity/' + city, method: 'get', params })
 }
 export function getGridIndicators(gridCode) {
   return request({ url: '/jwmap/data/grid/indicators/' + gridCode, method: 'get' })
@@ -93,11 +95,15 @@ export function getGridIndicators(gridCode) {
 export function getBranchScoreDetail(branchId, year) {
   return request({ url: '/jwmap/data/branch/score/detail/' + branchId + '/' + year, method: 'get' })
 }
-export function getGridRanking(city, pageNum, pageSize) {
-  return request({ url: '/jwmap/data/grid/ranking/' + city, method: 'get', params: { pageNum, pageSize } })
+export function getGridRanking(city, pageNum, pageSize, district) {
+  const params = { pageNum, pageSize }
+  if (district) params.district = district
+  return request({ url: '/jwmap/data/grid/ranking/' + city, method: 'get', params })
 }
-export function getBranchRanking(city, year, pageNum, pageSize) {
-  return request({ url: '/jwmap/data/branch/ranking/' + city + '/' + year, method: 'get', params: { pageNum, pageSize } })
+export function getBranchRanking(city, year, pageNum, pageSize, primaryBranch) {
+  const params = { pageNum, pageSize }
+  if (primaryBranch) params.primaryBranch = primaryBranch
+  return request({ url: '/jwmap/data/branch/ranking/' + city + '/' + year, method: 'get', params })
 }
 export function getGridBranches(gridCode) {
   return request({ url: '/jwmap/data/grid/branches/' + gridCode, method: 'get' })
@@ -107,6 +113,9 @@ export function getBranchIndicators(branchId, year) {
 }
 export function getQuadrantData(city, year) {
   return request({ url: '/jwmap/data/quadrant/' + city + '/' + year, method: 'get' })
+}
+export function computeQuadrant(params) {
+  return request({ url: '/jwmap/data/quadrant/compute', method: 'post', data: params })
 }
 export function getBranchInternalRanking(branchId, year) {
   return request({ url: '/jwmap/data/branch/ranking/internal/' + branchId + '/' + year, method: 'get' })

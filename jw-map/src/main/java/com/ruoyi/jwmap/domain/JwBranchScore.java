@@ -21,6 +21,10 @@ public class JwBranchScore {
     private String secondaryBranch;
     private String primaryBranch;
     private String gridCode;
+    /** 四象限 */
+    private String quadrant;
+    private Integer medianSiteRank;
+    private Integer medianBranchRank;
 
     public Long getScoreId() { return scoreId; }
     public void setScoreId(Long scoreId) { this.scoreId = scoreId; }
@@ -48,6 +52,12 @@ public class JwBranchScore {
     public void setPrimaryBranch(String primaryBranch) { this.primaryBranch = primaryBranch; }
     public String getGridCode() { return gridCode; }
     public void setGridCode(String gridCode) { this.gridCode = gridCode; }
+    public String getQuadrant() { return quadrant; }
+    public void setQuadrant(String quadrant) { this.quadrant = quadrant; }
+    public Integer getMedianSiteRank() { return medianSiteRank; }
+    public void setMedianSiteRank(Integer medianSiteRank) { this.medianSiteRank = medianSiteRank; }
+    public Integer getMedianBranchRank() { return medianBranchRank; }
+    public void setMedianBranchRank(Integer medianBranchRank) { this.medianBranchRank = medianBranchRank; }
 
     @Override
     public String toString() {

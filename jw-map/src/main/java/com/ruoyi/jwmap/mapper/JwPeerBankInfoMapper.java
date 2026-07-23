@@ -23,4 +23,6 @@ public interface JwPeerBankInfoMapper {
     int upsertJwPeerBankInfo(JwPeerBankInfo peerBank);
 
     int deleteJwPeerBankInfoById(Long peerBankId);
+
+    int batchInsert(List<JwPeerBankInfo> list);
 }
